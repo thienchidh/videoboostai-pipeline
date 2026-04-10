@@ -1,0 +1,243 @@
+"""
+modules/media/lipsync.py — Video lipsync providers
+
+Provides:
+- WaveSpeedLipsyncProvider: WaveSpeed LTX lipsync
+- MockLipsyncProvider: dry-run placeholder
+"""
+
+import os
+import sys
+import time
+import requests
+import logging
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from core.base_pipeline import DRY_RUN, log, mock_lipsync_video
+from core.plugins import LipsyncProvider, register_provider
+
+
+# ==================== WAVESPEED LIPSYNC ====================
+
+class WaveSpeedLipsyncProvider(LipsyncProvider):
+    """WaveSpeed AI LTX lipsync video generation."""
+
+    def __init__(self, api_key: str, base_url: str = "https://api.wavespeed.ai",
+                 upload_func: Optional[callable] = None):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.upload_func = upload_func
+
+    def upload_file(self, file_path: str) -> Optional[str]:
+        """Upload file to WaveSpeed media storage."""
+        if self.upload_func:
+            return self.upload_func(file_path)
+
+        ext = Path(file_path).suffix.lstrip(".")
+        content_type = f"audio/{ext}" if ext in ["mp3", "wav", "ogg"] else f"image/{ext}"
+        url = f"{self.base_url}/api/v3/media/upload/binary?ext={ext}"
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": content_type}
+        try:
+            with open(file_path, "rb") as f:
+                resp = requests.post(url, headers=headers, data=f, timeout=60)
+            data = resp.json()
+            if data.get("data", {}).get("download_url"):
+                return data["data"]["download_url"]
+            logger.warning(f"Upload failed: {data}")
+        except Exception as e:
+            logger.warning(f"Upload error: {e}")
+        return None
+
+    def wait_for_job(self, job_id: str, max_wait: int = 300) -> Optional[str]:
+        """Poll for job completion. Return output URL or None."""
+        url = f"{self.base_url}/api/v3/predictions/{job_id}/result"
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        elapsed = 0
+        interval = 10
+        while elapsed < max_wait:
+            try:
+                resp = requests.get(url, headers=headers, timeout=30)
+                data = resp.json()
+                status = data.get("data", {}).get("status", "processing")
+                outputs = data.get("data", {}).get("outputs", [])
+                if status == "completed" and outputs:
+                    logger.debug(f"  ✅ Ready ({elapsed}s)")
+                    return outputs[0]
+                elif status == "failed":
+                    logger.warning(f"  ❌ Failed: {data.get('data', {}).get('error', 'unknown')}")
+                    return None
+                logger.debug(f"  ⏳ {status}... ({elapsed}s)")
+                time.sleep(interval)
+                elapsed += interval
+            except Exception as e:
+                logger.warning(f"  ⚠️ Poll error: {e}")
+                time.sleep(interval)
+                elapsed += interval
+        logger.warning(f"  ❌ Timeout")
+        return None
+
+    def generate(self, image_path: str, audio_path: str,
+                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
+        global DRY_RUN
+        if DRY_RUN:
+            return mock_lipsync_video(image_path, audio_path, output_path)
+
+        cfg = config or {}
+        retries = cfg.get("retries", 2)
+        resolution = cfg.get("resolution", "480p")
+
+        for attempt in range(retries):
+            logger.debug(f"  🎬 LTX Lipsync (attempt {attempt+1})...")
+            image_url = self.upload_file(image_path)
+            if not image_url:
+                logger.warning(f"  ❌ Image upload failed")
+                continue
+            audio_url = self.upload_file(audio_path)
+            if not audio_url:
+                logger.warning(f"  ❌ Audio upload failed")
+                continue
+
+            url = f"{self.base_url}/api/v3/wavespeed-ai/ltx-2.3/lipsync"
+            headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+            payload = {
+                "image": image_url,
+                "audio": audio_url,
+                "resolution": resolution
+            }
+            # Add seed if specified
+            if cfg.get("seed"):
+                payload["seed"] = cfg["seed"]
+
+            try:
+                resp = requests.post(url, headers=headers, json=payload, timeout=30)
+                data = resp.json()
+                if not data.get("data", {}).get("id"):
+                    logger.warning(f"  ❌ Job failed: {data}")
+                    continue
+                job_id = data["data"]["id"]
+                logger.debug(f"  ✅ Job: {job_id}")
+                result_url = self.wait_for_job(job_id, max_wait=300)
+                if result_url:
+                    resp = requests.get(result_url, timeout=120)
+                    with open(output_path, "wb") as f:
+                        f.write(resp.content)
+                    return output_path
+            except Exception as e:
+                logger.warning(f"  ❌ LTX error: {e}")
+        return None
+
+
+# ==================== MULTI-TALK ====================
+
+class WaveSpeedMultiTalkProvider(LipsyncProvider):
+    """WaveSpeed InfiniteTalk multi-character video."""
+
+    def __init__(self, api_key: str, base_url: str = "https://api.wavespeed.ai",
+                 upload_func: Optional[callable] = None):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.upload_func = upload_func
+
+    def upload_file(self, file_path: str) -> Optional[str]:
+        if self.upload_func:
+            return self.upload_func(file_path)
+        ext = Path(file_path).suffix.lstrip(".")
+        content_type = f"audio/{ext}" if ext in ["mp3", "wav", "ogg"] else f"image/{ext}"
+        url = f"{self.base_url}/api/v3/media/upload/binary?ext={ext}"
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": content_type}
+        try:
+            with open(file_path, "rb") as f:
+                resp = requests.post(url, headers=headers, data=f, timeout=60)
+            data = resp.json()
+            return data.get("data", {}).get("download_url")
+        except Exception as e:
+            logger.warning(f"Upload error: {e}")
+        return None
+
+    def wait_for_job(self, job_id: str, max_wait: int = 300) -> Optional[str]:
+        url = f"{self.base_url}/api/v3/predictions/{job_id}/result"
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        elapsed = 0
+        while elapsed < max_wait:
+            try:
+                resp = requests.get(url, headers=headers, timeout=30)
+                data = resp.json()
+                status = data.get("data", {}).get("status", "processing")
+                outputs = data.get("data", {}).get("outputs", [])
+                if status == "completed" and outputs:
+                    return outputs[0]
+                elif status == "failed":
+                    return None
+                time.sleep(10)
+                elapsed += 10
+            except Exception:
+                time.sleep(10)
+                elapsed += 10
+        return None
+
+    def generate(self, image_path: str, audio_path: str,
+                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
+        """Multi-talk: audio_path should be (left_audio, right_audio) tuple or dict."""
+        global DRY_RUN
+        if DRY_RUN:
+            return mock_lipsync_video(image_path, audio_path, output_path)
+
+        cfg = config or {}
+        retries = cfg.get("retries", 2)
+
+        # Handle multi-audio: audio_path can be a dict with 'left' and 'right'
+        if isinstance(audio_path, dict):
+            left_audio = audio_path.get("left")
+            right_audio = audio_path.get("right")
+        elif isinstance(audio_path, tuple):
+            left_audio, right_audio = audio_path
+        else:
+            left_audio = right_audio = audio_path
+
+        for attempt in range(retries):
+            image_url = self.upload_file(image_path)
+            if not image_url:
+                continue
+            left_url = self.upload_file(left_audio) if left_audio else None
+            right_url = self.upload_file(right_audio) if right_audio else None
+
+            if not left_url or not right_url:
+                continue
+
+            url = f"{self.base_url}/api/v3/wavespeed-ai/infinitetalk/multi"
+            headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+            payload = {
+                "image": image_url,
+                "left_audio": left_url,
+                "right_audio": right_url,
+                "order": "left_right",
+                "resolution": cfg.get("resolution", "480p")
+            }
+            try:
+                resp = requests.post(url, headers=headers, json=payload, timeout=30)
+                data = resp.json()
+                if not data.get("data", {}).get("id"):
+                    continue
+                result_url = self.wait_for_job(data["data"]["id"])
+                if result_url:
+                    resp = requests.get(result_url, timeout=120)
+                    with open(output_path, "wb") as f:
+                        f.write(resp.content)
+                    return output_path
+            except Exception as e:
+                logger.warning(f"  ❌ InfiniteTalk error: {e}")
+        return None
+
+
+# ==================== REGISTER ====================
+
+def register_lipsync_providers():
+    register_provider("lipsync", "wavespeed", WaveSpeedLipsyncProvider)
+    register_provider("lipsync", "multitalk", WaveSpeedMultiTalkProvider)
+
+
+register_lipsync_providers()

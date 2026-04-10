@@ -1,0 +1,15 @@
+# Secrets
+*secrets*.json
+*.key
+.env
+
+# Output
+video_v3_output/
+__pycache__/
+*.pyc
+
+# Media
+*.mp4
+*.mp3
+*.wav
+*.png

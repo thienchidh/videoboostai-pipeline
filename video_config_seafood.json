@@ -1,0 +1,84 @@
+{
+  "video": {
+    "title": "Hành Trình Khám Phá Đại Dương",
+    "aspect_ratio": "9:16",
+    "style": "3D Pixar Disney",
+    "resolution": "480p",
+    "fps": 25
+  },
+  "api": {
+    "wavespeed_key": "8075a41103d01a02578a1798230f1d6062c60cebb35625e5ee373c7e5dbce523"
+  },
+  "image": {
+    "provider": "wavespeed",
+    "fallback_providers": ["minimax"],
+    "aspect_ratio": "1:1",
+    "timeout": 120
+  },
+  "video_settings": {
+    "codec": "libx264",
+    "preset": "fast",
+    "crf": 23,
+    "audio_codec": "aac"
+  },
+  "subtitle": {
+    "enable": true,
+    "font": "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "font_size": 60,
+    "color": "yellow",
+    "language": "vi"
+  },
+  "seeds": {
+    "image": 42,
+    "video": 12345
+  },
+  "models": {
+    "tts": "minimax",
+    "image": "wavespeed",
+    "video": "ltx-2.3"
+  },
+  "prompt": {
+    "style": "3D animated Pixar Disney style, high quality 3D render, ultra detailed, vibrant colors, smooth animation, cinematic lighting, underwater world",
+    "script_hints": {
+      "ocean": "magical underwater ocean scene, crystal clear blue water, colorful coral reefs, sunlight streaming through water surface, bubbles floating, sea anemones swaying, tropical fish swimming, magical underwater atmosphere, Pixar Disney quality",
+      "reef": "bustling underwater coral reef city, colorful coral structures, seaweed forests, treasure chest, pearl oysters, starfish and seahorses, ancient shipwreck covered in coral, golden light rays through water, magical sea kingdom, Pixar Disney quality",
+      "shipwreck": "ancient sunken shipwreck, barnacles and coral growing on old wooden hull, treasure chest with gold coins spilling out, schools of silver fish swimming around, shafts of golden light from above, mysterious underwater atmosphere, Pixar Disney quality",
+      "market": "underwater seafood market, vendors selling fresh fish, crabs and lobsters in tanks, octopus and squid on ice, friendly fish vendors with aprons, colorful display of sea creatures, bustling market atmosphere, Pixar Disney quality",
+      "default": "magical underwater world, Pixar Disney quality"
+    }
+  },
+  "characters": [
+    {
+      "name": "TomCua",
+      "description": "a cute red crab character with big friendly eyes, red-orange shell, big claws, wearing tiny captain hat",
+      "prompt": "3D animated Pixar Disney style adorable red crab character, big expressive round eyes with sparkle, red-orange outer shell with natural shine, large friendly claws, wearing tiny adorable captain hat, standing in magical underwater ocean scene, coral reef background with colorful fish, Disney Pixar high quality 3D render, soft cinematic underwater lighting, warm golden light rays filtering through water, vibrant saturated colors, bubbles floating around",
+      "avatar_file": "TomCua.png",
+      "tts_voice": "female_voice",
+      "tts_speed": 1.05,
+      "auto_create": true
+    },
+    {
+      "name": "CaHeo",
+      "description": "a chubby cute blue dolphin friend, big smile, friendly personality",
+      "prompt": "3D animated Pixar Disney style chubby cute blue dolphin character, big friendly smile showing teeth, round chubby body in beautiful blue-gray tones, large intelligent friendly eyes, small dorsal fin, playful pose, swimming in crystal clear tropical ocean, sunlight streaming through water, bubbles trail behind, Disney Pixar quality 3D render, vibrant underwater colors",
+      "avatar_file": "CaHeo.png",
+      "tts_voice": "male-qn-qingse",
+      "tts_speed": 1.0,
+      "auto_create": true
+    }
+  ],
+  "scenes": [
+    {
+      "id": 1,
+      "script": "Này mọi người ơi! Đại dương này cool lắm nha! Có san hô đủ màu, cá bao la, và cả kho báu cổ xưa nữa! Tom Cua mình vừa phát hiện ra một thế giới kỳ diệu dưới đáy biển! Các bạn có muốn khám phá cùng mình không nào?",
+      "characters": ["TomCua"],
+      "background": "ocean"
+    },
+    {
+      "id": 2,
+      "script": "Ồ không! Bất ngờ quá! Ca Heo xanh đẹp zai kìa! Cậu ấy bơi tới và nói rằng... cậu ấy biết một nơi còn tuyệt vời hơn! Một vương quốc san hô rực rỡ với hàng ngàn loài cá khác nhau! Tom Cua và Ca Heo cùng nhau khám phá nào! Like và follow để cùng đi nhé!",
+      "characters": ["TomCua", "CaHeo"],
+      "background": "reef"
+    }
+  ]
+}

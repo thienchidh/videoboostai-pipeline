@@ -143,7 +143,7 @@ def build_karaoke_frame(words_data, t, font_pil):
         x = (total_w - tw) // 2
 
         for (word, ww, wh, w_start, w_end) in line:
-            if t <= w_start:
+            if t < w_start:
                 text_col = TEXT_DIM
                 bg_alpha_frac = 0.0
             elif t < w_start + COLOR_FADE_DURATION:
@@ -295,7 +295,7 @@ def build_frame(words_data, t):
         x = (total_w - tw) // 2
 
         for (word, ww, wh, w_start, w_end) in line:
-            if t <= w_start:
+            if t < w_start:
                 text_col = TEXT_DIM
                 bg_alpha_frac = 0.0
             elif t < w_start + COLOR_FADE:

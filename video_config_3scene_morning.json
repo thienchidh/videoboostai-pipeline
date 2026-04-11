@@ -1,8 +1,8 @@
 {
   "video": {
-    "title": "3 Thoi Quen Buoi Sang Hieu Qua Gap 3 Lan",
+    "title": "3 Thoi Quen Buoi Sang Hieu Qua",
     "aspect_ratio": "9:16",
-    "style": "3D animated Pixar Disney style, high quality 3D render, ultra detailed, vibrant colors, smooth animation, cinematic lighting, modern office atmosphere",
+    "style": "3D animated Pixar Disney style, high quality 3D render, ultra detailed, vibrant colors, smooth animation, cinematic lighting",
     "resolution": "480p",
     "fps": 25
   },
@@ -30,17 +30,17 @@
     "margin": 8
   },
   "prompt": {
-    "style": "3D animated Pixar Disney style, high quality 3D render, ultra detailed, vibrant colors, smooth animation, cinematic lighting, modern office atmosphere",
+    "style": "3D animated Pixar Disney style, high quality 3D render, ultra detailed, vibrant colors, smooth animation, cinematic lighting",
     "script_hints": {
-      "office": "modern office workspace, busy professional working, computer desk, notepad, coffee cup, organized workspace, Pixar Disney quality",
+      "office": "modern office workspace, busy professional working, computer desk, coffee cup, organized workspace, Pixar Disney quality",
       "default": "modern office, productive workspace, Pixar Disney quality"
     }
   },
   "characters": [
     {
       "name": "GiaoVien",
-      "description": "friendly female professional, modern career woman",
-      "prompt": "3D animated Pixar Disney style friendly professional woman, modern office attire, warm smile, confident, standing in modern workspace, bright colorful setting, Disney Pixar high quality 3D render, soft cinematic lighting, 4K ultra detailed",
+      "description": "friendly female professional",
+      "prompt": "3D animated Pixar Disney style friendly professional woman, modern office attire, warm smile, confident, bright colorful setting, Disney Pixar high quality 3D render, soft cinematic lighting, 4K ultra detailed",
       "avatar_file": "avatars/GiaoVien.png",
       "tts_voice": "female_2"
     }
@@ -51,7 +51,7 @@
       "characters": [
         "GiaoVien"
       ],
-      "script": "Buổi sáng quyết định cả ngày của bạn. Người thành công không cần thức dậy lúc 5 giờ — họ chỉ biết 3 thói quen đơn giản sau để khởi đầu ngày tràn đầy năng lượng.",
+      "script": "Người thành công không cần dậy lúc 5 giờ. Họ có 3 thói quen buổi sáng đơn giản để khởi đầu ngày tràn đầy năng lượng.",
       "image_prompt": "3D animated Pixar Disney professional woman, modern office, morning sunlight, warm smile, confident pose, working at desk with coffee, bright colorful workspace, Disney Pixar quality, 4K"
     },
     {
@@ -59,7 +59,7 @@
       "characters": [
         "GiaoVien"
       ],
-      "script": "Thói quen thứ nhất: Không cầm điện thoại trong 30 phút đầu sau khi thức dậy. Thay vì lướt mạng xã hội, hãy dành thời gian đó để hít thở sâu, tưởng tượng một ngày tuyệt vời và viết ra 3 điều bạn biết ơn. Não bạn sẽ ở trạng thái alpha — trạng thái của sự tập trung và sáng tạo.",
+      "script": "Thói quen thứ nhất: Không cầm điện thoại 30 phút đầu. Hãy hít thở sâu và viết 3 điều bạn biết ơn. Não sẽ tập trung cao độ.",
       "image_prompt": "3D animated Pixar Disney woman practicing mindfulness morning routine, peaceful expression, sitting with journal, soft morning light through window, cozy home office, nature view, Disney Pixar quality, 4K"
     },
     {
@@ -67,8 +67,8 @@
       "characters": [
         "GiaoVien"
       ],
-      "script": "Thói quen thứ hai: Tập thể dục nhẹ 10 phút. Đi bộ, stretch, hoặc yoga đều được. Chỉ 10 phút vận động giúp máu lưu thông, tăng cường oxytocin và giảm cortisol — bạn sẽ cảm thấy tỉnh táo hơn cả tách cà phê. Và thói quen thứ ba: hãy ăn sáng đúng cách. Không cần phức tạp — chỉ cần một quả trứng và một quả chuối để cung cấp protein và năng lượng cho buổi sáng.",
-      "image_prompt": "3D animated Pixar Disney woman doing light morning exercise stretch routine, energetic and happy expression, modern gym wear, bright morning light, clean modern space, healthy breakfast with egg and banana nearby, Disney Pixar quality, 4K"
+      "script": "Thói quen thứ hai: Tập thể dục nhẹ 10 phút. Đi bộ hoặc yoga. Giúp bạn tỉnh táo hơn cà phê. Và thói quen thứ ba: ăn sáng đúng cách.",
+      "image_prompt": "3D animated Pixar Disney woman doing light morning exercise at home, happy expression, comfortable athletic wear, bright morning light, clean modern living room, healthy breakfast table nearby, Disney Pixar quality, 4K"
     }
   ],
   "lipsync": {

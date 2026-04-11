@@ -1160,13 +1160,11 @@ class VideoPipelineV3:
             scaled_font_size = int(font_size * scale)
             
             # Load font to measure text dimensions for bounce bounds
+            from PIL import Image as PILImage, ImageFont, ImageDraw
             try:
                 fnt = ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf', scaled_font_size)
             except:
                 fnt = ImageFont.load_default()
-            
-            # Measure text size using PIL
-            from PIL import Image as PILImage
             _tmp_draw = PILImage.new('RGBA', (1, 1))
             _tmp_d = PILImageDraw.Draw(_tmp_draw)
             bbox = _tmp_d.textbbox((0, 0), text, font=fnt)
@@ -1501,6 +1499,9 @@ class VideoPipelineV3:
             for i, scene in enumerate(scenes):
                 scene_id = scene.get("id", i+1)
                 scene_dir = self.run_dir / f"scene_{scene_id}"
+                if i >= len(scene_videos):
+                    log(f"  ⚠️ Scene {scene_id}: no video (skipped) - skipping timestamps")
+                    continue
                 ts_file = scene_dir / "words_timestamps.json"
                 if ts_file.exists():
                     with open(ts_file, encoding="utf-8") as f:

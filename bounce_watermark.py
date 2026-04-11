@@ -1,4 +1,4 @@
-#!/home/linuxbrew/.linuxbrew/bin/python3
+#!/home/openclaw-personal/.openclaw/workspace-videopipeline/venv/bin/python3
 """
 Bounce watermark: realistic physics-based bounce around screen edges.
 Watermark moves in a direction, bounces off walls.

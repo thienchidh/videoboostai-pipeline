@@ -19,3 +19,4 @@ __pycache__/
 .credentials.key
 .openclaw/
 memory/
+venv/

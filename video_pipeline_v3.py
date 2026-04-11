@@ -29,13 +29,16 @@ DRY_RUN_TTS = False       # Mock only TTS
 DRY_RUN_IMAGES = False    # Mock only image generation
 UPLOAD_TO_SOCIALS = False # Upload to FB/TikTok after generation
 
-# Detect best python for karaoke subtitles (needs moviepy from linuxbrew)
+# Detect best python for karaoke/watermark (needs PIL from venv or linuxbrew)
 LINUXBREW_PYTHON = "/home/linuxbrew/.linuxbrew/bin/python3"
+VENV_PYTHON = str(Path(__file__).parent / "venv" / "bin" / "python3")
 SYSTEM_PYTHON = "/usr/bin/python3"
 
 
 def get_karaoke_python():
-    """Return python with moviepy installed"""
+    """Return python with PIL/numpy installed (venv > linuxbrew > system)"""
+    if os.path.exists(VENV_PYTHON):
+        return VENV_PYTHON
     if os.path.exists(LINUXBREW_PYTHON):
         return LINUXBREW_PYTHON
     return SYSTEM_PYTHON
@@ -1151,12 +1154,8 @@ class VideoPipelineV3:
         """Add watermark to video using PIL overlay + FFmpeg.
         
         Supports 'static' and 'bounce' motion modes:
-        - static: fixed position (default)
-        - bounce: horizontal sine-wave screensaver-style bounce
-          * safe padding: 5px from all edges
-          * opacity: 15%
-          * y: vertically centered
-          * x: oscillates left↔right over the video width
+        - static: fixed position at bottom-right
+        - bounce: 4-directional physics-based bounce (watermark bounces off walls)
         """
         wm_cfg = self.config.get("watermark", {})
         if not wm_cfg.get("enable", False):
@@ -1164,18 +1163,37 @@ class VideoPipelineV3:
             return video_path
         
         text = wm_cfg.get("text", "@NangSuatThongMinh")
-        font_size = wm_cfg.get("font_size", 36)
-        opacity = wm_cfg.get("opacity", 0.35)
-        motion = wm_cfg.get("motion", "static")
-        
-        # Bounce defaults: 15% opacity, 5px safe padding
-        bounce_opacity = wm_cfg.get("bounce_opacity", 0.15)
-        bounce_padding = wm_cfg.get("bounce_padding", 5)
-        bounce_period = wm_cfg.get("bounce_period", 4.0)  # seconds for one full left↔right cycle
+        font_size = wm_cfg.get("font_size", 60)
+        opacity = wm_cfg.get("opacity", 0.15)
+        motion = wm_cfg.get("motion", "bounce")
         
         log(f"  💧 Adding watermark: '{text}' (motion={motion}, opacity={opacity})")
         
         try:
+            if motion == "bounce":
+                # Use physics-based bounce watermark script
+                bounce_script = Path(__file__).parent / "bounce_watermark.py"
+                if bounce_script.exists():
+                    python = get_karaoke_python()
+                    cmd = [
+                        python, str(bounce_script),
+                        str(video_path), str(output_path),
+                        "--text", text,
+                        "--font-size", str(font_size),
+                        "--opacity", str(opacity),
+                        "--speed", str(wm_cfg.get("bounce_speed", 120)),
+                        "--padding", str(wm_cfg.get("bounce_padding", 15))
+                    ]
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+                    if result.returncode == 0 and Path(output_path).exists():
+                        log(f"  ✅ Watermark added (bounce, font={font_size}, opacity={opacity})")
+                        return output_path
+                    else:
+                        log(f"  ⚠️ Bounce watermark failed: {result.stderr[-300:] if result.stderr else 'unknown error'}")
+                else:
+                    log(f"  ⚠️ bounce_watermark.py not found, falling back to static")
+            
+            # --- STATIC MODE (fallback or when motion=static) ---
             # Get video dimensions
             result = subprocess.run(
                 ["ffprobe", "-v", "quiet", "-select_streams", "v:0",
@@ -1190,75 +1208,12 @@ class VideoPipelineV3:
             scale = vh / 1920
             scaled_font_size = int(font_size * scale)
             
-            # Load font to measure text dimensions for bounce bounds
             from PIL import Image as PILImage, ImageFont, ImageDraw
             try:
                 fnt = ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf', scaled_font_size)
             except:
                 fnt = ImageFont.load_default()
-            _tmp_draw = PILImage.new('RGBA', (1, 1))
-            _tmp_d = ImageDraw.Draw(_tmp_draw)
-            bbox = _tmp_d.textbbox((0, 0), text, font=fnt)
-            text_w = bbox[2] - bbox[0]
-            text_h = bbox[3] - bbox[1]
             
-            # Bounce parameters
-            pad = bounce_padding
-            min_x = pad                                     # 5px from left
-            max_x = vw - text_w - pad                       # 5px from right
-            # y: vertically centered
-            y_center = (vh - text_h) // 2
-            
-            log(f"  💧 Watermark bounce: min_x={min_x}, max_x={max_x}, y={y_center}, period={bounce_period}s")
-            
-            # Effective opacity (use bounce_opacity when bouncing)
-            eff_opacity = bounce_opacity if motion == "bounce" else opacity
-            alpha = int(255 * eff_opacity)
-            
-            if motion == "bounce":
-                # --- BOUNCE MODE: single transparent overlay, FFmpeg animates position ---
-                overlay_path = self.run_dir / "watermark_overlay_bounce.png"
-                
-                # Create fully transparent RGBA canvas
-                overlay = PILImage.new('RGBA', (vw, vh), (0, 0, 0, 0))
-                draw = ImageDraw.Draw(overlay)
-                
-                # Draw stroke then fill for readability at low opacity
-                stroke_alpha = int(alpha * 0.8)
-                draw.text((0, 0), text, font=fnt, fill=(0, 0, 0, stroke_alpha))
-                draw.text((0, 0), text, font=fnt, fill=(255, 255, 255, alpha))
-                overlay.save(str(overlay_path))
-                
-                tmp_wm = self.run_dir / "watermark_tmp_bounce.mp4"
-                
-                # FFmpeg expression for sine-wave horizontal bounce:
-                #   x = min_x + (max_x - min_x) * 0.5 * (1 + sin(2*PI*t/period))
-                # This gives a smooth oscillation between min_x (left) and max_x (right).
-                x_expr = f"{min_x}+({max_x}-{min_x})*0.5*(1+sin(2*3.14159265*t/{bounce_period}))"
-                
-                cmd = [
-                    "ffmpeg", "-y",
-                    "-i", str(video_path),
-                    "-i", str(overlay_path),
-                    "-filter_complex",
-                    f"[0:v][1:v]overlay=x={x_expr}:y={y_center}:eof_action=pass[out]",
-                    "-map", "[out]", "-map", "0:a?",
-                    "-c:v", "libx264", "-preset", "fast", "-crf", "22",
-                    "-c:a", "copy",
-                    str(tmp_wm)
-                ]
-                
-                result = subprocess.run(cmd, capture_output=True, timeout=300)
-                if result.returncode == 0 and tmp_wm.exists():
-                    import shutil
-                    shutil.copy(tmp_wm, output_path)
-                    log(f"  ✅ Watermark added (bounce, opacity={bounce_opacity:.0%})")
-                    return output_path
-                else:
-                    log(f"  ⚠️ Watermark bounce failed: {result.stderr[:300] if result.stderr else 'unknown error'}")
-                    # Fall through to static on failure
-            
-            # --- STATIC MODE (default) ---
             overlay = PILImage.new('RGBA', (vw, vh), (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
             
@@ -1266,21 +1221,17 @@ class VideoPipelineV3:
             x = vw - int(280 * scale)
             y = vh - int(70 * scale)
             
-            # Opacity (0-255)
             alpha = int(255 * opacity)
-            
-            # Draw stroke then fill
             stroke_alpha = int(alpha * 0.8)
             draw.text((x, y), text, font=fnt, fill=(0, 0, 0, stroke_alpha))
             draw.text((x, y), text, font=fnt, fill=(255, 255, 255, alpha))
             
-            # Save overlay
             overlay_path = self.run_dir / "watermark_overlay.png"
             overlay.save(str(overlay_path))
             
             tmp_wm = self.run_dir / "watermark_tmp.mp4"
             
-            # Apply overlay with FFmpeg
+            # Apply overlay: video (0) is base, overlay (1) on top
             cmd = [
                 "ffmpeg", "-y", "-i", str(video_path), "-i", str(overlay_path),
                 "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
@@ -1293,7 +1244,7 @@ class VideoPipelineV3:
             if result.returncode == 0 and tmp_wm.exists():
                 import shutil
                 shutil.copy(tmp_wm, output_path)
-                log(f"  ✅ Watermark added")
+                log(f"  ✅ Watermark added (static)")
                 return output_path
             else:
                 log(f"  ⚠️ Watermark failed: {result.stderr[:200] if result.stderr else 'unknown error'}")

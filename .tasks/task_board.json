@@ -1,5 +1,12 @@
 {
   "project": "videopipeline",
+  "archived": [],
+  "metadata": {
+    "last_updated": "2026-04-11T09:28:00Z",
+    "total_tasks": 16,
+    "done_tasks": 16,
+    "schema_version": 1
+  },
   "tasks": [
     {
       "id": "VP-001",
@@ -25,7 +32,9 @@
       "source": "manual",
       "reason": "Dry-run needs mock TTS",
       "type": "inhouse",
-      "blocked_by": ["VP-001"],
+      "blocked_by": [
+        "VP-001"
+      ],
       "assigned_to": null,
       "claimed_at": null,
       "note": "Mock functions already implemented in video_pipeline_v3.py",
@@ -40,7 +49,9 @@
       "source": "manual",
       "reason": "Dry-run needs mock images",
       "type": "inhouse",
-      "blocked_by": ["VP-001"],
+      "blocked_by": [
+        "VP-001"
+      ],
       "assigned_to": null,
       "claimed_at": null,
       "note": "Mock functions already implemented in video_pipeline_v3.py",
@@ -55,7 +66,9 @@
       "source": "manual",
       "reason": "Dry-run needs mock lipsync",
       "type": "inhouse",
-      "blocked_by": ["VP-001"],
+      "blocked_by": [
+        "VP-001"
+      ],
       "assigned_to": null,
       "claimed_at": null,
       "note": "Mock functions already implemented in video_pipeline_v3.py",
@@ -70,7 +83,9 @@
       "source": "manual",
       "reason": "Allow hybrid dry-run modes",
       "type": "inhouse",
-      "blocked_by": ["VP-001"],
+      "blocked_by": [
+        "VP-001"
+      ],
       "assigned_to": null,
       "claimed_at": null,
       "note": "Already implemented - --dry-run-tts and --dry-run-images exist",
@@ -85,7 +100,11 @@
       "source": "manual",
       "reason": "Verify dry-run works end-to-end",
       "type": "inhouse",
-      "blocked_by": ["VP-002", "VP-003", "VP-004"],
+      "blocked_by": [
+        "VP-002",
+        "VP-003",
+        "VP-004"
+      ],
       "assigned_to": null,
       "claimed_at": null,
       "note": "Dry-run smoke test passed - mock TTS and images work",
@@ -94,7 +113,7 @@
     {
       "id": "VP-007",
       "title": "Phase 2: Database setup - SQLite for video pipeline state management",
-      "status": "todo",
+      "status": "done",
       "priority": "high",
       "created": "2026-04-10T16:33:00Z",
       "source": "manual",
@@ -103,96 +122,114 @@
       "blocked_by": [],
       "assigned_to": null,
       "claimed_at": null,
-      "note": "Tables: projects, video_runs, scenes, api_calls, credits_log"
+      "note": "Implemented: db.py (projects, video_runs, scenes, api_calls, credits_log), scripts/init_db.py, DB integration in pipeline __init__ and run().",
+      "completed_at": "2026-04-11T00:25:00Z"
     },
     {
       "id": "VP-008",
       "title": "Phase 2: Caption generation module - auto-generate FB/TikTok captions from script",
-      "status": "todo",
+      "status": "done",
       "priority": "high",
       "created": "2026-04-10T16:33:00Z",
       "source": "manual",
       "reason": "Auto-generate engaging captions from video script for social media",
       "type": "inhouse",
       "blocked_by": [],
-      "assigned_to": null,
-      "claimed_at": null,
-      "note": "Use local LLM or template-based caption generation"
+      "assigned_to": "cron-heartbeat",
+      "claimed_at": "2026-04-10T16:51:29.865214+00:00",
+      "note": "Implemented: modules/content/caption_generator.py - auto-caption generator / SRT generator + FB/TikTok upload.",
+      "completed_at": "2026-04-10T16:54:28.421890+00:00"
     },
     {
       "id": "VP-009",
       "title": "Phase 2: SRT upload module - generate and upload SRT subtitles to social platforms",
-      "status": "todo",
+      "status": "done",
       "priority": "high",
       "created": "2026-04-10T16:33:00Z",
       "source": "manual",
       "reason": "Upload SRT subtitle files to Facebook/TikTok for video upload",
       "type": "inhouse",
       "blocked_by": [],
-      "assigned_to": null,
-      "claimed_at": null,
-      "note": "Generate SRT from timestamps, upload to FB/TikTok"
+      "assigned_to": "cron-heartbeat",
+      "claimed_at": "2026-04-10T16:51:29.865214+00:00",
+      "note": "Implemented: modules/media/srt_generator.py - auto-caption generator / SRT generator + FB/TikTok upload.",
+      "completed_at": "2026-04-10T16:54:28.421890+00:00"
     },
     {
       "id": "VP-010",
       "title": "Phase 2: Facebook Page API integration - upload video with caption + SRT",
-      "status": "todo",
+      "status": "done",
       "priority": "high",
       "created": "2026-04-10T16:33:00Z",
       "source": "manual",
       "reason": "Upload video directly to Facebook Page via Graph API",
       "type": "social",
-      "blocked_by": ["VP-007"],
-      "assigned_to": null,
-      "claimed_at": null,
-      "note": "Facebook Graph API v19.0 - video upload endpoint"
+      "blocked_by": [
+        "VP-007"
+      ],
+      "assigned_to": "cron-heartbeat",
+      "claimed_at": "2026-04-10T17:56:00Z",
+      "note": "Implemented: modules/social/facebook_api.py \u2014 FacebookAPIClient with Graph API v19.0 resumable upload, SRT captions, DB credential store/retrieve, dry-run mode. Tests: tests/test_facebook_api.py (12 tests passing).",
+      "completed_at": "2026-04-11T00:57:00.000000+07:00"
     },
     {
       "id": "VP-011",
       "title": "Phase 2: TikTok API integration - upload video with caption",
-      "status": "todo",
+      "status": "done",
       "priority": "high",
       "created": "2026-04-10T16:33:00Z",
       "source": "manual",
       "reason": "Upload video directly to TikTok via TikTok API",
       "type": "social",
-      "blocked_by": ["VP-007"],
-      "assigned_to": null,
-      "claimed_at": null,
-      "note": "TikTok Content API or third-party SDK"
+      "blocked_by": [
+        "VP-007"
+      ],
+      "assigned_to": "heartbeat-0411",
+      "claimed_at": "2026-04-10T21:15:00Z",
+      "note": "Implemented: modules/social/tiktok_api.py \u2014 TikTokAPIClient with Marketing API v2 upload/initiate\u2192PUT chunks\u2192publish flow, DB credential store/retrieve, dry-run mode. Tests: tests/test_tiktok_api.py (20 tests passing).",
+      "completed_at": "2026-04-11T04:16:00.000000+07:00"
     },
     {
+      "status": "done",
+      "completed_at": "2026-04-10T17:48:24Z",
+      "note": "Encrypted storage, no hardcoding",
+      "assigned_to": null,
+      "claimed_at": null,
       "id": "VP-012",
       "title": "Phase 2: Credentials management - store FB/TikTok API keys in database",
-      "status": "todo",
       "priority": "high",
       "created": "2026-04-10T16:33:00Z",
       "source": "manual",
       "reason": "Securely store and manage social media API credentials",
       "type": "inhouse",
-      "blocked_by": ["VP-007"],
-      "assigned_to": null,
-      "claimed_at": null,
-      "note": "Encrypted storage, no hardcoding"
+      "blocked_by": [
+        "VP-007"
+      ]
     },
     {
       "id": "VP-013",
       "title": "Phase 2: Pipeline integration - connect video output to social upload",
-      "status": "todo",
+      "status": "done",
       "priority": "medium",
       "created": "2026-04-10T16:33:00Z",
       "source": "manual",
-      "reason": "End-to-end: generate video → create caption → upload to socials",
+      "reason": "End-to-end: generate video \u2192 create caption \u2192 upload to socials",
       "type": "inhouse",
-      "blocked_by": ["VP-008", "VP-009", "VP-010", "VP-011"],
+      "blocked_by": [
+        "VP-008",
+        "VP-009",
+        "VP-010",
+        "VP-011"
+      ],
       "assigned_to": null,
       "claimed_at": null,
-      "note": "Full pipeline from video generation to social media upload"
+      "note": "Implemented: modules/pipeline/publisher.py (SocialPublisher, get_publisher), modules/pipeline/__init__.py. Orchestrates: caption generation (FB/TT) via caption_generator, SRT generation via srt_generator, FB upload via facebook_api.py, TT upload via tiktok.py, DB logging to social_posts. Dry-run mode simulates full flow without real API calls. Added --upload-to-socials flag + UPLOAD_TO_SOCIALS global in video_pipeline_v3.py. Tested OK.",
+      "completed_at": "2026-04-10T21:15:34.000000+07:00"
     },
     {
       "id": "VP-014",
       "title": "Phase 2: Add watermark bounce to video_pipeline_v3.py (script fix)",
-      "status": "todo",
+      "status": "done",
       "priority": "high",
       "created": "2026-04-10T16:33:00Z",
       "source": "manual",
@@ -201,28 +238,38 @@
       "blocked_by": [],
       "assigned_to": null,
       "claimed_at": null,
-      "note": "Add bouncing watermark with safe padding (5px), opacity 15%, screensaver motion"
+      "note": "Implemented: bounce mode with horizontal sine-wave, 5px padding, 15% opacity, vertically centered, 4s period. Fallback to static on failure.",
+      "completed_at": "2026-04-10T16:40:00Z"
     },
     {
       "id": "VP-015",
       "title": "Phase 2: Add karaoke pill-style subtitles to video_pipeline_v3.py",
-      "status": "todo",
+      "status": "done",
       "priority": "high",
       "created": "2026-04-10T16:33:00Z",
       "source": "manual",
       "reason": "Implement karaoke pill subtitles in main pipeline",
       "type": "inhouse",
       "blocked_by": [],
+      "assigned_to": "cron-heartbeat",
+      "claimed_at": "2026-04-10T17:56:00Z",
+      "note": "Implemented: karaoke pill-style subtitles in karaoke_subtitles.py - LiberationSans-Bold size=60, yellow text, rounded pill bg (black 200/255 alpha), karaoke word highlight effect using moviepy + PIL. Updated add_subtitles_with_timestamps to font-size=60.",
+      "completed_at": "2026-04-10T18:06:04.035730+00:00"
+    },
+    {
+      "id": "VP-016",
+      "title": "Phase 2: Content Topic Research Module - research, generate & schedule content ideas for page",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-11T09:28:00Z",
+      "source": "manual",
+      "reason": "Auto-generate content ideas, research trending topics for productivity niche, schedule and track content calendar",
+      "type": "inhouse",
+      "blocked_by": [],
       "assigned_to": null,
       "claimed_at": null,
-      "note": "LiberationSans-Bold size=60, yellow text, rounded pill bg (black 200/255)"
+      "note": "modules/content/ topic_researcher.py, content_idea_generator.py, content_calendar.py, content_pipeline.py. DB tables: topic_sources, content_ideas, content_calendar. Video config: video_config_content.json.example",
+      "completed_at": "2026-04-11T09:28:00Z"
     }
-  ],
-  "archived": [],
-  "metadata": {
-    "last_updated": "2026-04-10T16:33:00Z",
-    "total_tasks": 15,
-    "done_tasks": 6,
-    "schema_version": 1
-  }
+  ]
 }

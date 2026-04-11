@@ -146,14 +146,14 @@ def build_karaoke_frame(words_data, t, font_pil):
             if t < w_start:
                 text_col = TEXT_DIM
                 bg_alpha_frac = 0.0
-            elif t < w_start + COLOR_FADE_DURATION:
+            elif t >= w_start and t < w_start + COLOR_FADE_DURATION:
                 frac = (t - w_start) / COLOR_FADE_DURATION
                 text_col = lerp_color(TEXT_DIM, TEXT_HL, frac)
                 bg_alpha_frac = frac
-            elif t < w_end - PILL_FADE_DURATION:
+            elif t >= w_start + COLOR_FADE_DURATION and t < w_end - PILL_FADE_DURATION:
                 text_col = TEXT_HL
                 bg_alpha_frac = 1.0
-            elif t < w_end:
+            elif t >= w_end - PILL_FADE_DURATION and t < w_end:
                 frac = (w_end - t) / PILL_FADE_DURATION
                 text_col = lerp_color(TEXT_HL, TEXT_DIM, 1 - frac)
                 bg_alpha_frac = frac
@@ -305,7 +305,7 @@ def build_frame(words_data, t):
             elif t < w_end - PILL_FADE:
                 text_col = TEXT_HL
                 bg_alpha_frac = 1.0
-            elif t < w_end:
+            elif t >= w_end - PILL_FADE_DURATION and t < w_end:
                 frac = (w_end - t) / PILL_FADE
                 text_col = lerp_color(TEXT_HL, TEXT_DIM, 1 - frac)
                 bg_alpha_frac = frac

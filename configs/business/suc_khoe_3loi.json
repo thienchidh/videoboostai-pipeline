@@ -1,0 +1,25 @@
+{
+  "_comment": "Business config - 3 scenes",
+  
+  "video": {
+    "title": "3 Loi Ve Suc Khoe"
+  },
+  
+  "scenes": [
+    {
+      "id": 1,
+      "script": "Xin chao! Moi ngay ban dan bao nhieu lit nuoc? Nuoc rat quan trong voi suc khoe. Hom nay toi chia se 3 loi don gian giup ban khoe hon moi ngay.",
+      "characters": ["GiaoVien"]
+    },
+    {
+      "id": 2,
+      "script": "Loi thu nhat: Uong du nuoc. Moi ngay nen uong it nhat 2 lit nuoc. Nuoc giup thanh loc co the, tang cuong dam me va lam da dep hon.",
+      "characters": ["GiaoVien"]
+    },
+    {
+      "id": 3,
+      "script": "Loi thu hai: Di bo 30 phut moi ngay. Di bo la bai tap don gian nhat, giam duoc nguy co benh tim, tieu duong va giup tam trang tot hon. Bat dau ngay hom nay nhe!",
+      "characters": ["GiaoVien"]
+    }
+  ]
+}

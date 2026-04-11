@@ -2,8 +2,8 @@
   "project": "videopipeline",
   "archived": [],
   "metadata": {
-    "last_updated": "2026-04-11T09:28:00Z",
-    "total_tasks": 16,
+    "last_updated": "2026-04-11T09:51:00Z",
+    "total_tasks": 17,
     "done_tasks": 16,
     "schema_version": 1
   },
@@ -270,6 +270,20 @@
       "claimed_at": null,
       "note": "modules/content/ topic_researcher.py, content_idea_generator.py, content_calendar.py, content_pipeline.py. DB tables: topic_sources, content_ideas, content_calendar. Video config: video_config_content.json.example",
       "completed_at": "2026-04-11T09:28:00Z"
+    },
+    {
+      "id": "VP-017",
+      "title": "Phase 2: Kie.ai integration - add Kie.ai as WaveSpeed alternative for lipsync",
+      "status": "todo",
+      "priority": "high",
+      "created": "2026-04-11T09:51:00Z",
+      "source": "manual",
+      "reason": "Kie.ai is cheaper than WaveSpeed. Integrate Kie.ai lipsync API as alternative provider.",
+      "type": "inhouse",
+      "blocked_by": [],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Waiting for: API key, API base URL, model name. Website docs returning 404."
     }
   ]
 }

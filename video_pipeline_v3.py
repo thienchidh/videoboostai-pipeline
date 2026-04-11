@@ -596,20 +596,16 @@ class VideoPipelineV3:
         return self._generate_lipsync_wavespeed(image_path, audio_path, output_path, retries)
 
     def _upload_for_kieai(self, file_path):
-        """Upload to WaveSpeed media (still works) for Kie.ai inputs."""
+        """Upload to our S3 bucket and return public URL for Kie.ai."""
+        from modules.media.s3_uploader import upload_file
         ext = Path(file_path).suffix.lstrip(".")
-        content_type = f"audio/{ext}" if ext in ["mp3", "wav", "ogg"] else f"image/{ext}"
-        url = f"{self.wsp_base}/api/v3/media/upload/binary?ext={ext}"
-        headers = {"Authorization": f"Bearer {self.wsp_key}", "Content-Type": content_type}
+        prefix = "audio" if ext in ["mp3", "wav", "ogg"] else "images"
         try:
-            with open(file_path, "rb") as f:
-                resp = requests.post(url, headers=headers, data=f, timeout=60)
-            data = resp.json()
-            if data.get("data", {}).get("download_url"):
-                return data["data"]["download_url"]
-            log(f"  ❌ Upload failed: {data}")
+            url = upload_file(str(file_path), prefix)
+            log(f"  ✅ S3 uploaded: {url}")
+            return url
         except Exception as e:
-            log(f"  ❌ Upload error: {e}")
+            log(f"  ❌ S3 upload error: {e}")
         return None
 
     def _generate_lipsync_kieai(self, image_path, audio_path, output_path, retries=2):

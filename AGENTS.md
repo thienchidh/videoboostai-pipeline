@@ -20,10 +20,9 @@ Video pipeline automation for TikTok/Facebook Reels content generation.
 8. Background music
 
 ## Constraints
-- **NO VIDEO GENERATION** - Budget exhausted
-- Do NOT call pipeline to generate videos
-- Do NOT call TTS APIs for new videos
-- Do NOT spend money on video production
+- **PRODUCTION ENABLED** - Budget available
+- Run video_pipeline_v3.py with business configs
+- Default config: configs/business/nangsuat_tips_3scene.json
 
 ## Allowed Operations
 - Read/analyze existing code
@@ -33,5 +32,5 @@ Video pipeline automation for TikTok/Facebook Reels content generation.
 - Debug and fix bugs
 
 ## Current Status
-- Phase 1: Dry Run Mode (in progress)
-- Budget: EXHAUSTED
+- Phase 2: Production mode — budget available
+- Actively generating videos

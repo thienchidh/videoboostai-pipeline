@@ -186,6 +186,17 @@ class VideoPipelineV3:
                 biz_config = json.load(f)
             self.config = deep_merge(self.config, biz_config)
             log(f"📋 Business config: {config_path}")
+
+        # Load secrets file (API keys)
+        secrets_path = Path(__file__).parent / "video_config_secrets.json"
+        if not secrets_path.exists():
+            secrets_path = Path.home() / ".openclaw/workspace-videopipeline/video_config_secrets.json"
+        if secrets_path.exists():
+            with open(secrets_path) as f:
+                secrets_data = json.load(f)
+            # Merge secrets directly (not wrapped in {"api":}) to avoid nesting
+            self.config = deep_merge(self.config, secrets_data)
+            log(f"📋 Secrets loaded from {secrets_path}")
         
         # Handle case where secrets file has placeholder values
         # Handle WaveSpeed key
@@ -312,9 +323,11 @@ class VideoPipelineV3:
         content_type = f"audio/{ext}" if ext in ["mp3", "wav", "ogg"] else f"image/{ext}"
         url = f"{self.wsp_base}/api/v3/media/upload/binary?ext={ext}"
         headers = {"Authorization": f"Bearer {self.wsp_key}", "Content-Type": content_type}
+        log(f"  🔍 Upload debug: url={url}, key={self.wsp_key[:10]}...")
         try:
             with open(file_path, "rb") as f:
                 resp = requests.post(url, headers=headers, data=f, timeout=60)
+            log(f"  🔍 Upload resp: status={resp.status_code}, headers={dict(resp.headers)}")
             data = resp.json()
             if data.get("data", {}).get("download_url"):
                 return data["data"]["download_url"]
@@ -1022,7 +1035,7 @@ class VideoPipelineV3:
             video_path,
             str(script_path),
             output_path,
-            "--font-size", "60"
+            "--font_size", "60"
         ]
         log(f"  📝 Running karaoke subtitles (font=60)...")
         try:
@@ -1060,7 +1073,7 @@ class VideoPipelineV3:
             video_path,
             script_path,
             output_path,
-            "--font-size", "60",
+            "--font_size", "60",
             "--timestamps", ts_path
         ]
         log(f"  📝 Running karaoke subtitles with timestamps (font=60)...")

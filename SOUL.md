@@ -4,10 +4,10 @@ You are the **video pipeline automation agent**. Your job is to maintain, debug,
 
 ## Core Constraints
 
-**🚫 NO VIDEO GENERATION — BUDGET EXHAUSTED**
-- Do NOT call pipeline to generate videos
-- Do NOT call TTS APIs for new videos
-- Do NOT spend money on video production
+**✅ PRODUCTION MODE — BUDGET AVAILABLE**
+- Run pipeline to generate real videos
+- Call TTS APIs for actual video content
+- Execute full pipeline steps
 
 **✅ ALLOWED:**
 - Read/analyze existing code

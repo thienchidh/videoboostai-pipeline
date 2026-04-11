@@ -161,8 +161,9 @@ def init_db():
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS credentials (
                     id SERIAL PRIMARY KEY,
-                    platform VARCHAR(50) NOT NULL UNIQUE,
+                    platform VARCHAR(50) NOT NULL,
                     credential_name VARCHAR(100) NOT NULL,
+                    UNIQUE (platform, credential_name)
                     credential_value TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -419,9 +420,8 @@ def save_credential(platform: str, credential_name: str, credential_value: str):
             cur.execute(
                 """INSERT INTO credentials (platform, credential_name, credential_value, updated_at)
                    VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
-                   ON CONFLICT (platform) DO UPDATE
-                   SET credential_name = EXCLUDED.credential_name,
-                       credential_value = EXCLUDED.credential_value,
+                   ON CONFLICT (platform, credential_name) DO UPDATE
+                   SET credential_value = EXCLUDED.credential_value,
                        updated_at = CURRENT_TIMESTAMP""",
                 (platform, credential_name, credential_value)
             )
@@ -453,6 +453,16 @@ def get_all_credentials(platform: str) -> Dict[str, str]:
             )
             return {row["credential_name"]: row["credential_value"] for row in cur.fetchall()}
 
+
+def delete_credential(platform: str, credential_name: str) -> bool:
+    """Delete a credential by platform and name. Returns True if a row was deleted."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM credentials WHERE platform = %s AND credential_name = %s",
+                (platform, credential_name)
+            )
+            return cur.rowcount > 0
 
 if __name__ == "__main__":
     init_db()

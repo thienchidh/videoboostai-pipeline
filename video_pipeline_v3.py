@@ -663,7 +663,10 @@ class VideoPipelineV3:
             log(f"  ✅ Task: {task_id}")
             poll = client.poll_task(task_id, max_wait=self.config.get("lipsync", {}).get("max_wait", 300))
             if not poll.get("success"):
-                log(f"  ❌ Kie.ai failed: {poll.get('error')}")
+                error_msg = poll.get('error', '')
+                log(f"  ❌ Kie.ai failed: {error_msg}")
+                if "nsfw" in error_msg.lower():
+                    return "NSFW_RETRY_IMAGE"
                 continue
             output_urls = poll.get("output_urls", [])
             if not output_urls:
@@ -1399,7 +1402,20 @@ class VideoPipelineV3:
                     log(f"  ✅ video_raw.mp4 already exists - skipping lipsync")
                 else:
                     log(f"  🎬 Generating lipsync video...")
-                    if not self.generate_lipsync_video(str(scene_img), audio, str(video_raw), retries=2):
+                    lipsync_result = self.generate_lipsync_video(str(scene_img), audio, str(video_raw), retries=2)
+                    if lipsync_result == "NSFW_RETRY_IMAGE":
+                        log(f"  ⚠️ NSFW detected - regenerating image with safer prompt...")
+                        scene_img.unlink(missing_ok=True)
+                        safe_prompt = prompt + ", modest clothing, professional pose, clean background"
+                        if not self.generate_image(safe_prompt, str(scene_img)):
+                            log(f"  ❌ Safe image gen failed")
+                            continue
+                        log(f"  ✅ Safe image done: {scene_img.stat().st_size/1024:.1f}KB")
+                        lipsync_result = self.generate_lipsync_video(str(scene_img), audio, str(video_raw), retries=2)
+                        if not lipsync_result or lipsync_result == "NSFW_RETRY_IMAGE":
+                            log(f"  ❌ Lipsync failed even with safe image")
+                            continue
+                    elif not lipsync_result:
                         log(f"  ❌ Lipsync failed")
                         continue
                     log(f"  ✅ Lipsync done: {video_raw.stat().st_size/1024/1024:.1f}MB")

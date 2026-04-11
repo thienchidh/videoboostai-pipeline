@@ -1166,7 +1166,7 @@ class VideoPipelineV3:
             except:
                 fnt = ImageFont.load_default()
             _tmp_draw = PILImage.new('RGBA', (1, 1))
-            _tmp_d = PILImageDraw.Draw(_tmp_draw)
+            _tmp_d = ImageDraw.Draw(_tmp_draw)
             bbox = _tmp_d.textbbox((0, 0), text, font=fnt)
             text_w = bbox[2] - bbox[0]
             text_h = bbox[3] - bbox[1]
@@ -1190,7 +1190,7 @@ class VideoPipelineV3:
                 
                 # Create fully transparent RGBA canvas
                 overlay = PILImage.new('RGBA', (vw, vh), (0, 0, 0, 0))
-                draw = PILImageDraw.Draw(overlay)
+                draw = ImageDraw.Draw(overlay)
                 
                 # Draw stroke then fill for readability at low opacity
                 stroke_alpha = int(alpha * 0.8)
@@ -1229,7 +1229,7 @@ class VideoPipelineV3:
             
             # --- STATIC MODE (default) ---
             overlay = PILImage.new('RGBA', (vw, vh), (0, 0, 0, 0))
-            draw = PILImageDraw.Draw(overlay)
+            draw = ImageDraw.Draw(overlay)
             
             # Position at bottom right
             x = vw - int(280 * scale)

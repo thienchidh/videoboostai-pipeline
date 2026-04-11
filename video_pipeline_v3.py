@@ -565,6 +565,13 @@ class VideoPipelineV3:
             resp = requests.get(img_url, timeout=120)
             with open(output_path, "wb") as f:
                 f.write(resp.content)
+            # Save image to S3 for future reuse
+            try:
+                from modules.media.s3_uploader import upload_file
+                s3_url = upload_file(str(output_path), "images")
+                log(f"  ☁️ Image uploaded to S3: {s3_url}")
+            except Exception as s3e:
+                log(f"  ⚠️ S3 upload failed: {s3e}")
             return output_path
         except Exception as e:
             log(f"  ❌ MiniMax error: {e} - trying WaveSpeed...")
@@ -1230,7 +1237,7 @@ class VideoPipelineV3:
                     "-i", str(overlay_path),
                     "-filter_complex",
                     f"[0:v][1:v]overlay=x={x_expr}:y={y_center}:eof_action=pass[out]",
-                    "-map", "[out]",
+                    "-map", "[out]", "-map", "0:a?",
                     "-c:v", "libx264", "-preset", "fast", "-crf", "22",
                     "-c:a", "copy",
                     str(tmp_wm)
@@ -1272,7 +1279,7 @@ class VideoPipelineV3:
             cmd = [
                 "ffmpeg", "-y", "-i", str(video_path), "-i", str(overlay_path),
                 "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
-                "-map", "[out]", "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+                "-map", "[out]", "-map", "0:a?", "-c:v", "libx264", "-preset", "fast", "-crf", "22",
                 "-c:a", "copy",
                 str(tmp_wm)
             ]

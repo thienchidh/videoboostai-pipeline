@@ -363,7 +363,7 @@ if not clips:
 
 video = VideoFileClip("{{input_path}}")
 subtitle_concat = CompositeVideoClip(clips, size=(W, H)).with_duration(DURATION)
-final = CompositeVideoClip([video, subtitle_concat.set_position("center")], size=(W, H))
+final = CompositeVideoClip([video, subtitle_concat.with_position("center")], size=(W, H))
 final = final.with_duration(DURATION)
 
 final.write_videofile(

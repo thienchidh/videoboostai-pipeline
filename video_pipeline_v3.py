@@ -214,18 +214,37 @@ class VideoPipelineV3:
                 return match.group(1)
         return ""
 
-    def _check_step(self, scene_id, step):
-        """Check if a step was already completed for resume logic"""
-        state_file = self.run_dir / f"scene_{scene_id}" / f".step_{step}"
-        return state_file.exists()
+    def _find_previous_scene_output(self, scene_id):
+        """Find a scene video from a previous run to reuse (avoids re-generating)."""
+        import glob
+        base = Path("/home/openclaw-personal/.openclaw/workspace/video_v3_output")
+        runs = sorted(base.glob("run_*"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for run in runs:
+            if run == self.run_dir:
+                continue  # skip current run
+            # Check for scene video
+            candidates = [
+                run / f"scene_{scene_id}" / "video_9x16.mp4",
+                run / f"scene_{scene_id}" / "video_9x16_subtitled.mp4",
+            ]
+            for candidate in candidates:
+                if candidate.exists():
+                    age_min = (time.time() - candidate.stat().st_mtime) / 60
+                    log(f"  ♻️ Found previous scene_{scene_id}: {candidate} ({age_min:.0f}m old)")
+                    return candidate
+        return None
 
-    def _mark_step(self, scene_id, step):
-        """Mark a step as completed"""
-        scene_dir = self.run_dir / f"scene_{scene_id}"
-        scene_dir.mkdir(exist_ok=True)
-        state_file = scene_dir / f".step_{step}"
-        state_file.touch()
-        log(f"  ✅ Step [{step}] marked complete")
+    def _reuse_or_generate_scene(self, scene_id, scene_output):
+        """Copy scene from previous run if exists, else return False."""
+        prev = self._find_previous_scene_output(scene_id)
+        if prev:
+            import shutil
+            dest = scene_output / "video_9x16.mp4"
+            shutil.copy2(str(prev), str(dest))
+            log(f"  ✅ Copied scene_{scene_id} from previous run: {dest.stat().st_size/1024/1024:.1f}MB")
+            return True
+        return False
+
 
     def _load_config(self):
         """Load and log config"""
@@ -1299,12 +1318,16 @@ class VideoPipelineV3:
             scene_output = self.run_dir / f"scene_{scene_id}"
             scene_output.mkdir(exist_ok=True)
             
-            # Enhanced resume: check all steps
-            # Skip scene if we already have the cropped 9:16 video (expensive lipsync done)
+            # Enhanced resume: check if scene already processed in current or previous run
             existing_cropped = scene_output / "video_9x16.mp4"
             if existing_cropped.exists():
-                log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping TTS/Image/Lipsync/Crop")
+                log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping")
                 scene_videos.append(str(existing_cropped))
+                scene_scripts.append(script)
+                continue
+            # Try to reuse from a previous run (avoids expensive lipsync re-generation)
+            if self._reuse_or_generate_scene(scene_id, scene_output):
+                scene_videos.append(str(scene_output / "video_9x16.mp4"))
                 scene_scripts.append(script)
                 continue
             

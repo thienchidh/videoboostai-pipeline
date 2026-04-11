@@ -1300,10 +1300,11 @@ class VideoPipelineV3:
             scene_output.mkdir(exist_ok=True)
             
             # Enhanced resume: check all steps
-            existing_video = scene_output / "video_9x16_subtitled.mp4"
-            if existing_video.exists():
-                log(f"  ✅ Already has final video with subtitles - skipping scene")
-                scene_videos.append(str(existing_video))
+            # Skip scene if we already have the cropped 9:16 video (expensive lipsync done)
+            existing_cropped = scene_output / "video_9x16.mp4"
+            if existing_cropped.exists():
+                log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping TTS/Image/Lipsync/Crop")
+                scene_videos.append(str(existing_cropped))
                 scene_scripts.append(script)
                 continue
             

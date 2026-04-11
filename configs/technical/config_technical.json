@@ -7,7 +7,7 @@
     "kie_ai_webhook_key": "YOUR_KIE_AI_WEBHOOK_KEY"
   },
   "models": {
-    "tts": "minimax",
+    "tts": "edge",
     "image": "minimax",
     "video": "kieai"
   },

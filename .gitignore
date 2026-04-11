@@ -17,3 +17,5 @@ __pycache__/
 # Credentials encryption key
 ~/.config/videopipeline/.credentials.key
 .credentials.key
+.openclaw/
+memory/

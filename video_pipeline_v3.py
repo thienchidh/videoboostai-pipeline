@@ -27,6 +27,7 @@ from modules.media.lipsync import KieAIInfinitalkProvider
 DRY_RUN = False          # Full dry-run: mock ALL API calls
 DRY_RUN_TTS = False       # Mock only TTS
 DRY_RUN_IMAGES = False    # Mock only image generation
+FORCE_START = False       # Force fresh start (ignore previous scene cache)
 UPLOAD_TO_SOCIALS = False # Upload to FB/TikTok after generation
 
 # Detect best python for karaoke/watermark (needs PIL from venv or linuxbrew)
@@ -153,6 +154,7 @@ def deep_merge(base, override):
 
 class VideoPipelineV3:
     def __init__(self, config_path):
+        global FORCE_START
         # Load config: auto-loads technical base config, then merges business config
         # Business config path relative to configs/business/ or absolute
         config_path = Path(config_path)
@@ -236,6 +238,18 @@ class VideoPipelineV3:
         self.run_id = secrets.token_hex(4)  # 8-char hex unique ID
         self.run_dir = self.output_dir / f"run_{self.timestamp}_{self.run_id}"
         self.run_dir.mkdir(exist_ok=True)
+
+        # If FORCE_START, clear previous scene cache from all run dirs
+        if FORCE_START:
+            log(f"🆕 Clearing previous scene cache...")
+            base = Path.home() / ".openclaw/workspace/video_v3_output"
+            for run_dir in base.glob("run_*"):
+                if run_dir == self.run_dir:
+                    continue
+                for scene_dir in run_dir.glob("scene_*"):
+                    for f in scene_dir.glob("*.mp4"):
+                        f.unlink(missing_ok=True)
+                        log(f"  🗑️ Deleted {f.name} from {scene_dir.name}")
 
         # Initialize DB and create video_run record
         db.init_db()
@@ -1637,6 +1651,9 @@ if __name__ == "__main__":
             log("📤 SOCIAL UPLOAD MODE: Will upload to FB/TikTok after generation")
         elif arg in ["--config", "-c"] and i+2 < len(sys.argv):
             config_flag = sys.argv[i+2]
+        elif arg in ["--start", "--fresh"]:
+            FORCE_START = True
+            log("🆕 FRESH START MODE: Previous scene cache will be cleared")
         elif arg in ["--resume", "-r"]:
             # Find most recent run with videos
             base = Path.home() / ".openclaw/workspace/video_v3_output"

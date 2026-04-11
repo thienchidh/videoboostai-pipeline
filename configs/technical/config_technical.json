@@ -51,7 +51,7 @@
   
   "watermark": {
     "enable": true,
-    "text": "@NangSuatThongMinh",
+    "text": "@YourChannel",
     "font_size": 60,
     "opacity": 0.15,
     "motion": "bounce",

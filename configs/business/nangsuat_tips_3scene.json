@@ -1,0 +1,29 @@
+{
+  "_comment": "Business config - 3 scenes - NangSuatThongMinh channel",
+  
+  "watermark": {
+    "text": "@NangSuatThongMinh"
+  },
+  
+  "video": {
+    "title": "3 Meo Tang Nang Suat"
+  },
+  
+  "scenes": [
+    {
+      "id": 1,
+      "script": "Ban co biet rang 80% cong viec chi can 20% thoi gian khong? Day goi la nguyen tac Pareto. Hom nay toi chia se 3 meo giup ban lam viec thong minh hon, ket qua nhieu hon trong thoi gian it hon.",
+      "characters": ["GiaoVien"]
+    },
+    {
+      "id": 2,
+      "script": "Meo thu nhat: Quy tac 2 phut. Neu mot viec lam duoi 2 phut, hay lam ngay, khong can suy nghi. Tra loi tin nhan ngan, sap xep giay, don dep ban lam. Dieu nay giup ban giai phong dau luc cho viec lon.",
+      "characters": ["GiaoVien"]
+    },
+    {
+      "id": 3,
+      "script": "Meo thu hai: Khoi tao mot lan. Khi bat dau mot viec, hay lam lien tuc cho den khi xong, khong ngat quang giua chung. Ngat quang lam mat 23 phut de quay lai. Lam xong roi moi chuyen sang viec tiep theo.",
+      "characters": ["GiaoVien"]
+    }
+  ]
+}

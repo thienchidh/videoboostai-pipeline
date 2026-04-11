@@ -1,77 +1,36 @@
 {
-  "_comment": "Technical configuration - API keys, models, default paths. Auto-loaded by pipeline.",
+  "_comment": "Technical defaults - API keys go in configs/api/secrets.json",
+
   "api": {
+    "_comment_keys": "Keys are loaded from configs/api/secrets.json",
     "wavespeed_key": "YOUR_WAVESPEED_KEY",
     "minimax_key": "YOUR_MINIMAX_KEY",
     "kie_ai_key": "YOUR_KIE_AI_KEY",
     "kie_ai_webhook_key": "YOUR_KIE_AI_WEBHOOK_KEY"
   },
+
   "models": {
     "tts": "edge",
     "image": "minimax",
     "video": "kieai"
   },
-  "lipsync": {
-    "provider": "kieai"
-  },
+
   "image": {
     "provider": "minimax",
     "fallback_providers": [],
     "aspect_ratio": "9:16",
     "timeout": 120
   },
+
+  "lipsync": {
+    "provider": "kieai",
+    "prompt": "A person talking",
+    "resolution": "480p",
+    "max_wait": 300
+  },
+
   "seeds": {
     "image": 42,
     "video": 12345
-  },
-  "video": {
-    "aspect_ratio": "9:16",
-    "style": "3D animated Pixar Disney style, high quality 3D render, ultra detailed, vibrant colors, smooth animation, cinematic lighting",
-    "resolution": "480p",
-    "fps": 25
-  },
-  "subtitle": {
-    "enable": true,
-    "font": "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-    "font_size": 60,
-    "color": "yellow",
-    "language": "vi"
-  },
-  "background_music": {
-    "enable": true,
-    "file": "random",
-    "volume": 0.15,
-    "fade_duration": 2,
-    "music_dir": null
-  },
-  "watermark": {
-    "enable": true,
-    "text": "@YourChannel",
-    "font_size": 60,
-    "opacity": 0.15,
-    "motion": "bounce",
-    "bounce_speed": 120,
-    "bounce_padding": 15
-  },
-  "characters": [
-    {
-      "name": "GiaoVien",
-      "description": "friendly female professional, modern career woman",
-      "prompt": "3D animated Pixar Disney style friendly professional woman, modern office attire, warm smile, confident, standing in modern workspace, bright colorful setting, Disney Pixar high quality 3D render, soft cinematic lighting",
-      "avatar_file": "GiaoVien.png",
-      "tts_voice": "Vietnamese_kindhearted_girl",
-      "tts_speed": 1.0,
-      "auto_create": true
-    }
-  ],
-  "prompt": {
-    "style": "3D animated Pixar Disney style, high quality 3D render, ultra detailed, vibrant colors, smooth animation, cinematic lighting"
-  },
-  "pipeline": {
-    "dry_run": false,
-    "dry_run_tts": false,
-    "dry_run_images": false,
-    "resume_enabled": true,
-    "upload_to_socials": false
   }
 }

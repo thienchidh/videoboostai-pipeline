@@ -271,24 +271,41 @@ class VideoPipelineV3:
         return None
 
     # ==================== TTS ====================
-    def generate_tts_minimax(self, text, voice_key="female_voice", speed=1.0, output_path=None):
-        """Generate TTS using MiniMax API"""
+    def generate_tts_minimax(self, text, voice_key="female_voice", speed=1.0, output_path=None, emotion=None):
+        """Generate TTS using MiniMax API
+
+        Args:
+            voice_key: voice id - supports female_2, female_voice, male-qn-qingse
+            speed: 0.5-2.0 (default 1.0)
+            output_path: output file path
+            emotion: "happy", "sad", "calm", "neutral" (optional)
+        """
         global DRY_RUN, DRY_RUN_TTS
         if DRY_RUN or DRY_RUN_TTS:
             return mock_generate_tts(text, voice_key, speed, output_path)
         if not output_path:
             output_path = f"/tmp/tts_{self.timestamp}_{int(time.time()*1000)}.mp3"
-        
-        # female_voice = Vietnamese female voice (verified working)
-        voice_map = {"female_voice": "female_voice", "male-qn-qingse": "male-qn-qingse",
-                    "female": "female_voice", "male": "male-qn-qingse"}
-        voice_id = voice_map.get(voice_key, "female_voice")
-        
+
+        # Map config voice keys to MiniMax voice IDs
+        voice_map = {
+            "female_voice": "female_voice",
+            "female_2": "female_2",
+            "male-qn-qingse": "male-qn-qingse",
+            "male": "male-qn-qingse",
+            "male_voice": "male-qn-qingse",
+            "female": "female_voice",
+        }
+        voice_id = voice_map.get(voice_key, voice_key)  # fallback to raw key
+
+        voice_setting = {"voice_id": voice_id, "speed": speed, "vol": 1, "pitch": 0}
+        if emotion:
+            voice_setting["emotion"] = emotion
+
         url = "https://api.minimax.io/v1/t2a_v2"
         headers = {"Authorization": f"Bearer {self.minimax_key}", "Content-Type": "application/json"}
         payload = {
             "model": "speech-2.8-hd", "text": text, "stream": False, "output_format": "hex",
-            "voice_setting": {"voice_id": voice_id, "speed": speed, "vol": 1, "pitch": 0},
+            "voice_setting": voice_setting,
             "audio_setting": {"sample_rate": 32000, "bitrate": 128000, "format": "mp3", "channel": 1},
             "language_boost": "Vietnamese"
         }
@@ -338,14 +355,24 @@ class VideoPipelineV3:
         return None
 
     def generate_tts(self, text, voice="female_voice", speed=1.0, output_path=None):
-        """Generate TTS: MiniMax primary, Edge TTS fallback
-        
+        """Generate TTS based on configured provider (models.tts in config).
+
         Returns (audio_path, words_timestamps) tuple or just audio_path if failed.
         """
         if not output_path:
             output_path = f"/tmp/tts_{self.timestamp}_{int(time.time()*1000)}.mp3"
-        
-        # Try MiniMax first (works with sk-cp- key from auth-profiles.json)
+
+        tts_provider = self.config.get("models", {}).get("tts", "minimax")
+
+        if tts_provider == "edge":
+            log(f"  🔊 Edge TTS ({voice})...")
+            result = self.generate_tts_edge(text, voice, speed, output_path)
+            if result and Path(result).exists():
+                log(f"  ✅ TTS done: {Path(result).stat().st_size/1024:.1f}KB")
+                return result, None  # Edge doesn't provide word timestamps
+            return result, None
+
+        # Try MiniMax first
         log(f"  🔊 MiniMax TTS ({voice})...")
         result = self.generate_tts_minimax(text, voice, speed, output_path)
         if result and Path(result).exists():
@@ -354,7 +381,7 @@ class VideoPipelineV3:
                 log(f"  ✅ TTS done: {Path(result).stat().st_size/1024:.1f}KB ({len(timestamps)} words)")
                 return result, timestamps
             return result, None
-        
+
         log(f"  🔊 Fallback: Edge TTS...")
         return self.generate_tts_edge(text, voice, speed, output_path), None
 
@@ -568,17 +595,34 @@ class VideoPipelineV3:
             return self._generate_lipsync_kieai(image_path, audio_path, output_path, retries)
         return self._generate_lipsync_wavespeed(image_path, audio_path, output_path, retries)
 
+    def _upload_for_kieai(self, file_path):
+        """Upload to WaveSpeed media (still works) for Kie.ai inputs."""
+        ext = Path(file_path).suffix.lstrip(".")
+        content_type = f"audio/{ext}" if ext in ["mp3", "wav", "ogg"] else f"image/{ext}"
+        url = f"{self.wsp_base}/api/v3/media/upload/binary?ext={ext}"
+        headers = {"Authorization": f"Bearer {self.wsp_key}", "Content-Type": content_type}
+        try:
+            with open(file_path, "rb") as f:
+                resp = requests.post(url, headers=headers, data=f, timeout=60)
+            data = resp.json()
+            if data.get("data", {}).get("download_url"):
+                return data["data"]["download_url"]
+            log(f"  ❌ Upload failed: {data}")
+        except Exception as e:
+            log(f"  ❌ Upload error: {e}")
+        return None
+
     def _generate_lipsync_kieai(self, image_path, audio_path, output_path, retries=2):
         """Generate lipsync via Kie.ai Infinitalk."""
         from modules.media.kie_ai_client import KieAIClient
         client = KieAIClient(api_key=self.kieai_key, webhook_key=self.kieai_webhook_key)
         for attempt in range(retries):
             log(f"  🎬 Kie.ai Infinitalk (attempt {attempt+1})...")
-            image_url = self.upload_file(image_path)
+            image_url = self._upload_for_kieai(image_path)
             if not image_url:
                 log(f"  ❌ Image upload failed")
                 continue
-            audio_url = self.upload_file(audio_path)
+            audio_url = self._upload_for_kieai(audio_path)
             if not audio_url:
                 log(f"  ❌ Audio upload failed")
                 continue

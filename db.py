@@ -163,7 +163,7 @@ def init_db():
                     id SERIAL PRIMARY KEY,
                     platform VARCHAR(50) NOT NULL,
                     credential_name VARCHAR(100) NOT NULL,
-                    UNIQUE (platform, credential_name)
+                    UNIQUE (platform, credential_name),
                     credential_value TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -191,22 +191,47 @@ def create_project(name: str, config_file: str = None, description: str = None) 
             return cur.fetchone()["id"]
 
 
-def get_project(project_id: int) -> Optional[Dict]:
+def get_or_create_project(name: str, config_file: str = None) -> int:
     with get_db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM projects WHERE id = %s", (project_id,))
-            return cur.fetchone()
+            cur.execute("SELECT id FROM projects WHERE name = %s", (name,))
+            row = cur.fetchone()
+            if row:
+                return row["id"]
+            cur.execute(
+                "INSERT INTO projects (name, config_file) VALUES (%s, %s) RETURNING id",
+                (name, config_file)
+            )
+            return cur.fetchone()["id"]
 
 
-def list_projects(status: str = None) -> List[Dict]:
+def start_video_run(project_id: int, config_name: str) -> int:
     with get_db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            if status:
-                cur.execute("SELECT * FROM projects WHERE status = %s ORDER BY created_at DESC", (status,))
-            else:
-                cur.execute("SELECT * FROM projects ORDER BY created_at DESC")
-            return cur.fetchall()
+            cur.execute(
+                """INSERT INTO video_runs (project_id, config_snapshot, status, total_scenes)
+                   VALUES (%s, %s, 'running', 0) RETURNING id""",
+                (project_id, None)
+            )
+            return cur.fetchone()["id"]
 
+
+def complete_video_run(run_id: int, status: str = 'completed'):
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "UPDATE video_runs SET status = %s, completed_at = CURRENT_TIMESTAMP WHERE id = %s",
+                (status, run_id)
+            )
+
+
+def fail_video_run(run_id: int, error: str):
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "UPDATE video_runs SET status = 'failed', completed_at = CURRENT_TIMESTAMP WHERE id = %s",
+                (run_id,)
+            )
 
 # ─── Video Run Operations ──────────────────────────────────────────
 

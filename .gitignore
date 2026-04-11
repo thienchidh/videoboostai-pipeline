@@ -13,3 +13,7 @@ __pycache__/
 *.mp3
 *.wav
 *.png
+
+# Credentials encryption key
+~/.config/videopipeline/.credentials.key
+.credentials.key

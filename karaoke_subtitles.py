@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/linuxbrew/.linuxbrew/bin/python3
 """
 karaoke_subtitles.py — Simple word-by-word karaoke subtitle burner.
 Each word appears one at a time in a rounded pill at 85% from top.
@@ -184,7 +184,7 @@ def main():
         "-i", str(tmpdir / "frame_%06d.png"),
         "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
         "-map", "[out]",
-        "-map", "0:a",
+        "-map", "0:a?",
         "-c:v", "libx264",
         "-preset", "fast",
         "-crf", "22",

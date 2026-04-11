@@ -40,7 +40,7 @@ def main():
     parser.add_argument("input_video")
     parser.add_argument("output_video")
     parser.add_argument("--text", default="@NangSuatThongMinh")
-    parser.add_argument("--font-size", type=int, default=28)
+    parser.add_argument("--font-size", type=int, default=36)
     parser.add_argument("--opacity", type=float, default=0.15)
     parser.add_argument("--speed", type=float, default=120.0)  # pixels per second
     parser.add_argument("--padding", type=int, default=15)  # from edges

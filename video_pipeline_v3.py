@@ -18,11 +18,16 @@ import subprocess
 import requests
 import shutil
 from pathlib import Path
+import db
+
+from modules.media.lipsync import KieAIInfinitalkProvider
+
 
 # ==================== DRY RUN FLAGS ====================
 DRY_RUN = False          # Full dry-run: mock ALL API calls
 DRY_RUN_TTS = False       # Mock only TTS
 DRY_RUN_IMAGES = False    # Mock only image generation
+UPLOAD_TO_SOCIALS = False # Upload to FB/TikTok after generation
 
 # Detect best python for karaoke subtitles (needs moviepy from linuxbrew)
 LINUXBREW_PYTHON = "/home/linuxbrew/.linuxbrew/bin/python3"
@@ -151,13 +156,28 @@ class VideoPipelineV3:
                 self.config = json.load(f)
         
         # Handle case where secrets file has placeholder values
+        # Handle WaveSpeed key
         if self.config.get("api", {}).get("wavespeed_key") == "REPLACE_WITH_YOUR_WAVESPEED_KEY":
             log(f"⚠️ Using default WaveSpeed key from TOOLS.md")
             self.wsp_key = self._get_wavespeed_key()
         else:
             self.wsp_key = self.config.get("api", {}).get("wavespeed_key", "")
-            
         self.wsp_base = "https://api.wavespeed.ai"
+
+        # Handle Kie.ai key
+        self.kieai_key = self.config.get("api", {}).get("kie_ai_key", "")
+        self.kieai_webhook_key = self.config.get("api", {}).get("kie_ai_webhook_key", "")
+        if self.kieai_key:
+            log(f"✅ Kie.ai configured (key: ...{self.kieai_key[-6:]})")
+
+        # Lipsync provider selection: "wavespeed" (default) or "kieai"
+        self.lipsync_provider = self.config.get("lipsync", {}).get("provider", "wavespeed")
+        if self.lipsync_provider == "kieai" and self.kieai_key:
+            log(f"🔀 Using Kie.ai Infinitalk for lipsync")
+        elif self.lipsync_provider == "kieai" and not self.kieai_key:
+            log(f"⚠️ Kie.ai selected but no kie_ai_key - falling back to WaveSpeed")
+            self.lipsync_provider = "wavespeed"
+
         self.minimax_key = self._load_minimax_key()
         
         self.ws_dir = Path.home() / ".openclaw" / "workspace"
@@ -167,10 +187,18 @@ class VideoPipelineV3:
         
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.avatars_dir.mkdir(parents=True, exist_ok=True)
-        
+
         self.timestamp = int(time.time())
         self.run_dir = self.output_dir / f"run_{self.timestamp}"
         self.run_dir.mkdir(exist_ok=True)
+
+        # Initialize DB and create video_run record
+        db.init_db()
+        project_name = self.config.get("video", {}).get("title", "default")
+        project_id = db.get_or_create_project(project_name)
+        config_name = Path(config_path).name if isinstance(config_path, (str, Path)) else str(config_path)
+        self.run_id = db.start_video_run(project_id, config_name)
+        log(f"📊 DB video_run started: id={self.run_id}")
         
         log(f"🎬 Video Pipeline v3 - {self.config.get('video', {}).get('title', 'Untitled')}")
         log(f"📁 Output: {self.run_dir}")
@@ -526,7 +554,65 @@ class VideoPipelineV3:
         return None
 
     def generate_lipsync_video(self, image_path, audio_path, output_path, retries=2):
-        """Generate lipsync video - upload files first, then call LTX"""
+        """
+        Generate lipsync video using configured provider.
+        Supports "wavespeed" (default) or "kieai" via config.lipsync.provider.
+        Kie.ai: POST /api/v1/jobs/createTask with infinitalk/from-audio.
+        WaveSpeed: POST /api/v3/wavespeed-ai/ltx-2.3/lipsync.
+        """
+        global DRY_RUN
+        if DRY_RUN:
+            return mock_lipsync_video(image_path, audio_path, output_path)
+
+        if self.lipsync_provider == "kieai":
+            return self._generate_lipsync_kieai(image_path, audio_path, output_path, retries)
+        return self._generate_lipsync_wavespeed(image_path, audio_path, output_path, retries)
+
+    def _generate_lipsync_kieai(self, image_path, audio_path, output_path, retries=2):
+        """Generate lipsync via Kie.ai Infinitalk."""
+        from modules.media.kie_ai_client import KieAIClient
+        client = KieAIClient(api_key=self.kieai_key, webhook_key=self.kieai_webhook_key)
+        for attempt in range(retries):
+            log(f"  🎬 Kie.ai Infinitalk (attempt {attempt+1})...")
+            image_url = self.upload_file(image_path)
+            if not image_url:
+                log(f"  ❌ Image upload failed")
+                continue
+            audio_url = self.upload_file(audio_path)
+            if not audio_url:
+                log(f"  ❌ Audio upload failed")
+                continue
+            result = client.infinitalk(
+                image_url=image_url,
+                audio_url=audio_url,
+                prompt=self.config.get("lipsync", {}).get("prompt", "A person talking"),
+                resolution=self.config.get("lipsync", {}).get("resolution", "480p"),
+            )
+            if not result.get("success"):
+                log(f"  ❌ Kie.ai submit failed: {result.get('error')}")
+                continue
+            task_id = result["task_id"]
+            log(f"  ✅ Task: {task_id}")
+            poll = client.poll_task(task_id, max_wait=self.config.get("lipsync", {}).get("max_wait", 300))
+            if not poll.get("success"):
+                log(f"  ❌ Kie.ai failed: {poll.get('error')}")
+                continue
+            output_urls = poll.get("output_urls", [])
+            if not output_urls:
+                log(f"  ❌ No output URL")
+                continue
+            try:
+                resp = requests.get(output_urls[0], timeout=120)
+                with open(output_path, "wb") as f:
+                    f.write(resp.content)
+                log(f"  ✅ Saved: {output_path} ({len(resp.content)/1024/1024:.1f}MB)")
+                return output_path
+            except Exception as e:
+                log(f"  ❌ Download error: {e}")
+        return None
+
+    def _generate_lipsync_wavespeed(self, image_path, audio_path, output_path, retries=2):
+        """Generate lipsync via WaveSpeed LTX (original logic)."""
         global DRY_RUN
         if DRY_RUN:
             return mock_lipsync_video(image_path, audio_path, output_path)
@@ -833,9 +919,9 @@ class VideoPipelineV3:
             video_path,
             str(script_path),
             output_path,
-            "--font-size", "80"
+            "--font-size", "60"
         ]
-        log(f"  📝 Running: {' '.join([str(c) for c in cmd[:5]])}...")
+        log(f"  📝 Running karaoke subtitles (font=60)...")
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
             if result.returncode == 0:
@@ -871,10 +957,10 @@ class VideoPipelineV3:
             video_path,
             script_path,
             output_path,
-            "--font-size", "80",
+            "--font-size", "60",
             "--timestamps", ts_path
         ]
-        log(f"  📝 Running: {' '.join([str(c) for c in cmd[:5]])}...")
+        log(f"  📝 Running karaoke subtitles with timestamps (font=60)...")
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
             if result.returncode == 0:
@@ -991,7 +1077,16 @@ class VideoPipelineV3:
         return video_path
 
     def add_watermark(self, video_path, output_path):
-        """Add watermark to video using PIL overlay + FFmpeg"""
+        """Add watermark to video using PIL overlay + FFmpeg.
+        
+        Supports 'static' and 'bounce' motion modes:
+        - static: fixed position (default)
+        - bounce: horizontal sine-wave screensaver-style bounce
+          * safe padding: 5px from all edges
+          * opacity: 15%
+          * y: vertically centered
+          * x: oscillates left↔right over the video width
+        """
         wm_cfg = self.config.get("watermark", {})
         if not wm_cfg.get("enable", False):
             log(f"  ℹ️ Watermark disabled")
@@ -1000,10 +1095,14 @@ class VideoPipelineV3:
         text = wm_cfg.get("text", "@NangSuatThongMinh")
         font_size = wm_cfg.get("font_size", 36)
         opacity = wm_cfg.get("opacity", 0.35)
-        stroke_width = wm_cfg.get("stroke_width", 1)
         motion = wm_cfg.get("motion", "static")
         
-        log(f"  💧 Adding watermark: '{text}' (opacity={opacity})")
+        # Bounce defaults: 15% opacity, 5px safe padding
+        bounce_opacity = wm_cfg.get("bounce_opacity", 0.15)
+        bounce_padding = wm_cfg.get("bounce_padding", 5)
+        bounce_period = wm_cfg.get("bounce_period", 4.0)  # seconds for one full left↔right cycle
+        
+        log(f"  💧 Adding watermark: '{text}' (motion={motion}, opacity={opacity})")
         
         try:
             # Get video dimensions
@@ -1020,16 +1119,79 @@ class VideoPipelineV3:
             scale = vh / 1920
             scaled_font_size = int(font_size * scale)
             
-            # Create watermark overlay using PIL
-            from PIL import Image, ImageDraw, ImageFont
-            overlay = Image.new('RGBA', (vw, vh), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(overlay)
-            
-            # Load font
+            # Load font to measure text dimensions for bounce bounds
             try:
                 fnt = ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf', scaled_font_size)
             except:
                 fnt = ImageFont.load_default()
+            
+            # Measure text size using PIL
+            from PIL import Image as PILImage
+            _tmp_draw = PILImage.new('RGBA', (1, 1))
+            _tmp_d = PILImageDraw.Draw(_tmp_draw)
+            bbox = _tmp_d.textbbox((0, 0), text, font=fnt)
+            text_w = bbox[2] - bbox[0]
+            text_h = bbox[3] - bbox[1]
+            
+            # Bounce parameters
+            pad = bounce_padding
+            min_x = pad                                     # 5px from left
+            max_x = vw - text_w - pad                       # 5px from right
+            # y: vertically centered
+            y_center = (vh - text_h) // 2
+            
+            log(f"  💧 Watermark bounce: min_x={min_x}, max_x={max_x}, y={y_center}, period={bounce_period}s")
+            
+            # Effective opacity (use bounce_opacity when bouncing)
+            eff_opacity = bounce_opacity if motion == "bounce" else opacity
+            alpha = int(255 * eff_opacity)
+            
+            if motion == "bounce":
+                # --- BOUNCE MODE: single transparent overlay, FFmpeg animates position ---
+                overlay_path = self.run_dir / "watermark_overlay_bounce.png"
+                
+                # Create fully transparent RGBA canvas
+                overlay = PILImage.new('RGBA', (vw, vh), (0, 0, 0, 0))
+                draw = PILImageDraw.Draw(overlay)
+                
+                # Draw stroke then fill for readability at low opacity
+                stroke_alpha = int(alpha * 0.8)
+                draw.text((0, 0), text, font=fnt, fill=(0, 0, 0, stroke_alpha))
+                draw.text((0, 0), text, font=fnt, fill=(255, 255, 255, alpha))
+                overlay.save(str(overlay_path))
+                
+                tmp_wm = self.run_dir / "watermark_tmp_bounce.mp4"
+                
+                # FFmpeg expression for sine-wave horizontal bounce:
+                #   x = min_x + (max_x - min_x) * 0.5 * (1 + sin(2*PI*t/period))
+                # This gives a smooth oscillation between min_x (left) and max_x (right).
+                x_expr = f"{min_x}+({max_x}-{min_x})*0.5*(1+sin(2*3.14159265*t/{bounce_period}))"
+                
+                cmd = [
+                    "ffmpeg", "-y",
+                    "-i", str(video_path),
+                    "-i", str(overlay_path),
+                    "-filter_complex",
+                    f"[0:v][1:v]overlay=x={x_expr}:y={y_center}:eof_action=pass[out]",
+                    "-map", "[out]",
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+                    "-c:a", "copy",
+                    str(tmp_wm)
+                ]
+                
+                result = subprocess.run(cmd, capture_output=True, timeout=300)
+                if result.returncode == 0 and tmp_wm.exists():
+                    import shutil
+                    shutil.copy(tmp_wm, output_path)
+                    log(f"  ✅ Watermark added (bounce, opacity={bounce_opacity:.0%})")
+                    return output_path
+                else:
+                    log(f"  ⚠️ Watermark bounce failed: {result.stderr[:300] if result.stderr else 'unknown error'}")
+                    # Fall through to static on failure
+            
+            # --- STATIC MODE (default) ---
+            overlay = PILImage.new('RGBA', (vw, vh), (0, 0, 0, 0))
+            draw = PILImageDraw.Draw(overlay)
             
             # Position at bottom right
             x = vw - int(280 * scale)
@@ -1279,6 +1441,7 @@ class VideoPipelineV3:
         
         if not scene_videos:
             log(f"\n❌ No scene videos generated")
+            db.fail_video_run(self.run_id, "No scene videos generated")
             return None
         
         log(f"\n{'='*60}")
@@ -1361,9 +1524,11 @@ class VideoPipelineV3:
                 final_output = str(subtitled_video) if Path(subtitled_video).exists() else str(final_video)
             
             log(f"\n✅ DONE: {final_output}")
+            db.complete_video_run(self.run_id, "completed")
             return str(final_output)
         
         log(f"\n❌ Pipeline failed")
+        db.fail_video_run(self.run_id, "Pipeline failed")
         return None
 
 
@@ -1384,6 +1549,9 @@ if __name__ == "__main__":
         elif arg == "--dry-run-images":
             DRY_RUN_IMAGES = True
             log("🔴 DRY RUN IMAGES MODE: Image generation will be mocked")
+        elif arg == "--upload-to-socials":
+            UPLOAD_TO_SOCIALS = True
+            log("📤 SOCIAL UPLOAD MODE: Will upload to FB/TikTok after generation")
         elif arg in ["--config", "-c"] and i+2 < len(sys.argv):
             config_flag = sys.argv[i+2]
         elif arg in ["--resume", "-r"]:
@@ -1428,6 +1596,30 @@ if __name__ == "__main__":
     result = pipeline.run()
     if result:
         print(f"\n🎉 Output: {result}")
+        # ── Social media upload (Phase 2 VP-013) ─────────────────
+        if UPLOAD_TO_SOCIALS:
+            if DRY_RUN:
+                print("\n📤 [SOCIAL UPLOAD] Dry-run mode — simulating upload pipeline")
+            else:
+                print("\n📤 [SOCIAL UPLOAD] Starting upload pipeline...")
+            try:
+                sys.path.insert(0, str(Path(__file__).parent))
+                from modules.pipeline.publisher import get_publisher
+
+                publisher = get_publisher(
+                    dry_run=DRY_RUN,
+                    video_run_id=pipeline.run_id,
+                    config=pipeline.config,
+                )
+                publish_result = publisher.upload_to_socials(
+                    video_path=result,
+                    script=pipeline.config.get("video", {}).get("script", ""),
+                    word_timestamps=getattr(pipeline, "word_timestamps", None),
+                    srt_output_name=Path(result).stem,
+                )
+                print(f"\n📤 Social upload result: {publish_result.summary()}")
+            except Exception as e:
+                print(f"\n⚠️  Social upload skipped/error: {e}")
     else:
         print(f"\n💥 Failed")
         sys.exit(1)

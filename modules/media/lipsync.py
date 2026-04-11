@@ -233,11 +233,121 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
         return None
 
 
+# ==================== KIE.AI INFINITALK ====================
+
+import requests
+from modules.media.kie_ai_client import KieAIClient
+
+
+class KieAIInfinitalkProvider(LipsyncProvider):
+    """
+    Kie.ai Infinitalk - audio-driven lip-sync (image + audio → talking head video).
+
+    API: POST /api/v1/jobs/createTask  (model: infinitalk/from-audio)
+    Poll: GET /api/v1/jobs/recordInfo?taskId=xxx
+
+    Supports webhook callbacks via x-webhook-key header.
+    """
+
+    def __init__(self, api_key: str, webhook_key: str = None,
+                 base_url: str = "https://api.kie.ai/api/v1",
+                 upload_func: Optional[callable] = None):
+        self.api_key = api_key
+        self.webhook_key = webhook_key or os.environ.get("KIE_AI_WEBHOOK_KEY", "")
+        self.base_url = base_url
+        self.upload_func = upload_func
+        self._client = KieAIClient(
+            api_key=self.api_key,
+            webhook_key=self.webhook_key,
+        )
+
+    def generate(self, image_path: str, audio_path: str,
+                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
+        """
+        Kie.ai Infinitalk lip-sync: image_url + audio_url → video.
+
+        Args:
+            image_path: Local path to reference image
+            audio_path: Local path to audio file (mp3/wav/etc)
+            output_path: Path to save output video
+            config: Optional {
+                prompt: str,       # text prompt for generation
+                resolution: str,    # "480p" or "720p"
+                max_wait: int,      # polling timeout in seconds
+            }
+        """
+        global DRY_RUN
+        if DRY_RUN:
+            return mock_lipsync_video(image_path, audio_path, output_path)
+
+        cfg = config or {}
+        prompt = cfg.get("prompt", "A person talking")
+        resolution = cfg.get("resolution", "480p")
+        max_wait = cfg.get("max_wait", 300)
+
+        # Upload image and audio if upload_func provided
+        image_url = None
+        audio_url = None
+
+        if self.upload_func:
+            image_url = self.upload_func(image_path)
+            audio_url = self.upload_func(audio_path)
+        if not image_url:
+            image_url = cfg.get("image_url")
+        if not audio_url:
+            audio_url = cfg.get("audio_url")
+
+        if not image_url or not audio_url:
+            logger.warning(
+                f"Kie.ai Infinitalk: missing URLs image_url={bool(image_url)} "
+                f"audio_url={bool(audio_url)}. Need upload_func or config URLs."
+            )
+            return None
+
+        # Submit task
+        result = self._client.infinitalk(
+            image_url=image_url,
+            audio_url=audio_url,
+            prompt=prompt,
+            resolution=resolution,
+        )
+        if not result.get("success"):
+            logger.error(f"Kie.ai Infinitalk submit failed: {result.get('error')}")
+            return None
+
+        task_id = result["task_id"]
+        logger.info(f"Kie.ai Infinitalk task: {task_id}")
+
+        # Poll for completion
+        poll_result = self._client.poll_task(task_id, max_wait=max_wait)
+        if not poll_result.get("success"):
+            logger.error(f"Kie.ai Infinitalk failed: {poll_result.get('error')}")
+            return None
+
+        # Download output
+        output_urls = poll_result.get("output_urls", [])
+        if not output_urls:
+            logger.error(f"Kie.ai Infinitalk: no output URLs in result")
+            return None
+
+        output_url = output_urls[0]
+        try:
+            resp = requests.get(output_url, timeout=120)
+            with open(output_path, "wb") as f:
+                f.write(resp.content)
+            logger.info(f"Kie.ai Infinitalk output saved: {output_path} ({len(resp.content)/1024/1024:.1f}MB)")
+            return output_path
+        except Exception as e:
+            logger.error(f"Kie.ai Infinitalk download error: {e}")
+            return None
+
+
 # ==================== REGISTER ====================
 
 def register_lipsync_providers():
     register_provider("lipsync", "wavespeed", WaveSpeedLipsyncProvider)
     register_provider("lipsync", "multitalk", WaveSpeedMultiTalkProvider)
+    register_provider("lipsync", "kieai", KieAIInfinitalkProvider)
 
 
 register_lipsync_providers()

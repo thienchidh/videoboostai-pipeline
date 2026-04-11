@@ -2,7 +2,7 @@
   "project": "videopipeline",
   "archived": [],
   "metadata": {
-    "last_updated": "2026-04-11T09:51:00Z",
+    "last_updated": "2026-04-11T12:46:00Z",
     "total_tasks": 17,
     "done_tasks": 16,
     "schema_version": 1
@@ -274,7 +274,7 @@
     {
       "id": "VP-017",
       "title": "Phase 2: Kie.ai integration - add Kie.ai as WaveSpeed alternative for lipsync",
-      "status": "todo",
+      "status": "done",
       "priority": "high",
       "created": "2026-04-11T09:51:00Z",
       "source": "manual",
@@ -283,7 +283,8 @@
       "blocked_by": [],
       "assigned_to": null,
       "claimed_at": null,
-      "note": "Waiting for: API key, API base URL, model name. Website docs returning 404."
+      "note": "Done. Kie.ai Infinitalk API confirmed working: POST /api/v1/jobs/createTask (model=infinitalk/from-audio, input: image_url+audio_url+prompt+resolution), GET /api/v1/jobs/recordInfo?taskId=xxx. Implemented: modules/media/kie_ai_client.py (KieAIClient with infinitalk/poll_task), modules/media/lipsync.py (KieAIInfinitalkProvider registered as 'kieai'). Test task success: tempfile.aiquickdraw.com/h/e7623c458fe23eb3afecf93a5f1aa568_1775886103.mp4. Next: wire kieai into video_pipeline_v3.py via config (lipsync.provider: kieai).",
+      "completed_at": "2026-04-11T05:16:00Z"
     }
   ]
 }

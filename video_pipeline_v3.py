@@ -1634,6 +1634,13 @@ if __name__ == "__main__":
     config_files = []
     resume_run_dir = None
 
+    # Usage:
+    #   python video_pipeline_v3.py <config.json>                    # fresh start
+    #   python video_pipeline_v3.py --start <config.json>          # fresh start (clear cache)
+    #   python video_pipeline_v3.py --resume <config.json>        # resume from recent run
+    #   python video_pipeline_v3.py --dry-run <config.json>       # dry run (mock API calls)
+    #   python video_pipeline_v3.py --dry-run-tts <config.json>  # dry run TTS only
+
     # Parse arguments for dry-run flags
     config_flag = None
     for i, arg in enumerate(sys.argv[1:]):

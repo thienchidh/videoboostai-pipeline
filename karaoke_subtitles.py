@@ -16,12 +16,14 @@ The timestamps JSON should be: [{"word": "...", "start": float, "end": float}]
 """
 import sys
 import os
+from pathlib import Path
 import json
 import subprocess
 import tempfile
 import argparse
 import shutil
 
+# Auto-detect: check .venv in project root first, then linuxbrew, then system
 LINUXBREW_PYTHON = "/home/linuxbrew/.linuxbrew/bin/python3"
 SYSTEM_PYTHON = sys.executable
 
@@ -38,6 +40,12 @@ PILL_FADE_DURATION = 0.15          # Seconds for pill bg to appear/disappear
 
 
 def get_moviepy_python():
+    # Auto-detect Python with moviepy: .venv > linuxbrew > system
+    # Check .venv in the same directory as this script (project root)
+    script_dir = Path(__file__).parent
+    venv_python = script_dir / ".venv" / "bin" / "python3"
+    if venv_python.exists():
+        return str(venv_python)
     if os.path.exists(LINUXBREW_PYTHON):
         return LINUXBREW_PYTHON
     return SYSTEM_PYTHON
@@ -197,6 +205,7 @@ def burn_with_moviepy_karaoke(input_path, output_path, timestamps, font_size=60)
 import sys
 import json
 import os
+from pathlib import Path
 import shutil
 from PIL import Image, ImageDraw, ImageFont
 from moviepy import VideoFileClip, ImageClip, CompositeVideoClip

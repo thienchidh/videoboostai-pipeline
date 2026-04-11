@@ -189,7 +189,9 @@ class VideoPipelineV3:
         self.avatars_dir.mkdir(parents=True, exist_ok=True)
 
         self.timestamp = int(time.time())
-        self.run_dir = self.output_dir / f"run_{self.timestamp}"
+        import secrets
+        self.run_id = secrets.token_hex(4)  # 8-char hex unique ID
+        self.run_dir = self.output_dir / f"run_{self.timestamp}_{self.run_id}"
         self.run_dir.mkdir(exist_ok=True)
 
         # Initialize DB and create video_run record

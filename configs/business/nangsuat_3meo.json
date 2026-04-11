@@ -1,0 +1,35 @@
+{
+  "_comment": "Business config - Scenes and scripts only. Technical settings auto-loaded from config_technical.json",
+  
+  "video": {
+    "title": "3 Meo Tang Nang Suat Gap 3 Lan"
+  },
+  
+  "scenes": [
+    {
+      "id": 1,
+      "script": "Xin chao! Minh la Giao Vien. Hom nay toi se chia se 3 meo don gian giup ban tang nang suat lam viec gap 3 lan. Bat dau nao!",
+      "characters": ["GiaoVien"]
+    },
+    {
+      "id": 2,
+      "script": "Meo thu nhat: Lam viec theo danh sach uu tien. Moi buoi sang, hay viet ra 5 viec quan trong nhat can hoan thanh trong ngay. Dieu nay giup ban tap trung dung viec can thiet, tranh lam viec vo ich.",
+      "characters": ["GiaoVien"]
+    },
+    {
+      "id": 3,
+      "script": "Meo thu hai: Phan chia thoi gian theo tung block. Gom cac cong viec cung loai lai voi nhau. Vi du nhu tra loi email cung luc, hay goi dien cung luc. Nao se khong phai chuyen doi lien tuc, tiet kiem duoc 40% thoi gian!",
+      "characters": ["GiaoVien"]
+    },
+    {
+      "id": 4,
+      "script": "Meo thu ba: Nghi ngoi dung cach. Cu 50 phut lam viec thi nghi 10 phut. Dung day van dong, uong nuoc, nhin ra cua so. Nao duoc nghi ngoi se hoat dong hieu qua hon rat nhieu.",
+      "characters": ["GiaoVien"]
+    },
+    {
+      "id": 5,
+      "script": "Tom lai: Mot - lap danh sach uu tien. Hai - phan chia block thoi gian. Ba - nghi ngoi dung cach. Ap dung ngay hom nay va cam nhan su khac biet nao!",
+      "characters": ["GiaoVien"]
+    }
+  ]
+}

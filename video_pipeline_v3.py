@@ -141,22 +141,51 @@ def mock_lipsync_video(image_path, audio_path, output_path):
         log(f"  🔴 DRY RUN: Lipsync fallback error: {e}")
     return None
 
+def deep_merge(base, override):
+    """Deep merge override into base. Override values take precedence."""
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
 class VideoPipelineV3:
     def __init__(self, config_path):
-        # Load config: can be a single file or a tuple of (business_config, secrets_config)
-        if isinstance(config_path, tuple) and len(config_path) == 2:
-            business_path, secrets_path = config_path
-            with open(business_path) as f:
-                business_config = json.load(f)
-            with open(secrets_path) as f:
-                secrets_config = json.load(f)
-            # Merge configs (secrets override business)
-            self.config = {**business_config, **secrets_config}
-            log(f"📋 Loaded business config: {business_path}")
-            log(f"📋 Loaded secrets config: {secrets_path}")
+        # Load config: auto-loads technical base config, then merges business config
+        # Business config path relative to configs/business/ or absolute
+        config_path = Path(config_path)
+        
+        # Find technical config
+        tech_config_path = Path(__file__).parent / "configs" / "technical" / "config_technical.json"
+        if not tech_config_path.exists():
+            tech_config_path = Path.home() / ".openclaw/workspace-videopipeline/configs/technical/config_technical.json"
+        
+        if not tech_config_path.exists():
+            log(f"❌ Technical config not found: {tech_config_path}")
+            raise FileNotFoundError(f"Technical config not found at {tech_config_path}")
+        
+        with open(tech_config_path) as f:
+            self.config = json.load(f)
+        log(f"📋 Technical base config: {tech_config_path}")
+        
+        # Load and merge business config
+        if config_path.name == "config_technical.json":
+            # Only technical config provided
+            log(f"📋 Using technical config only (no business config)")
         else:
+            # Business config path
+            if not config_path.exists():
+                # Try relative to configs/business/
+                biz_path = Path(__file__).parent / "configs" / "business" / config_path
+                if biz_path.exists():
+                    config_path = biz_path
+            
             with open(config_path) as f:
-                self.config = json.load(f)
+                biz_config = json.load(f)
+            self.config = deep_merge(self.config, biz_config)
+            log(f"📋 Business config: {config_path}")
         
         # Handle case where secrets file has placeholder values
         # Handle WaveSpeed key
@@ -201,7 +230,7 @@ class VideoPipelineV3:
         db.init_db()
         project_name = self.config.get("video", {}).get("title", "default")
         project_id = db.get_or_create_project(project_name)
-        config_name = Path(config_path).name if isinstance(config_path, (str, Path)) else str(config_path)
+        config_name = str(config_path)
         self.run_id = db.start_video_run(project_id, config_name)
         log(f"📊 DB video_run started: id={self.run_id}")
         

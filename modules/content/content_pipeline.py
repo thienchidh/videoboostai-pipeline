@@ -7,7 +7,6 @@ import sys
 import json
 import yaml
 import logging
-import subprocess
 from datetime import datetime, date, time
 from pathlib import Path
 from typing import List, Dict, Optional, Any
@@ -213,7 +212,7 @@ class ContentPipeline:
 
     def produce_video(self, idea_id: int, run_dir: str = None) -> Dict:
         """
-        Trigger video_pipeline_v3.py for a scheduled idea.
+        Trigger video_pipeline for a scheduled idea.
         Returns pipeline result dict.
         """
         from db import get_db
@@ -238,7 +237,7 @@ class ContentPipeline:
         config_path = self.output_dir / f"idea_{idea_id_val}_config.json"
 
         if self.dry_run:
-            logger.info(f"DRY RUN: would run video_pipeline_v3.py with {config_path}")
+            logger.info(f"DRY RUN: would run pipeline with {config_path}")
             return {
                 "success": True,
                 "dry_run": True,
@@ -246,52 +245,41 @@ class ContentPipeline:
                 "idea_id": idea_id
             }
 
-        # Run pipeline
+        # Run pipeline directly
         run_output_dir = run_dir or str(self.output_dir / f"run_{idea_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}")
         os.makedirs(run_output_dir, exist_ok=True)
 
         try:
-            pipeline_path = PROJECT_ROOT / "scripts" / "video_pipeline_v3.py"
-            secrets_path = PROJECT_ROOT / "configs" / "business" / "secrets.json"
-            if not pipeline_path.exists():
-                pipeline_path = PROJECT_ROOT / "video_config_secrets.json"
-            if not secrets_path.exists():
-                secrets_path = PROJECT_ROOT / "video_config_secrets.json"
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(pipeline_path),
-                    str(config_path),
-                    str(secrets_path),
-                    "--output-dir", run_output_dir
-                ],
-                capture_output=True,
-                text=True,
-                timeout=900
-            )
+            # Import VideoPipelineV3 directly
+            from scripts.video_pipeline_v3 import VideoPipelineV3
+            import scripts.video_pipeline_v3 as vp_module
 
-            success = result.returncode == 0
+            # Set global flags from content_pipeline state
+            vp_module.DRY_RUN = False
+            vp_module.DRY_RUN_TTS = False
+            vp_module.DRY_RUN_IMAGES = False
+            vp_module.UPLOAD_TO_SOCIALS = False
+
+            # Run pipeline directly
+            pipeline = VideoPipelineV3(str(config_path))
+            result = pipeline.run()
 
             # Find output video
             output_video = None
-            if success:
+            if result:
                 for f in Path(run_output_dir).rglob("*.mp4"):
                     if "final" in f.name or "video_concat" in f.name:
                         output_video = str(f)
                         break
 
             return {
-                "success": success,
-                "returncode": result.returncode,
+                "success": result is not None,
                 "output_video": output_video,
                 "run_dir": run_output_dir,
-                "stdout": result.stdout[-500:],
-                "stderr": result.stderr[-500:]
             }
 
-        except subprocess.TimeoutExpired:
-            return {"success": False, "error": "Pipeline timeout (>15 min)"}
         except Exception as e:
+            logger.error(f"Pipeline error: {e}")
             return {"success": False, "error": str(e)}
 
     def produce_due_items(self, platform: str = None) -> List[Dict]:

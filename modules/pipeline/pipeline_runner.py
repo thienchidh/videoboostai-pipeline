@@ -310,27 +310,23 @@ class VideoPipelineRunner:
         log(f"  💧 Adding watermark: '{text}' (motion={motion})")
 
         if motion == "bounce":
-            from core.paths import get_karaoke_python
-            bounce_script = PROJECT_ROOT / "scripts" / "bounce_watermark.py"
-            if bounce_script.exists():
-                python = get_karaoke_python()
-                font_path = self.config.get("fonts", {}).get("watermark") or ""
-                cmd = [
-                    python, str(bounce_script),
-                    str(video_path), str(output_path),
-                    "--text", text,
-                    "--font", font_path,
-                    "--font-size", str(font_size),
-                    "--opacity", str(opacity),
-                    "--speed", str(wm_cfg.get("bounce_speed", 120)),
-                    "--padding", str(wm_cfg.get("bounce_padding", 15))
-                ]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-                if result.returncode == 0 and Path(output_path).exists():
-                    log(f"  ✅ Watermark added (bounce)")
-                    return output_path
-                else:
-                    log(f"  ⚠️ Bounce watermark failed: {result.stderr[-300:] if result.stderr else 'unknown'}")
+            from scripts.bounce_watermark import add_bounce_watermark
+            font_path = self.config.get("fonts", {}).get("watermark") or ""
+            success = add_bounce_watermark(
+                str(video_path),
+                str(output_path),
+                text=text,
+                font=font_path or None,
+                font_size=font_size,
+                opacity=opacity,
+                speed=wm_cfg.get("bounce_speed", 120),
+                padding=wm_cfg.get("bounce_padding", 15),
+            )
+            if success:
+                log(f"  ✅ Watermark added (bounce)")
+                return output_path
+            else:
+                log(f"  ⚠️ Bounce watermark failed")
 
         # Static fallback
         return self._add_static_watermark(video_path, output_path, text, font_size, opacity)

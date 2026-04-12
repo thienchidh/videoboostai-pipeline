@@ -238,7 +238,7 @@ def add_subtitles(video_path: str, script_text: str,
                   output_path: Optional[str] = None,
                   font_size: int = 60,
                   run_dir: Optional[Path] = None) -> str:
-    """Add karaoke subtitles to video using karaoke_subtitles.py.
+    """Add karaoke subtitles to video.
 
     Args:
         video_path: input video
@@ -248,43 +248,25 @@ def add_subtitles(video_path: str, script_text: str,
         font_size: font size for subtitle text (default 60, matches main pipeline)
         run_dir: working directory for temp files
     """
+    from scripts.karaoke_subtitles import add_karaoke_subtitles
+
     if output_path is None:
         output_path = video_path
 
-    if run_dir is None:
-        run_dir = Path(video_path).parent
-
-    karaoke_script = PROJECT_ROOT / "scripts" / "karaoke_subtitles.py"
-    if not karaoke_script.exists():
-        log(f"  ⚠️ karaoke_subtitles.py not found, skipping subtitles")
-        return video_path
-
-    temp_dir = tempfile.mkdtemp()
-    script_path = os.path.join(temp_dir, "script.txt")
-    with open(script_path, "w", encoding="utf-8") as f:
-        f.write(script_text)
-
-    cmd = [
-        get_karaoke_python(), str(karaoke_script),
-        video_path,
-        script_path,
-        output_path,
-        "--font_size", str(font_size)
-    ]
-    if timestamps:
-        ts_path = os.path.join(temp_dir, "timestamps.json")
-        with open(ts_path, "w", encoding="utf-8") as f:
-            json.dump(timestamps, f, ensure_ascii=False)
-        cmd += ["--timestamps", ts_path]
-
     log(f"  📝 Running karaoke subtitles (font={font_size})...")
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-        if result.returncode == 0:
+        success = add_karaoke_subtitles(
+            video_path,
+            script_text,
+            output_path,
+            timestamps=timestamps,
+            font_size=font_size,
+        )
+        if success:
             log(f"  ✅ Subtitles added: {output_path}")
             return output_path
         else:
-            log(f"  ⚠️ Subtitle error (exit {result.returncode}): {result.stderr[:200]}")
+            log(f"  ⚠️ Subtitles failed")
     except Exception as e:
         log(f"  ⚠️ Subtitle exception: {e}")
     return video_path

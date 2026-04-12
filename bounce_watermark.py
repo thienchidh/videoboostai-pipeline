@@ -12,6 +12,7 @@ import tempfile
 import shutil
 import math
 import sys
+import json
 
 # Add project root to path so we can import core.paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -19,17 +20,14 @@ from core.paths import get_font_path, get_ffmpeg, get_ffprobe
 
 FONT_PATH = get_font_path()
 
+
 def get_video_info(path):
     result = subprocess.run(
-        [str(get_ffprobe()), "-v", "quiet", "-show_entries", 
+        [str(get_ffprobe()), "-v", "quiet", "-show_entries",
          "stream=width,height,r_frame_rate:format=duration",
          "-of", "json", path],
         capture_output=True, text=True
     )
-    info = subprocess.run([str(get_ffprobe()), "-v", "quiet", "-show_entries", 
-                          "stream=width,height,r_frame_rate:format=duration",
-                          "-of", "json", path], capture_output=True, text=True)
-    import json
     data = json.loads(result.stdout)
     v = data["streams"][0]
     fps_parts = v["r_frame_rate"].split("/")
@@ -39,11 +37,8 @@ def get_video_info(path):
     dur = float(data["format"]["duration"])
     return w, h, fps, dur
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Bouncing watermark video")
-    parser.add_argument("input_video")
-    parser.add_argument("output_video")
-    parser.add_argument("--text", default="@NangSuatThongMinh")
     parser = argparse.ArgumentParser(description="Bouncing watermark video")
     parser.add_argument("input_video")
     parser.add_argument("output_video")
@@ -53,20 +48,17 @@ def main():
     parser.add_argument("--opacity", type=float, default=0.15)
     parser.add_argument("--speed", type=float, default=120.0)  # pixels per second
     parser.add_argument("--padding", type=int, default=15)  # from edges
-    parser.add_argument("--opacity", type=float, default=0.15)
-    parser.add_argument("--speed", type=float, default=120.0)  # pixels per second
-    parser.add_argument("--padding", type=int, default=15)  # from edges
     args = parser.parse_args()
-    
+
     w, h, fps, duration = get_video_info(args.input_video)
     print(f"[bounce] Video: {w}x{h}, {fps:.1f}fps, {duration:.1f}s")
-    
+
     # Load font
     try:
         font = ImageFont.truetype(args.font, args.font_size)
     except Exception:
         font = ImageFont.load_default()
-    
+
     # Measure text
     dummy = Image.new("RGBA", (1, 1))
     d = ImageDraw.Draw(dummy)
@@ -74,28 +66,28 @@ def main():
     tw = bbox[2] - bbox[0]
     th = bbox[3] - bbox[1]
     print(f"[bounce] Text: '{args.text}' size={tw}x{th}")
-    
+
     # Physics bounds
     pad = args.padding
     min_x = pad
     max_x = w - tw - pad
     min_y = pad
     max_y = h - th - pad
-    
+
     # Initial position (center)
     x = (w - tw) // 2
     y = (h - th) // 2
-    
+
     # Random initial direction (normalized)
     angle = np.random.uniform(0, 2 * math.pi)
     vx = math.cos(angle) * args.speed  # pixels per second
     vy = math.sin(angle) * args.speed
-    
+
     # Alpha
     alpha = int(255 * args.opacity)
-    
+
     print(f"[bounce] Bouncing in {w}x{h} area, speed={args.speed} px/s")
-    
+
     # Generate frames
     tmpdir = Path(tempfile.mkdtemp())
     num_frames = int(duration * fps)
@@ -166,6 +158,7 @@ def main():
         shutil.rmtree(tmpdir)
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

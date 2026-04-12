@@ -1,23 +1,43 @@
 """
-core/base_pipeline.py — Abstract base class for video pipelines
+core/base_pipeline.py — Abstract base class for video pipelines.
 
 Provides common methods for scene processing, concatenation,
 watermark, and subtitle steps. DRY_RUN flags are shared here.
+
+NOTE: All video processing utilities (crop_to_9x16, concat_videos, add_subtitles,
+add_background_music, expand_script, etc.) have been consolidated into
+core/video_utils.py. This module re-exports them for backward compatibility.
 """
 
 import os
 import sys
 import time
-import subprocess
 import shutil
-import tempfile
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-import json
 from core.paths import PROJECT_ROOT, get_karaoke_python as _resolve_karaoke_python, get_font_path, get_ffmpeg, get_ffprobe
+from core.video_utils import (
+    log,
+    deep_merge,
+    crop_to_9x16,
+    concat_videos,
+    add_subtitles,
+    add_background_music,
+    expand_script,
+    get_video_duration,
+    get_audio_duration,
+    upload_file,
+    wait_for_job,
+    mock_generate_tts,
+    mock_generate_image,
+    mock_lipsync_video,
+    DRY_RUN as _DRY_RUN,
+    DRY_RUN_TTS as _DRY_RUN_TTS,
+    DRY_RUN_IMAGES as _DRY_RUN_IMAGES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,96 +52,16 @@ def get_karaoke_python() -> str:
     return str(_resolve_karaoke_python())
 
 
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
-
-
-# ==================== DRY RUN MOCK FUNCTIONS ====================
-
-def mock_generate_tts(text: str, voice: str = "female_voice",
-                       speed: float = 1.0, output_path: Optional[str] = None) -> str:
-    """Generate fake TTS audio using ffmpeg (sine tone)."""
-    log(f"  🔴 DRY RUN: mock_generate_tts - using placeholder audio")
-    if not output_path:
-        output_path = f"/tmp/tts_dryrun_{int(time.time()*1000)}.mp3"
-
-    estimated_duration = max(2.0, len(text) / 3.0)
-    cmd = [
-        str(get_ffmpeg()), "-y",
-        "-f", "lavfi", "-i", f"sine=frequency=440:duration={estimated_duration}",
-        "-af", f"atempo={speed}",
-        "-ar", "32000", "-ac", "1", "-ab", "128k",
-        output_path
-    ]
-    try:
-        subprocess.run(cmd, capture_output=True, timeout=30)
-        if Path(output_path).exists():
-            log(f"  🔴 DRY RUN: TTS placeholder created: {Path(output_path).stat().st_size/1024:.1f}KB")
-            return output_path
-    except Exception as e:
-        log(f"  🔴 DRY RUN: TTS fallback error: {e}")
-
-    Path(output_path).touch()
-    return output_path
-
-
-def mock_generate_image(prompt: str, output_path: str) -> Optional[str]:
-    """Generate a solid color placeholder image."""
-    log(f"  🔴 DRY RUN: mock_generate_image - using placeholder image")
-    try:
-        from PIL import Image
-        img = Image.new('RGB', (1080, 1920), color=(100, 150, 200))
-        img.save(output_path)
-        log(f"  🔴 DRY RUN: Image placeholder created: {Path(output_path).stat().st_size/1024:.1f}KB")
-        return output_path
-    except Exception as e:
-        log(f"  🔴 DRY RUN: PIL not available ({e}), trying ffmpeg...")
-
-    cmd = [
-        str(get_ffmpeg()), "-y",
-        "-f", "lavfi", "-i", "color=c=0x6496C8:s=1080x1920:d=1",
-        "-frames:v", "1",
-        output_path
-    ]
-    try:
-        subprocess.run(cmd, capture_output=True, timeout=30)
-        if Path(output_path).exists():
-            log(f"  🔴 DRY RUN: Image placeholder created (ffmpeg): {Path(output_path).stat().st_size/1024:.1f}KB")
-            return output_path
-    except Exception as e:
-        log(f"  🔴 DRY RUN: Image ffmpeg fallback error: {e}")
-    return None
-
-
-def mock_lipsync_video(image_path: str, audio_path: str, output_path: str) -> Optional[str]:
-    """Generate fake lipsync video using ffmpeg (static image + audio)."""
-    log(f"  🔴 DRY RUN: mock_lipsync_video - using placeholder video")
-
-    result = subprocess.run(
-        [str(get_ffprobe()), "-v", "quiet", "-show_entries", "format=duration",
-         "-of", "csv=p=0", audio_path],
-        capture_output=True, text=True
-    )
-    duration = float(result.stdout.strip() or 5.0)
-
-    cmd = [
-        str(get_ffmpeg()), "-y",
-        "-loop", "1", "-i", image_path,
-        "-i", audio_path,
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-c:a", "aac", "-b:a", "128k",
-        "-shortest",
-        "-pix_fmt", "yuv420p",
-        output_path
-    ]
-    try:
-        subprocess.run(cmd, capture_output=True, timeout=60)
-        if Path(output_path).exists():
-            log(f"  🔴 DRY RUN: Lipsync placeholder created: {Path(output_path).stat().st_size/1024/1024:.1f}MB")
-            return output_path
-    except Exception as e:
-        log(f"  🔴 DRY RUN: Lipsync fallback error: {e}")
-    return None
+# Re-export everything from video_utils for backward compatibility
+__all__ = [
+    "DRY_RUN", "DRY_RUN_TTS", "DRY_RUN_IMAGES",
+    "get_karaoke_python", "log", "deep_merge",
+    "crop_to_9x16", "concat_videos", "add_subtitles",
+    "add_background_music", "expand_script",
+    "get_video_duration", "get_audio_duration",
+    "upload_file", "wait_for_job",
+    "mock_generate_tts", "mock_generate_image", "mock_lipsync_video",
+]
 
 
 # ==================== BASE PIPELINE ====================
@@ -196,54 +136,20 @@ class BasePipeline(ABC):
         scene = scenes[scene_idx]
         return self._process_single_scene(scene)
 
+    # ---- Video utilities (delegated to video_utils) ----
+    # These methods are re-exports from core/video_utils.py for convenience.
+    # The canonical implementations live in core/video_utils.py.
+
     def concatenate_scenes(self, video_paths: List[str], output_path: str) -> Optional[str]:
         """Concatenate multiple scene videos into one."""
-        if not video_paths:
-            return None
-        log(f"  🔗 Concatenating {len(video_paths)} videos...")
-
-        list_file = self.run_dir / "concat_list.txt"
-        with open(list_file, "w") as f:
-            for path in video_paths:
-                log(f"    + {Path(path).name}")
-                f.write(f"file '{path}'\n")
-
-        filtergraph = ""
-        for i in range(len(video_paths)):
-            filtergraph += f"[{i}:v][{i}:a]"
-        filtergraph += f"concat=n={len(video_paths)}:v=1:a=1[outv][outa]"
-
-        input_args = []
-        for path in video_paths:
-            input_args += ["-i", path]
-
-        cmd = [str(get_ffmpeg()), "-y"] + input_args + [
-            "-filter_complex", filtergraph,
-            "-map", "[outv]", "-map", "[outa]",
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-            "-c:a", "aac", "-b:a", "128k",
-            output_path
-        ]
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-            if result.returncode != 0:
-                log(f"  ❌ Concat error: {result.stderr[:300]}")
-                # Fallback: stream copy
-                cmd_simple = [
-                    str(get_ffmpeg()), "-y", "-f", "concat", "-safe", "0", "-i", str(list_file),
-                    "-c", "copy", "-bsf:a", "aac_adtstoasc", output_path
-                ]
-                subprocess.run(cmd_simple, capture_output=True, timeout=600)
-            if Path(output_path).exists():
-                size = Path(output_path).stat().st_size
-                log(f"  ✅ Concat done: {size/1024/1024:.1f}MB")
-                return output_path
-        except Exception as e:
-            log(f"  ❌ Concat exception: {e}")
-        return None
+        return concat_videos(video_paths, output_path, run_dir=self.run_dir)
 
     def apply_watermark(self, video_path: str, output_path: str) -> str:
-        """Add watermark overlay to video using PIL + FFmpeg."""
+        """Add watermark overlay to video (static mode only).
+
+        For bounce mode, use bounce_watermark.py directly.
+        Note: bounce mode is implemented in VideoPipelineV3.add_watermark().
+        """
         wm_cfg = self.config.get("watermark", {})
         if not wm_cfg.get("enable", False):
             log(f"  ℹ️ Watermark disabled")
@@ -305,96 +211,3 @@ class BasePipeline(ABC):
         except Exception as e:
             log(f"  ⚠️ Watermark error: {e}")
         return video_path
-
-    def add_subtitles(self, video_path: str, script_text: str,
-                      timestamps: Optional[List[Dict]] = None,
-                      output_path: Optional[str] = None) -> str:
-        """Add karaoke subtitles to video using karaoke_subtitles.py."""
-        log(f"  📝 Adding subtitles...")
-
-        if output_path is None:
-            output_path = video_path  # overwrite
-
-        karaoke_script = PROJECT_ROOT / "karaoke_subtitles.py"
-        if not karaoke_script.exists():
-            log(f"  ⚠️ karaoke_subtitles.py not found, skipping subtitles")
-            return video_path
-
-        temp_dir = tempfile.mkdtemp()
-        script_path = os.path.join(temp_dir, "script.txt")
-        with open(script_path, "w", encoding="utf-8") as f:
-            f.write(script_text)
-
-        cmd = [
-            get_karaoke_python(), str(karaoke_script),
-            video_path,
-            script_path,
-            output_path,
-            "--font-size", "80"
-        ]
-        if timestamps:
-            ts_path = os.path.join(temp_dir, "timestamps.json")
-            with open(ts_path, "w", encoding="utf-8") as f:
-                json.dump(timestamps, f, ensure_ascii=False)
-            cmd += ["--timestamps", ts_path]
-
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-            if result.returncode == 0:
-                log(f"  ✅ Subtitles added: {output_path}")
-                return output_path
-            else:
-                log(f"  ⚠️ Subtitle error (exit {result.returncode}): {result.stderr[:200]}")
-        except Exception as e:
-            log(f"  ⚠️ Subtitle exception: {e}")
-        return video_path
-
-    # ---- Utility methods ----
-
-    def crop_to_9x16(self, input_video: str, output_video: str) -> Optional[str]:
-        """Crop/convert any video to 9:16 vertical."""
-        log(f"  📐 Crop to 9:16...")
-
-        result = subprocess.run(
-            [str(get_ffprobe()), "-v", "quiet", "-select_streams", "v:0",
-             "-show_entries", "stream=width,height", "-of", "csv=p=0", input_video],
-            capture_output=True, text=True
-        )
-        if result.returncode == 0:
-            dims = result.stdout.strip().split(',')
-            if len(dims) == 2:
-                w, h = int(dims[0]), int(dims[1])
-                input_ratio = w / h
-                target_ratio = 9 / 16
-
-                if input_ratio > target_ratio:
-                    new_w = int(h * (9 / 16))
-                    x_offset = (w - new_w) // 2
-                    crop_filter = f"crop={new_w}:{h}:{x_offset}:0,scale=1080:1920"
-                elif input_ratio < target_ratio:
-                    new_h = int(w * (16 / 9))
-                    y_offset = (h - new_h) // 2
-                    crop_filter = f"crop={w}:{new_h}:0:{y_offset},scale=1080:1920"
-                else:
-                    crop_filter = "scale=1080:1920"
-
-                cmd = [str(get_ffmpeg()), "-i", input_video,
-                       "-vf", crop_filter,
-                       "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-                       "-c:a", "aac", "-y", output_video]
-                try:
-                    subprocess.run(cmd, capture_output=True, timeout=300)
-                    if Path(output_video).exists():
-                        return output_video
-                except Exception as e:
-                    log(f"  ❌ Crop error: {e}")
-        return None
-
-    def get_video_duration(self, video_path: str) -> float:
-        """Get video duration in seconds using ffprobe."""
-        result = subprocess.run(
-            [str(get_ffprobe()), "-v", "quiet", "-show_entries", "format=duration",
-             "-of", "csv=p=0", video_path],
-            capture_output=True, text=True
-        )
-        return float(result.stdout.strip() or 0)

@@ -1,0 +1,79 @@
+# ================================================================
+# MINIMAL TEST SCENARIO - For fixture generation
+# ================================================================
+# Very short scripts to minimize API costs and generation time
+# ================================================================
+
+video:
+  title: "Test Minimal Video"
+  aspect_ratio: "9:16"
+  style: "3D animated Pixar Disney style, high quality 3D render"
+  resolution: "480p"
+  fps: 25
+
+subtitle:
+  enable: false
+
+background_music:
+  enable: false
+
+watermark:
+  enable: false
+
+prompt:
+  style: "3D animated Pixar Disney style, high quality 3D render, vibrant colors"
+  script_hints:
+    default: "warm natural lighting, Pixar Disney quality"
+
+characters:
+  - name: "TestChar"
+    description: "friendly cartoon character"
+    prompt: "3D animated Pixar Disney style friendly cartoon character, simple design, bright colors, warm smile, standing in simple background, Disney Pixar high quality 3D render"
+    avatar_file: ""
+    tts_voice: "female_voice"
+    tts_speed: 1.0
+    auto_create: true
+
+scenes:
+  - id: 1
+    script: "Xin chào"
+    characters: ["TestChar"]
+    background: "default"
+
+  - id: 2
+    script: "Tạm biệt"
+    characters: ["TestChar"]
+    background: "default"
+
+models:
+  tts: "edge"
+  image: "minimax"
+  video: "kieai"
+
+tts:
+  max_duration: 15.0
+  min_duration: 2.0
+  words_per_second: 2.5
+
+lipsync:
+  provider: "kieai"
+  resolution: "480p"
+  prompt: "A person talking"
+  max_wait: 300
+
+llm:
+  provider: "minimax"
+  model: "MiniMax-M2.7"
+  max_tokens: 1536
+
+social:
+  facebook:
+    page_id: ""
+    page_name: ""
+    access_token: ""
+    auto_publish: false
+  tiktok:
+    account_id: ""
+    account_name: ""
+    refresh_token: ""
+    auto_publish: false

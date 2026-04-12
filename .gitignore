@@ -9,11 +9,11 @@ video_v3_output/
 __pycache__/
 *.pyc
 
-# Media
-*.mp4
-*.mp3
-*.wav
-*.png
+# Media (but keep test fixtures tracked)
+# Track fixtures: tests/fixtures/** is committed to git
+# Exclude test outputs and large generated files
+tests/__pycache__/
+tests/.pytest_cache/
 
 # Credentials encryption key
 ~/.config/videopipeline/.credentials.key

@@ -189,8 +189,8 @@ class VideoPipelineV3:
             self.config = deep_merge(self.config, biz_config)
             log(f"📋 Business config: {config_path}")
 
-        # Load secrets file (API keys)
-        # Load API secrets from configs/business/secrets.json
+        # Load secrets file (API keys) - DEPRECATED, now in config_technical.json
+        # Kept for backward compatibility only
         secrets_path = Path(__file__).parent / "configs" / "business" / "secrets.json"
         if not secrets_path.exists():
             secrets_path = Path(__file__).parent / "video_config_secrets.json"

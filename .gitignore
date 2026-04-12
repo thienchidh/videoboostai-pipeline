@@ -2,6 +2,7 @@
 *secrets*.json
 *.key
 .env
+configs/technical/config_technical.json
 
 # Output
 video_v3_output/

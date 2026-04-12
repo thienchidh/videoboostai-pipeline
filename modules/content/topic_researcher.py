@@ -13,11 +13,6 @@ from typing import List, Dict, Optional, Any
 
 logger = logging.getLogger(__name__)
 
-try:
-    from psycopg2.extras import Json
-except ImportError:
-    Json = None  # lazy import, psycopg2 only needed at runtime
-
 
 class TopicResearcher:
     """Research trending topics from web search and other sources."""
@@ -158,18 +153,10 @@ class TopicResearcher:
             return None
 
         try:
-            from db import get_db
-            with get_db() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """INSERT INTO topic_sources
-                           (source_type, source_query, topics_found, last_fetched)
-                           VALUES (%s, %s, %s, %s) RETURNING id""",
-                        (source_type, source_query, Json(topics), datetime.now())
-                    )
-                    source_id = cur.fetchone()["id"]
-                    logger.info(f"Saved {len(topics)} topics to topic_sources.id={source_id}")
-                    return source_id
+            from db import save_topic_sources
+            source_id = save_topic_sources(source_type, source_query, topics)
+            logger.info(f"Saved {len(topics)} topics to topic_sources.id={source_id}")
+            return source_id
         except Exception as e:
             logger.error(f"Failed to save topics to DB: {e}")
             return None

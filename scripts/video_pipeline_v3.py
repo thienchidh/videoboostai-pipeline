@@ -51,8 +51,13 @@ class VideoPipelineV3:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         date_str = time.strftime("%Y%m%d")
 
-        # Init DB (lazy import to avoid hard psycopg2 dep at module load time)
+        # Configure database before any DB operations
         import db as _db
+        db_cfg = self.cfg.data.get("database")
+        if db_cfg:
+            _db.configure(db_cfg)
+
+        # Init DB
         _db.init_db()
         project_name = self.cfg.get("video", {}).get("title", "default")
         project_id = _db.get_or_create_project(project_name)

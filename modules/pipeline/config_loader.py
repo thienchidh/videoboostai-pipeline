@@ -16,6 +16,23 @@ from core.paths import PROJECT_ROOT
 from core.video_utils import deep_merge
 
 
+class MissingConfigError(Exception):
+    """Raised when a required configuration key is missing."""
+    pass
+
+
+def require_key(data: Dict, *keys: str) -> Any:
+    """Traverse nested dict by keys, raise MissingConfigError if any key is missing or empty."""
+    val = data
+    for k in keys:
+        if not isinstance(val, dict) or k not in val:
+            raise MissingConfigError(f"Required config key missing: {'.'.join(keys)}")
+        val = val[k]
+    if val is None or val == "":
+        raise MissingConfigError(f"Required config key is empty: {'.'.join(keys)}")
+    return val
+
+
 @dataclass
 class PipelineConfig:
     """Loaded and merged configuration for a pipeline run."""
@@ -137,20 +154,19 @@ class ConfigLoader:
             except json.JSONDecodeError as e:
                 raise RuntimeError(f"Failed to parse secrets {secrets_path}: {e}")
 
-        # ---- Resolve API keys ----
-        wsp_key = merged.get("api", {}).get("wavespeed_key", "")
+        # ---- Resolve and validate API keys ----
+        wsp_key = require_key(merged, "api", "wavespeed_key")
         wsp_base = merged.get("api_urls", {}).get("wavespeed", "https://api.wavespeed.ai")
-        minimax_key = merged.get("api", {}).get("minimax_key", "")
-        kieai_key = merged.get("api", {}).get("kie_ai_key", "")
-        kieai_key = merged.get("api", {}).get("kie_ai_key", "")
+        minimax_key = require_key(merged, "api", "minimax_key")
+        kieai_key = require_key(merged, "api", "kie_ai_key")
         lipsync_provider = merged.get("lipsync", {}).get("provider", "wavespeed")
 
-        # ---- Resolve S3 config ----
-        s3_cfg = merged.get("s3", {})
+        # ---- Resolve and validate S3 config ----
+        s3_cfg = require_key(merged, "s3")
         s3_endpoint = s3_cfg.get("endpoint", "https://s3.trachanhtv.top")
-        s3_access_key = s3_cfg.get("access_key", "minio-admin")
-        s3_secret_key = s3_cfg.get("secret_key", "")
-        s3_bucket = s3_cfg.get("bucket", "videopipeline")
+        s3_access_key = require_key(s3_cfg, "access_key")
+        s3_secret_key = require_key(s3_cfg, "secret_key")
+        s3_bucket = require_key(s3_cfg, "bucket")
         s3_region = s3_cfg.get("region", "us-east-1")
         s3_public_url_base = s3_cfg.get("public_url_base", "https://s3.trachanhtv.top/videopipeline")
 

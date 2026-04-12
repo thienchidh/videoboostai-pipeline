@@ -4,40 +4,41 @@ S3 upload utility for videopipeline.
 Uploads local files to MinIO/S3 and returns public URL.
 """
 import boto3
-import os
 from pathlib import Path
+
+from modules.pipeline.config_loader import MissingConfigError
 
 
 _s3_config = None
 
 
 def configure(config: dict = None):
-    """Update S3 config from a config dict. Call before get_s3_client()."""
+    """Update S3 config from a config dict. All required fields must be present."""
     global _s3_config
     if config is None:
-        return
+        raise MissingConfigError("s3 config is required but not provided")
+    required = ["endpoint", "access_key", "secret_key", "bucket"]
+    for key in required:
+        val = config.get(key)
+        if not val:
+            raise MissingConfigError(f"s3.{key} is required")
     _s3_config = {
-        'endpoint': config.get('endpoint', 'https://s3.trachanhtv.top'),
-        'access_key': config.get('access_key', 'minio-admin'),
-        'secret_key': config.get('secret_key', 'minio-password-change-me'),
-        'bucket': config.get('bucket', 'videopipeline'),
+        'endpoint': config['endpoint'],
+        'access_key': config['access_key'],
+        'secret_key': config['secret_key'],
+        'bucket': config['bucket'],
         'region': config.get('region', 'us-east-1'),
-        'public_url_base': config.get('public_url_base', 'https://s3.trachanhtv.top/videopipeline'),
+        'public_url_base': config.get('public_url_base', f"{config['endpoint']}/{config['bucket']}"),
     }
 
 
 def get_s3_config():
-    """Load S3 config from global config dict or environment variables."""
-    if _s3_config is not None:
-        return _s3_config
-    return {
-        'endpoint': os.environ.get('S3_ENDPOINT', 'https://s3.trachanhtv.top'),
-        'access_key': os.environ.get('S3_ACCESS_KEY', 'minio-admin'),
-        'secret_key': os.environ.get('S3_SECRET_KEY', 'minio-password-change-me'),
-        'bucket': os.environ.get('S3_BUCKET', 'videopipeline'),
-        'region': os.environ.get('S3_REGION', 'us-east-1'),
-        'public_url_base': os.environ.get('S3_PUBLIC_URL_BASE', 'https://s3.trachanhtv.top/videopipeline'),
-    }
+    """Return S3 config. Must call configure() first."""
+    if _s3_config is None:
+        raise MissingConfigError(
+            "S3 not configured — call configure() with s3 config dict before use"
+        )
+    return _s3_config
 
 
 def get_s3_client():

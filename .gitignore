@@ -20,3 +20,4 @@ tests/.pytest_cache/
 .openclaw/
 memory/
 venv/
+output/

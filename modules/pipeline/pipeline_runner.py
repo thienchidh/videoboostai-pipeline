@@ -25,7 +25,7 @@ from core.video_utils import (
     DRY_RUN_IMAGES,
 )
 from core.plugins import get_provider, register_provider
-from modules.pipeline.config_loader import PipelineConfig, ConfigLoader
+from modules.pipeline.config_loader import PipelineConfig, ConfigLoader, MissingConfigError
 from modules.pipeline.scene_processor import SingleCharSceneProcessor, MultiCharSceneProcessor
 
 # Import providers to trigger registration
@@ -74,6 +74,11 @@ class VideoPipelineRunner:
         self.media_dir = self.run_dir / "final"
         self.media_dir.mkdir(parents=True, exist_ok=True)
 
+        # Configure database if database section is present in config
+        db_cfg = self.config.data.get("database")
+        if db_cfg:
+            db.configure(db_cfg)
+
         # Instantiate providers via PluginRegistry
         self.tts_provider = self._build_tts_provider()
         self.image_provider = self._build_image_provider()
@@ -87,7 +92,10 @@ class VideoPipelineRunner:
 
     def _build_tts_provider(self):
         """Instantiate TTS provider via PluginRegistry."""
-        tts_name = self.config.get("models", {}).get("tts", "minimax")
+        models = self.config.get("models")
+        if not models or not models.get("tts"):
+            raise MissingConfigError("models.tts provider must be configured")
+        tts_name = models["tts"]
         provider_cls = get_provider("tts", tts_name)
         if provider_cls is None:
             raise ValueError(f"Unknown TTS provider: {tts_name}")
@@ -99,7 +107,10 @@ class VideoPipelineRunner:
 
     def _build_image_provider(self):
         """Instantiate image provider via PluginRegistry."""
-        img_name = self.config.get("models", {}).get("image", "minimax")
+        models = self.config.get("models")
+        if not models or not models.get("image"):
+            raise MissingConfigError("models.image provider must be configured")
+        img_name = models["image"]
         provider_cls = get_provider("image", img_name)
         if provider_cls is None:
             raise ValueError(f"Unknown image provider: {img_name}")

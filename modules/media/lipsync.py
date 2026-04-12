@@ -251,7 +251,7 @@ class KieAIInfinitalkProvider(LipsyncProvider):
                  base_url: str = "https://api.kie.ai/api/v1",
                  upload_func: Optional[callable] = None):
         self.api_key = api_key
-        self.webhook_key = webhook_key or os.environ.get("KIE_AI_WEBHOOK_KEY", "")
+        self.webhook_key = webhook_key if webhook_key else ""
         self.base_url = base_url
         self.upload_func = upload_func
         self._client = KieAIClient(

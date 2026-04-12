@@ -181,66 +181,32 @@ Important:
 
     def save_ideas_to_db(self, ideas: List[Dict], source_id: int = None) -> List[int]:
         """Save content ideas to DB, return list of idea IDs."""
-        idea_ids = []
         try:
-            from psycopg2.extras import Json
-            from db import get_db
-            with get_db() as conn:
-                with conn.cursor() as cur:
-                    for idea in ideas:
-                        cur.execute(
-                            """INSERT INTO content_ideas
-                               (project_id, title, description, topic_keywords, content_angle,
-                                target_platform, source_id, status)
-                               VALUES (%s, %s, %s, %s, %s, %s, %s, 'raw')
-                               RETURNING id""",
-                            (
-                                self.project_id,
-                                idea.get("title"),
-                                idea.get("description"),
-                                Json(idea.get("topic_keywords", [])),
-                                idea.get("content_angle"),
-                                idea.get("target_platform", "both"),
-                                source_id
-                            )
-                        )
-                        idea_ids.append(cur.fetchone()["id"])
-                    logger.info(f"Saved {len(idea_ids)} ideas to DB")
+            from db import save_content_ideas
+            # Enrich ideas with project context
+            for idea in ideas:
+                idea["target_platform"] = idea.get("target_platform", self.target_platform)
+            ids = save_content_ideas(self.project_id, ideas, source_id=source_id)
+            logger.info(f"Saved {len(ids)} ideas to DB")
+            return ids
         except Exception as e:
             logger.error(f"Failed to save ideas to DB: {e}")
-        return idea_ids
+            return []
 
     def update_idea_script(self, idea_id: int, script_json: Dict):
         """Update idea with generated script."""
         try:
-            from psycopg2.extras import Json
-            from db import get_db
-            with get_db() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """UPDATE content_ideas
-                           SET script_json = %s, status = 'script_ready', updated_at = CURRENT_TIMESTAMP
-                           WHERE id = %s""",
-                        (Json(script_json), idea_id)
-                    )
-                    logger.info(f"Updated idea {idea_id} with script")
+            from db import update_idea_script as db_update_idea_script
+            db_update_idea_script(idea_id, script_json)
+            logger.info(f"Updated idea {idea_id} with script")
         except Exception as e:
             logger.error(f"Failed to update idea script: {e}")
 
     def get_ideas_by_status(self, status: str = "raw", limit: int = 10) -> List[Dict]:
         """Get content ideas by status."""
         try:
-            from psycopg2.extras import RealDictCursor
-            from db import get_db
-            with get_db() as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(
-                        """SELECT * FROM content_ideas
-                           WHERE project_id = %s AND status = %s
-                           ORDER BY created_at DESC LIMIT %s""",
-                        (self.project_id, status, limit)
-                    )
-                    return cur.fetchall()
+            from db import get_ideas_by_status
+            return get_ideas_by_status(self.project_id, status, limit)
         except Exception as e:
             logger.error(f"Failed to get ideas: {e}")
             return []

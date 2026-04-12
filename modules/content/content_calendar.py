@@ -36,19 +36,17 @@ class ContentCalendar:
         scheduled_time = scheduled_time or time(9, 0)  # Default 9 AM
 
         try:
-            from db import get_db
-            with get_db() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """INSERT INTO content_calendar
-                           (idea_id, platform, scheduled_date, scheduled_time, priority, notes, status)
-                           VALUES (%s, %s, %s, %s, %s, %s, 'scheduled')
-                           RETURNING id""",
-                        (idea_id, platform, scheduled_date, scheduled_time, priority, notes)
-                    )
-                    calendar_id = cur.fetchone()["id"]
-                    logger.info(f"Scheduled idea {idea_id} for {platform} on {scheduled_date}")
-                    return calendar_id
+            from db import schedule_content_idea
+            calendar_id = schedule_content_idea(
+                idea_id=idea_id,
+                platform=platform,
+                scheduled_date=scheduled_date,
+                scheduled_time=scheduled_time,
+                priority=priority,
+                notes=notes,
+            )
+            logger.info(f"Scheduled idea {idea_id} for {platform} on {scheduled_date}")
+            return calendar_id
         except Exception as e:
             logger.error(f"Failed to schedule idea: {e}")
             return None
@@ -87,27 +85,9 @@ class ContentCalendar:
         Returns items where scheduled_date <= today AND status = 'scheduled'.
         """
         as_of = as_of or datetime.now()
-        platform_filter = "AND platform = %s" if platform else ""
-        params: list = [as_of.date()]
-        if platform:
-            params.append(platform)
-
         try:
-            from db import get_db
-            from psycopg2.extras import RealDictCursor
-            with get_db() as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(
-                        f"""SELECT cc.*, ci.title, ci.script_json, ci.topic_keywords
-                            FROM content_calendar cc
-                            JOIN content_ideas ci ON cc.idea_id = ci.id
-                            WHERE cc.status = 'scheduled'
-                            AND cc.scheduled_date <= %s
-                            {platform_filter}
-                            ORDER BY cc.scheduled_date, cc.scheduled_time""",
-                        tuple(params)
-                    )
-                    return cur.fetchall()
+            from db import get_due_calendar_items
+            return get_due_calendar_items(as_of.date(), platform=platform)
         except Exception as e:
             logger.error(f"Failed to get due items: {e}")
             return []
@@ -116,27 +96,9 @@ class ContentCalendar:
         """Get upcoming scheduled content for next N days."""
         today = date.today()
         end_date = today + timedelta(days=days)
-        platform_filter = "AND platform = %s" if platform else ""
-        params: list = [today, end_date]
-        if platform:
-            params.append(platform)
-
         try:
-            from db import get_db
-            from psycopg2.extras import RealDictCursor
-            with get_db() as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(
-                        f"""SELECT cc.*, ci.title, ci.topic_keywords
-                            FROM content_calendar cc
-                            JOIN content_ideas ci ON cc.idea_id = ci.id
-                            WHERE cc.status = 'scheduled'
-                            AND cc.scheduled_date BETWEEN %s AND %s
-                            {platform_filter}
-                            ORDER BY cc.scheduled_date, cc.scheduled_time""",
-                        tuple(params)
-                    )
-                    return cur.fetchall()
+            from db import get_upcoming_calendar_items
+            return get_upcoming_calendar_items(today, end_date, platform=platform)
         except Exception as e:
             logger.error(f"Failed to get upcoming: {e}")
             return []
@@ -146,17 +108,9 @@ class ContentCalendar:
                      notes: str = None):
         """Update calendar item status."""
         try:
-            from db import get_db
-            with get_db() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """UPDATE content_calendar
-                           SET status = %s, video_run_id = %s, social_post_id = %s,
-                               notes = COALESCE(%s, notes), updated_at = CURRENT_TIMESTAMP
-                           WHERE id = %s""",
-                        (status, video_run_id, social_post_id, notes, calendar_id)
-                    )
-                    logger.info(f"Updated calendar {calendar_id} -> {status}")
+            from db import update_calendar_status
+            update_calendar_status(calendar_id, status, video_run_id=video_run_id, notes=notes)
+            logger.info(f"Updated calendar {calendar_id} -> {status}")
         except Exception as e:
             logger.error(f"Failed to update calendar status: {e}")
 
@@ -179,28 +133,8 @@ class ContentCalendar:
         end_date = end_date or (start_date + timedelta(days=30))
 
         try:
-            from db import get_db
-            from psycopg2.extras import RealDictCursor
-            with get_db() as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(
-                        """SELECT cc.*, ci.title, ci.topic_keywords
-                            FROM content_calendar cc
-                            JOIN content_ideas ci ON cc.idea_id = ci.id
-                            WHERE cc.scheduled_date BETWEEN %s AND %s
-                            ORDER BY cc.scheduled_date, cc.scheduled_time, cc.platform""",
-                        (start_date, end_date)
-                    )
-                    rows = cur.fetchall()
-
-            # Organize by date
-            calendar = {}
-            for row in rows:
-                date_str = str(row["scheduled_date"])
-                if date_str not in calendar:
-                    calendar[date_str] = []
-                calendar[date_str].append(dict(row))
-            return calendar
+            from db import get_calendar_view as db_get_calendar_view
+            return db_get_calendar_view(start_date, end_date)
         except Exception as e:
             logger.error(f"Failed to get calendar view: {e}")
             return {}
@@ -208,27 +142,8 @@ class ContentCalendar:
     def get_stats(self) -> Dict:
         """Get calendar statistics."""
         try:
-            from db import get_db
-            with get_db() as conn:
-                with conn.cursor() as cur:
-                    # Total scheduled
-                    cur.execute(
-                        "SELECT status, COUNT(*) FROM content_calendar GROUP BY status"
-                    )
-                    status_counts = {r[0]: r[1] for r in cur.fetchall()}
-
-                    # By platform
-                    cur.execute(
-                        "SELECT platform, COUNT(*) FROM content_calendar WHERE status = 'scheduled' GROUP BY platform"
-                    )
-                    platform_counts = {r[0]: r[1] for r in cur.fetchall()}
-
-                    return {
-                        "total": sum(status_counts.values()),
-                        "by_status": status_counts,
-                        "scheduled_by_platform": platform_counts,
-                        "due_today": len(self.get_due_items())
-                    }
+            from db import get_calendar_stats
+            return get_calendar_stats()
         except Exception as e:
             logger.error(f"Failed to get stats: {e}")
             return {}

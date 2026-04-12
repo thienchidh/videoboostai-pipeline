@@ -16,13 +16,14 @@ Poll:
 
 States: waiting, queuing, generating, success, fail
 """
-import os
 import json
 import time
 import logging
 import requests
 from typing import Optional, Dict, Any
 from pathlib import Path
+
+from modules.pipeline.config_loader import MissingConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +35,11 @@ class KieAIClient:
 
     def __init__(self, api_key: str = None, webhook_key: str = None,
                  webhook_url: str = None, timeout: int = 30):
-        self.api_key = api_key or os.environ.get("KIE_AI_API_KEY", "")
-        self.webhook_key = webhook_key or os.environ.get("KIE_AI_WEBHOOK_KEY", "")
-        self.webhook_url = webhook_url or os.environ.get("KIE_AI_WEBHOOK_URL", "")
+        if not api_key:
+            raise MissingConfigError("KieAI api_key is required")
+        self.api_key = api_key
+        self.webhook_key = webhook_key if webhook_key else ""
+        self.webhook_url = webhook_url if webhook_url else ""
         self.timeout = timeout
         self.session = requests.Session()
         self.session.headers.update({

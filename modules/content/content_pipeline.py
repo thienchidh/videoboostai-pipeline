@@ -215,14 +215,10 @@ class ContentPipeline:
         Trigger video_pipeline for a scheduled idea.
         Returns pipeline result dict.
         """
-        from db import get_db
-        from psycopg2.extras import RealDictCursor
+        from db import get_content_idea
 
         # Get idea and script
-        with get_db() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT * FROM content_ideas WHERE id = %s", (idea_id,))
-                idea = cur.fetchone()
+        idea = get_content_idea(idea_id)
 
         if not idea:
             return {"success": False, "error": f"Idea {idea_id} not found"}

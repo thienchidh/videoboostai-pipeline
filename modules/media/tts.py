@@ -114,7 +114,7 @@ class MiniMaxTTSProvider(TTSProvider):
 # ==================== EDGE TTS ====================
 
 class EdgeTTSProvider(TTSProvider):
-    """Edge TTS provider with WaveSpeed upload fallback."""
+    """Edge TTS provider using Python API (edge-tts package)."""
 
     VOICE_MAP = {
         "female_voice": "vi-VN-HoaiMyNeural",
@@ -132,37 +132,40 @@ class EdgeTTSProvider(TTSProvider):
 
     def generate(self, text: str, voice: str = "female_voice",
                  speed: float = 1.0, output_path: Optional[str] = None) -> Optional[str]:
+        import asyncio
+        import edge_tts
+
         if not output_path:
             output_path = f"/tmp/tts_edge_{int(time.time()*1000)}.mp3"
-        wav_path = output_path.replace(".mp3", ".wav")
 
         edge_voice = self.VOICE_MAP.get(voice, "vi-VN-HoaiMyNeural")
-        rate_str = f"{'+' if speed >= 1 else '-'}{int(abs(speed - 1) * 100)}%"
 
-        cmd = [
-            str(get_edge_tts()), "--voice", edge_voice,
-            "--rate", rate_str,
-            "--text", text,
-            "--write-media", wav_path
-        ]
+        async def _generate():
+            # Use Python API directly - same as test code
+            comm = edge_tts.Communicate(text, edge_voice)
+            await comm.save(output_path)
+
         try:
-            subprocess.run(cmd, capture_output=True, timeout=30)
-            if Path(wav_path).exists():
-                if self.upload_func:
-                    url = self.upload_func(wav_path)
-                    if url:
-                        resp = requests.get(url, timeout=60)
-                        with open(output_path, "wb") as f:
-                            f.write(resp.content)
-                        Path(wav_path).unlink()
-                        return output_path
-                # Fallback: just copy wav as mp3
-                shutil.copy(wav_path, output_path)
-                Path(wav_path).unlink()
-                return output_path
+            # Run async generate with proper event loop policy for Windows
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+            asyncio.run(_generate())
+
+            # Verify file was created with content
+            if not Path(output_path).exists() or Path(output_path).stat().st_size < 100:
+                logger.warning("Edge TTS: output file missing or too small")
+                return None
+
+            # Upload if func provided
+            if self.upload_func:
+                url = self.upload_func(output_path)
+                if not url:
+                    logger.warning("Edge TTS: upload_func returned None")
+
+            return output_path
+
         except Exception as e:
             logger.warning(f"Edge TTS error: {e}")
-        return None
+            return None
 
 
 # ==================== WHISPER TIMESTAMPS ====================

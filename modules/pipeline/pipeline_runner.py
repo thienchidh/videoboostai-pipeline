@@ -111,7 +111,23 @@ class VideoPipelineRunner:
         if provider_cls is None:
             raise ValueError(f"Unknown lipsync provider: {lipsync_name}")
 
-        upload_fn = lambda fp: upload_file(fp, self.config.wavespeed_base, self.config.wavespeed_key)
+        # Use S3 for media uploads (MinIO at s3.trachanhtv.top)
+        from modules.media.s3_uploader import upload_file as s3_upload_file
+        from modules.media.s3_uploader import configure as configure_s3
+
+        configure_s3({
+            'endpoint': self.config.s3_endpoint,
+            'access_key': self.config.s3_access_key,
+            'secret_key': self.config.s3_secret_key,
+            'bucket': self.config.s3_bucket,
+            'region': self.config.s3_region,
+            'public_url_base': self.config.s3_public_url_base,
+        })
+
+        # Use timestamp-based prefix to avoid S3 key collisions across parallel scenes
+        lipsync_prefix = f"lipsync/{self.config.timestamp}"
+        upload_fn = lambda fp: s3_upload_file(fp, lipsync_prefix)
+
         if lipsync_name == "kieai":
             return provider_cls(
                 api_key=self.config.kieai_key,

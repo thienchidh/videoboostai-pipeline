@@ -29,6 +29,13 @@ class PipelineConfig:
     kieai_webhook_key: str = ""
     # Provider preference
     lipsync_provider: str = "wavespeed"
+    # S3/MinIO config for media uploads
+    s3_endpoint: str = "https://s3.trachanhtv.top"
+    s3_access_key: str = "minio-admin"
+    s3_secret_key: str = ""
+    s3_bucket: str = "videopipeline"
+    s3_region: str = "us-east-1"
+    s3_public_url_base: str = "https://s3.trachanhtv.top/videopipeline"
     # Derived paths
     project_root: Path = field(default_factory=lambda: PROJECT_ROOT)
     output_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "output")
@@ -139,6 +146,15 @@ class ConfigLoader:
         kieai_webhook_key = merged.get("api", {}).get("kie_ai_webhook_key", "")
         lipsync_provider = merged.get("lipsync", {}).get("provider", "wavespeed")
 
+        # ---- Resolve S3 config ----
+        s3_cfg = merged.get("s3", {})
+        s3_endpoint = s3_cfg.get("endpoint", "https://s3.trachanhtv.top")
+        s3_access_key = s3_cfg.get("access_key", "minio-admin")
+        s3_secret_key = s3_cfg.get("secret_key", "")
+        s3_bucket = s3_cfg.get("bucket", "videopipeline")
+        s3_region = s3_cfg.get("region", "us-east-1")
+        s3_public_url_base = s3_cfg.get("public_url_base", "https://s3.trachanhtv.top/videopipeline")
+
         return PipelineConfig(
             data=merged,
             wavespeed_key=wsp_key,
@@ -147,4 +163,10 @@ class ConfigLoader:
             kieai_key=kieai_key,
             kieai_webhook_key=kieai_webhook_key,
             lipsync_provider=lipsync_provider,
+            s3_endpoint=s3_endpoint,
+            s3_access_key=s3_access_key,
+            s3_secret_key=s3_secret_key,
+            s3_bucket=s3_bucket,
+            s3_region=s3_region,
+            s3_public_url_base=s3_public_url_base,
         )

@@ -23,6 +23,9 @@ openai-whisper>=20231117
 # Scheduler (for cron_manager.py)
 schedule>=1.1.0
 
+# S3 Storage (MinIO) for media uploads
+boto3>=1.26.0
+
 # Testing
 pytest>=7.0.0
 pytest-mock>=3.10.0

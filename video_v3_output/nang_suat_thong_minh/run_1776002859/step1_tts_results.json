@@ -1,0 +1,27 @@
+{
+  "step": 1,
+  "results": {
+    "1": {
+      "audio_path": "video_v3_output\\nang_suat_thong_minh\\run_1776002859\\scene_1\\audio.mp3",
+      "duration": 9.48,
+      "voice": "vi-VN-HoaiMyNeural",
+      "ok": true
+    },
+    "2": {
+      "audio_path": "video_v3_output\\nang_suat_thong_minh\\run_1776002859\\scene_2\\audio.mp3",
+      "duration": 9.34,
+      "voice": "vi-VN-HoaiMyNeural",
+      "ok": true
+    },
+    "3": {
+      "audio_path": "video_v3_output\\nang_suat_thong_minh\\run_1776002859\\scene_3\\audio.mp3",
+      "duration": 12.36,
+      "voice": "vi-VN-HoaiMyNeural",
+      "ok": true
+    }
+  },
+  "min_duration": 5.0,
+  "max_duration": 15.0,
+  "voice": "vi-VN-HoaiMyNeural",
+  "run_dir": "video_v3_output\\nang_suat_thong_minh\\run_1776002859"
+}

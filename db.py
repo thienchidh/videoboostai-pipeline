@@ -264,20 +264,25 @@ def create_project(name: str, config_file: str = None, description: str = None) 
 
 
 def get_or_create_project(name: str, config_file: str = None) -> int:
+    assert name is not None and name != "", "project name must not be null or empty"
     with get_db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("SELECT id FROM projects WHERE name = %s", (name,))
             row = cur.fetchone()
             if row:
+                assert row["id"] is not None and row["id"] != "", "project id must not be null or empty"
                 return row["id"]
             cur.execute(
                 "INSERT INTO projects (name, config_file) VALUES (%s, %s) RETURNING id",
                 (name, config_file)
             )
-            return cur.fetchone()["id"]
+            result = cur.fetchone()
+            assert result is not None and result["id"] is not None, "failed to create project"
+            return result["id"]
 
 
 def start_video_run(project_id: int, config_name: str) -> int:
+    assert project_id is not None and project_id != "", "project_id must not be null or empty"
     with get_db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
@@ -285,7 +290,9 @@ def start_video_run(project_id: int, config_name: str) -> int:
                    VALUES (%s, %s, 'running', 0) RETURNING id""",
                 (project_id, None)
             )
-            return cur.fetchone()["id"]
+            result = cur.fetchone()
+            assert result is not None and result["id"] is not None, "failed to create video run"
+            return result["id"]
 
 
 def complete_video_run(run_id: int, status: str = 'completed'):

@@ -56,8 +56,10 @@ class VideoPipelineV3:
         _db.init_db()
         project_name = self.cfg.get("video", {}).get("title", "default")
         project_id = _db.get_or_create_project(project_name)
+        assert project_id is not None and project_id != "", "project_id must not be null or empty"
         config_name = str(config_path)
         self.run_id = _db.start_video_run(project_id, config_name)
+        assert self.run_id is not None and self.run_id != "", "run_id must not be null or empty"
 
         self.run_dir = self.output_dir / date_str / f"{self.timestamp}_{self.run_id}"
         self.run_dir.mkdir(parents=True, exist_ok=True)

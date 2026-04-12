@@ -2,9 +2,9 @@
 core/video_utils.py — Single source of truth for FFmpeg video utilities.
 
 Consolidates duplicate implementations from:
-- video_pipeline_v3.py  (main pipeline, 1832 lines)
-- core/base_pipeline.py (abstract base, 400 lines)
-- modules/media/video_compile.py (compile utils, 332 lines)
+- scripts/video_pipeline_v3.py  (main pipeline)
+- core/base_pipeline.py (abstract base)
+- modules/media/video_compile.py (compile utils)
 
 Functions here should NOT depend on any pipeline instance state.
 All functions are standalone or accept explicit parameters.
@@ -254,7 +254,7 @@ def add_subtitles(video_path: str, script_text: str,
     if run_dir is None:
         run_dir = Path(video_path).parent
 
-    karaoke_script = PROJECT_ROOT / "karaoke_subtitles.py"
+    karaoke_script = PROJECT_ROOT / "scripts" / "karaoke_subtitles.py"
     if not karaoke_script.exists():
         log(f"  ⚠️ karaoke_subtitles.py not found, skipping subtitles")
         return video_path

@@ -1,0 +1,19 @@
+# VideoBoostAI Pipeline Dependencies
+# Auto-install with: pip install -r requirements.txt
+
+# Core
+requests>=2.25.0
+PyYAML>=6.0
+
+# Database
+psycopg2-binary>=2.9.0
+
+# Image processing
+Pillow>=9.0.0
+
+# Scheduler (for cron_manager.py)
+schedule>=1.1.0
+
+# Testing
+pytest>=7.0.0
+pytest-mock>=3.10.0

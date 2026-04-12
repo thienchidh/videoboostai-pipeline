@@ -251,7 +251,7 @@ class ContentPipeline:
         os.makedirs(run_output_dir, exist_ok=True)
 
         try:
-            pipeline_path = PROJECT_ROOT / "video_pipeline_v3.py"
+            pipeline_path = PROJECT_ROOT / "scripts" / "video_pipeline_v3.py"
             secrets_path = PROJECT_ROOT / "configs" / "business" / "secrets.json"
             if not pipeline_path.exists():
                 pipeline_path = PROJECT_ROOT / "video_config_secrets.json"

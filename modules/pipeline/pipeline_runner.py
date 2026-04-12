@@ -311,7 +311,7 @@ class VideoPipelineRunner:
 
         if motion == "bounce":
             from core.paths import get_karaoke_python
-            bounce_script = PROJECT_ROOT / "bounce_watermark.py"
+            bounce_script = PROJECT_ROOT / "scripts" / "bounce_watermark.py"
             if bounce_script.exists():
                 python = get_karaoke_python()
                 font_path = self.config.get("fonts", {}).get("watermark") or ""

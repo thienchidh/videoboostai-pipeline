@@ -1,60 +1,169 @@
-# ================================================
-# BUSINESS CONFIG - Video Scenario Template
-# ================================================
+# ================================================================
+# VIDEO SCENARIO EXAMPLE — Copy and rename to use
+# ================================================================
 # Copy file này, đổi tên và điền nội dung theo kịch bản video của bạn
-# ================================================
+# Rename: video_scenario.yaml.example → video_scenario.yaml
+# ================================================================
 
-# Watermark hiển thị trên video
-watermark:
-  enable: true
-  text: "@YourChannelName"      # text watermark
-  font_size: 60
-  opacity: 0.15
-  motion: "bounce"              # bounce | fade | slide
-
-# Thông tin video
+# ------------------------------------------------------------
+# VIDEO — Basic video settings
+# ------------------------------------------------------------
 video:
   title: "Tên Video Của Bạn"
+  aspect_ratio: "9:16"      # 9:16 (TikTok/Reels) | 16:9 (YouTube) | 1:1 (Square)
+  style: "3D animated Pixar Disney style, high quality 3D render, ultra detailed, vibrant colors, smooth animation, cinematic lighting"
+  resolution: "480p"         # 480p | 720p | 1080p
+  fps: 25
 
-# ================================================
-# CHARACTERS - Nhân vật xuất hiện trong video
-# ================================================
-# Mỗi character cần:
-# - name: tên định danh (dùng trong scenes)
-# - description: mô tả cho AI tạo ảnh
-# - prompt: prompt cho image generation (style Pixar, realistic...)
-# - avatar_file: file ảnh avatar (nếu có sẵn)
-# - tts_voice: voice cho TTS (xem docs của edge-tts)
-# - tts_speed: tốc độ nói (0.5 - 2.0)
-# ================================================
+# ------------------------------------------------------------
+# SUBTITLE — Karaoke-style subtitles
+# ------------------------------------------------------------
+subtitle:
+  enable: true
+  font_size: 60
+  color: "yellow"
+  language: "vi"
 
+# ------------------------------------------------------------
+# BACKGROUND MUSIC — Ambient music overlay
+# ------------------------------------------------------------
+background_music:
+  enable: true
+  file: "random"             # "random" = randomize from music folder, or path to specific file
+  volume: 0.15               # 0.0 - 1.0
+  fade_duration: 2            # seconds
+
+# ------------------------------------------------------------
+# WATERMARK — On-screen watermark
+# ------------------------------------------------------------
+watermark:
+  enable: true
+  text: "@YourChannelName"
+  font_size: 60
+  opacity: 0.15              # 0.0 - 1.0
+  motion: "bounce"           # bounce | fade | slide | static
+  # For bounce motion:
+  bounce_speed: 120           # pixels per second
+  bounce_padding: 15          # padding from edges
+  # For static:
+  shadow_opacity: 40
+  stroke_opacity: 120
+  velocity_x: 1.2
+  velocity_y: 0.8
+  margin: 8
+
+# ------------------------------------------------------------
+# PROMPT — Image generation prompts & style hints
+# ------------------------------------------------------------
+prompt:
+  style: "3D animated Pixar Disney style, high quality 3D render, ultra detailed, vibrant colors, smooth animation, cinematic lighting"
+  script_hints:
+    # Key = keyword to match in scene background field
+    # Value = additional prompt suffix for that scene type
+    office: "modern office workspace, busy professional working, computer desk, notepad, coffee cup, organized workspace, Pixar Disney quality"
+    ocean: "magical underwater ocean scene, crystal clear blue water, colorful coral reefs, sunlight streaming through water surface, bubbles floating, sea anemones swaying, tropical fish swimming, magical underwater atmosphere, Pixar Disney quality"
+    reef: "bustling underwater coral reef city, colorful coral structures, seaweed forests, treasure chest, pearl oysters, starfish and seahorses, ancient shipwreck covered in coral, golden light rays through water, magical sea kingdom, Pixar Disney quality"
+    default: "modern office, productive workspace, Pixar Disney quality"
+
+# ------------------------------------------------------------
+# CHARACTERS — Virtual avatar speakers
+# ------------------------------------------------------------
+# Each character needs:
+#   name       : unique identifier (used in scene characters: list)
+#   description: for AI image generation
+#   prompt     : detailed image gen prompt (style Pixar, realistic...)
+#   avatar_file: local image file (optional, if you have a reference image)
+#   tts_voice  : voice ID for TTS (see Edge TTS voice list)
+#   tts_speed  : speech speed 0.5 - 2.0
+# ------------------------------------------------------------
 characters:
-  - name: "Speaker"
-    description: "friendly female professional"
-    prompt: "3D animated Pixar Disney style friendly professional woman, modern office attire, warm smile, confident, bright colorful setting, high quality 3D render, soft cinematic lighting"
-    avatar_file: "Speaker.png"
+  - name: "GiaoVien"
+    description: "friendly female professional, modern career woman"
+    prompt: "3D animated Pixar Disney style friendly professional woman, modern office attire, warm smile, confident, standing in modern workspace, bright colorful setting, Disney Pixar high quality 3D render, soft cinematic lighting"
+    avatar_file: "avatars/GiaoVien.png"
     tts_voice: "Vietnamese_kindhearted_girl"
     tts_speed: 1.0
     auto_create: true
 
-# ================================================
-# SCENES - Các cảnh trong video
-# ================================================
-# Mỗi scene gồm:
-# - id: số thứ tự
-# - script: kịch bản nói (tiếng Việt)
-# - characters: list tên nhân vật tham gia
-# ================================================
+  - name: "TomCua"
+    description: "a cute red crab character with big friendly eyes, red-orange shell, big claws, wearing tiny captain hat"
+    prompt: "3D animated Pixar Disney style adorable red crab character, big expressive round eyes with sparkle, red-orange outer shell with natural shine, large friendly claws, wearing tiny adorable captain hat, standing in magical underwater ocean scene, coral reef background with colorful fish, Disney Pixar high quality 3D render, soft cinematic underwater lighting, warm golden light rays filtering through water, vibrant saturated colors, bubbles floating around"
+    avatar_file: "TomCua.png"
+    tts_voice: "female_voice"
+    tts_speed: 1.05
+    auto_create: true
 
+  - name: "CaHeo"
+    description: "a chubby cute blue dolphin friend, big smile, friendly personality"
+    prompt: "3D animated Pixar Disney style chubby cute blue dolphin character, big friendly smile showing teeth, round chubby body in beautiful blue-gray tones, large intelligent friendly eyes, small dorsal fin, playful pose, swimming in crystal clear tropical ocean, sunlight streaming through water, bubbles trail behind, Disney Pixar quality 3D render, vibrant underwater colors"
+    avatar_file: "CaHeo.png"
+    tts_voice: "male-qn-qingse"
+    tts_speed: 1.0
+    auto_create: true
+
+# ------------------------------------------------------------
+# SCENES — Video script broken into scenes
+# ------------------------------------------------------------
+# Each scene:
+#   id         : scene number
+#   script     : Vietnamese dialogue/narration script
+#   characters : list of character names appearing in this scene
+#   background : keyword to match prompt.script_hints (optional)
+#   image_prompt: override image prompt for this specific scene (optional)
+# ------------------------------------------------------------
 scenes:
   - id: 1
-    script: "Hook - câu mở đầu hấp dẫn để giữ ch观众"
-    characters: ["Speaker"]
+    script: "Hook - câu mở đầu hấp dẫn để giữ chú ý người xem"
+    characters: ["GiaoVien"]
+    background: "office"
 
   - id: 2
-    script: "Nội dung chính - điểm chính đầu tiên"
-    characters: ["Speaker"]
+    script: "Nội dung chính - điểm chính đầu tiên cần truyền tải"
+    characters: ["GiaoVien"]
+    background: "office"
 
   - id: 3
-    script: "Nội dung chính - điểm chính thứ hai"
-    characters: ["Speaker"]
+    script: "Nội dung chính - điểm chính thứ hai, chia sẻ kinh nghiệm"
+    characters: ["GiaoVien"]
+    background: "office"
+
+# ------------------------------------------------------------
+# LIPSYNC — Video generation from image + audio
+# ------------------------------------------------------------
+lipsync:
+  provider: "kieai"           # kieai | wavespeed
+  resolution: "480p"          # 480p | 720p | 1080p
+  prompt: "A person talking"  # description fed to lipsync model
+  max_wait: 300               # seconds to wait for job completion
+
+# ------------------------------------------------------------
+# SOCIAL — Page/Channel configuration for auto-posting
+# ------------------------------------------------------------
+social:
+  facebook:
+    page_id: "YOUR_FACEBOOK_PAGE_ID"
+    page_name: "YourPageName"
+    access_token: "YOUR_FACEBOOK_PAGE_ACCESS_TOKEN"
+    auto_publish: false
+  tiktok:
+    account_id: "YOUR_TIKTOK_ACCOUNT_ID"
+    account_name: "@YourTikTokHandle"
+    refresh_token: "YOUR_TIKTOK_REFRESH_TOKEN"
+    auto_publish: false
+
+# ------------------------------------------------------------
+# CONTENT PIPELINE — For automated research → generate → publish
+# Only needed when running modules.content.content_pipeline
+# ------------------------------------------------------------
+content:
+  niche_keywords:
+    - "productivity"
+    - "time management"
+    - "năng suất"
+    - "quản lý thời gian"
+  cadence:
+    facebook: "daily"
+    tiktok: "daily"
+  research_interval_hours: 24
+  auto_schedule: true
+  content_angle: "tips"       # tips | educational | motivational | story

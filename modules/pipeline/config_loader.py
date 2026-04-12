@@ -91,15 +91,30 @@ class ConfigLoader:
 
         # ---- Load and merge business config ----
         if config_path.name not in ("config_technical.json", "config_technical.yaml"):
+            # Try as-is first
             if not config_path.exists():
-                biz_path = PROJECT_ROOT / "configs" / "business" / config_path
+                # Try configs/business/{name}.yaml
+                biz_path = PROJECT_ROOT / "configs" / "business" / f"{config_path.name}.yaml"
                 if biz_path.exists():
                     config_path = biz_path
+                else:
+                    # Try configs/business/{name}.json
+                    biz_path_json = PROJECT_ROOT / "configs" / "business" / f"{config_path.name}.json"
+                    if biz_path_json.exists():
+                        config_path = biz_path_json
+                    else:
+                        # Try configs/business/{name} directly (e.g. video_scenario.yaml.example)
+                        biz_path_direct = PROJECT_ROOT / "configs" / "business" / config_path.name
+                        if biz_path_direct.exists():
+                            config_path = biz_path_direct
 
             if config_path.exists():
                 try:
                     with open(config_path, encoding="utf-8") as f:
-                        if config_path.suffix in (".yaml", ".yml"):
+                        # Business configs in configs/business/ are always YAML
+                        if "configs" in str(config_path.resolve()):
+                            biz_config = yaml.safe_load(f)
+                        elif str(config_path).endswith((".yaml", ".yml")):
                             biz_config = yaml.safe_load(f)
                         else:
                             biz_config = json.load(f)

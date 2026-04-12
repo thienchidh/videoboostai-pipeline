@@ -5,6 +5,7 @@ content_pipeline.py - Orchestrator for content research → production → socia
 import os
 import sys
 import json
+import yaml
 import logging
 import subprocess
 from datetime import datetime, date, time
@@ -407,10 +408,10 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     # Load config from project root
-    config_path = PROJECT_ROOT / "video_config_content.json"
+    config_path = PROJECT_ROOT / "configs/business/video_scenario.yaml.example"
     if os.path.exists(config_path):
         with open(config_path) as f:
-            config = json.load(f)
+            config = yaml.safe_load(f)
     else:
         config = {
             "page": {

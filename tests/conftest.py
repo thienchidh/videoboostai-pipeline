@@ -50,6 +50,7 @@ def temp_config_dir(tmp_path):
                 "bucket": "test_bucket",
                 "region": "us-east-1",
                 "public_url_base": "https://s3.test.com/test_bucket",
+            },
         },
     }
 

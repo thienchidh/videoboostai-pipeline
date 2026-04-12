@@ -13,6 +13,28 @@ mock_db = MagicMock()
 sys.modules['db'] = mock_db
 
 
+# Minimal valid config data for tests that need scenes + lipsync
+def make_test_data(overrides=None):
+    data = {
+        "generation": {"models": {"tts": "edge", "image": "minimax"}},
+        "scenes": [{"id": 1, "script": "Test script", "characters": ["TestChar"]}],
+        "lipsync": {"prompt": "A person talking", "resolution": "480p"},
+        "storage": {
+            "s3": {
+                "endpoint": "https://s3.test.com",
+                "access_key": "test_access",
+                "secret_key": "test_secret",
+                "bucket": "test_bucket",
+                "region": "us-east-1",
+                "public_url_base": "https://s3.test.com/test_bucket",
+            }
+        },
+    }
+    if overrides:
+        data.update(overrides)
+    return data
+
+
 class TestVideoPipelineRunnerInit:
     """Test VideoPipelineRunner initialization."""
 
@@ -21,7 +43,7 @@ class TestVideoPipelineRunnerInit:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data={"models": {"tts": "edge", "image": "minimax"}},
+            data=make_test_data({"models": {"tts": "edge", "image": "minimax"}}),
             minimax_key="test_minimax",
             wavespeed_key="test_wavespeed",
             output_dir=tmp_path / "output",
@@ -44,7 +66,7 @@ class TestVideoPipelineRunnerInit:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data={"models": {"tts": "edge", "image": "minimax"}},
+            data=make_test_data(),
             output_dir=tmp_path / "output",
             run_id="test_run",
         )
@@ -67,7 +89,7 @@ class TestProviderBuilders:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data={"models": {"tts": "minimax"}},
+            data=make_test_data({"models": {"tts": "minimax"}}),
             minimax_key="my_minimax_key",
             wavespeed_key="my_wavespeed_key",
             output_dir=tmp_path / "output",
@@ -102,7 +124,7 @@ class TestProviderBuilders:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data={"models": {"tts": "edge"}},
+            data=make_test_data({"models": {"tts": "edge"}}),
             minimax_key="my_minimax_key",
             wavespeed_key="my_wavespeed_key",
             wavespeed_base="https://api.wavespeed.ai",
@@ -139,7 +161,7 @@ class TestProviderBuilders:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data={"models": {"image": "minimax"}},
+            data=make_test_data({"models": {"image": "minimax"}}),
             wavespeed_key="my_wavespeed_key",
             output_dir=tmp_path / "output",
             run_id="test",
@@ -173,7 +195,7 @@ class TestProviderBuilders:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data={},
+            data=make_test_data({"lipsync": {"prompt": "test", "resolution": "480p"}}),
             lipsync_provider="kieai",
             kieai_key="test_kieai",
             wavespeed_key="my_wavespeed",
@@ -215,7 +237,7 @@ class TestDRYRunModes:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data={"models": {"tts": "edge"}},
+            data=make_test_data({"models": {"tts": "edge"}}),
             minimax_key="test_key",
             wavespeed_key="test_wavespeed",
             output_dir=tmp_path / "output",
@@ -255,7 +277,7 @@ class TestDRYRunModes:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data={"models": {"image": "minimax"}},
+            data=make_test_data({"models": {"image": "minimax"}}),
             wavespeed_key="test_key",
             output_dir=tmp_path / "output",
             run_id="test",
@@ -298,7 +320,7 @@ class TestProviderUnknownRaises:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data={"models": {"tts": "unknown_tts"}},
+            data=make_test_data({"models": {"tts": "unknown_tts"}}),
             minimax_key="test_minimax",
             output_dir=tmp_path / "output",
             run_id="test",
@@ -322,7 +344,7 @@ class TestProviderUnknownRaises:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data={},
+            data=make_test_data(),
             lipsync_provider="unknown_lipsync",
             wavespeed_key="test_wavespeed",
             output_dir=tmp_path / "output",

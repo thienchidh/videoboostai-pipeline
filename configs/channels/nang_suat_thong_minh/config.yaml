@@ -43,6 +43,25 @@ video:
   aspect_ratio: "9:16"
   resolution: "480p"
 
+# ===== FONTS =====
+fonts:
+  watermark: "fonts/LiberationSans-Bold.ttf"
+
+# ===== GENERATION =====
+generation:
+  models:
+    tts: "edge"
+    image: "minimax"
+    video: "kieai"
+  lipsync:
+    prompt: "A person talking"
+    resolution: "480p"
+    max_wait: 300
+  tts:
+    max_duration: 15.0
+    min_duration: 5.0
+    words_per_second: 2.5
+
 # ===== WATERMARK =====
 watermark:
   enable: true

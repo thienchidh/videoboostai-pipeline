@@ -222,7 +222,7 @@ class TestSingleCharSceneProcessor:
             shutil.copy(IMAGE_FILE, output)
             return output
 
-        def mock_lip(img_path, audio_path, output):
+        def mock_lip(img_path, audio_path, output, scene_id=None, prompt=None):
             call_order.append("lip")
             shutil.copy(str(VIDEO_RAW), output)
             return output
@@ -397,7 +397,7 @@ class TestMultiCharSceneProcessor:
             shutil.copy(IMAGE_MULTI, output)
             return output
 
-        def mock_lip(img, audio, output):
+        def mock_lip(img, audio, output, scene_id=None, prompt=None):
             shutil.copy(str(VIDEO_MULTI), output)
             return output
 

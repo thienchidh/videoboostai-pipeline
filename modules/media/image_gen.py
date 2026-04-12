@@ -25,9 +25,11 @@ from core.plugins import ImageProvider, register_provider
 class MiniMaxImageProvider(ImageProvider):
     """MiniMax image generation (image-01 model)."""
 
-    def __init__(self, api_key: str):
+    DEFAULT_URL = "https://api.minimax.io/v1/image_generation"
+
+    def __init__(self, api_key: str, api_url: Optional[str] = None):
         self.api_key = api_key
-        self.url = "https://api.minimax.io/v1/image_generation"
+        self.api_url = api_url or self.DEFAULT_URL
 
     def generate(self, prompt: str, output_path: str,
                  aspect_ratio: str = "9:16") -> Optional[str]:
@@ -40,7 +42,7 @@ class MiniMaxImageProvider(ImageProvider):
         payload = {"model": "image-01", "prompt": prompt, "aspect_ratio": aspect_ratio, "num_images": 1}
 
         try:
-            resp = requests.post(self.url, headers=headers, json=payload, timeout=180)
+            resp = requests.post(self.api_url, headers=headers, json=payload, timeout=180)
             data = resp.json()
             img_url = None
             if isinstance(data.get("data"), dict):

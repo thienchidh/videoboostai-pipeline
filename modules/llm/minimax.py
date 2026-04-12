@@ -17,14 +17,18 @@ class MiniMaxLLMProvider(LLMProvider):
     Models: MiniMax-M2.7, MiniMax-M2.5, MiniMax-M2.1
     """
 
+    DEFAULT_URL = "https://api.minimax.io/anthropic/v1/messages"
+
     def __init__(self, api_key: str, model: str = "MiniMax-M2.7",
-                 max_tokens: int = 1024, timeout: int = 60):
+                 max_tokens: int = 1024, timeout: int = 60,
+                 api_url: Optional[str] = None):
         """
         Args:
             api_key: MiniMax API key
             model: Model name (default: MiniMax-M2.7)
             max_tokens: Max tokens per response
             timeout: Request timeout in seconds
+            api_url: Optional API URL override (reads from config if not provided)
         """
         if not api_key:
             raise ValueError("MiniMax API key is required")
@@ -32,6 +36,7 @@ class MiniMaxLLMProvider(LLMProvider):
         self.model = model
         self.max_tokens = max_tokens
         self.timeout = timeout
+        self.api_url = api_url or self.DEFAULT_URL
 
     def chat(self, prompt: str, system: str = "", max_tokens: int = 1024) -> str:
         """
@@ -59,7 +64,7 @@ class MiniMaxLLMProvider(LLMProvider):
         }
 
         resp = requests.post(
-            "https://api.minimax.io/anthropic/v1/messages",
+            self.api_url,
             headers={
                 "anthropic-version": "2023-06-01",
                 "Content-Type": "application/json",

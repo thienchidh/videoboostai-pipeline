@@ -31,7 +31,8 @@ from core.plugins import TTSProvider, register_provider
 class MiniMaxTTSProvider(TTSProvider):
     """MiniMax API text-to-speech provider."""
 
-    def __init__(self, api_key: str, voice_map: Optional[Dict[str, str]] = None):
+    def __init__(self, api_key: str, voice_map: Optional[Dict[str, str]] = None,
+                 api_url: Optional[str] = None):
         self.api_key = api_key
         self.voice_map = voice_map or {
             "female_voice": "female_voice",
@@ -39,7 +40,7 @@ class MiniMaxTTSProvider(TTSProvider):
             "female": "female_voice",
             "male": "male-qn-qingse",
         }
-        self.base_url = "https://api.minimax.io/v1/t2a_v2"
+        self.base_url = api_url or "https://api.minimax.io/v1/t2a_v2"
 
     def generate(self, text: str, voice: str = "female_voice",
                  speed: float = 1.0, output_path: Optional[str] = None) -> Optional[str]:

@@ -84,10 +84,16 @@ class ContentIdeaGenerator:
                           num_scenes: int = 3) -> List[Dict]:
         """Generate scene scripts using LLM provider (or tiny fallback)."""
         try:
+            api_key = self._llm_config.get("api_key", "") if self._llm_config else ""
+            if not api_key:
+                # Fallback: resolve from ConfigLoader
+                from modules.pipeline.config_loader import ConfigLoader
+                cfg = ConfigLoader.load("config_technical")
+                api_key = cfg.minimax_key
             llm = get_llm_provider(
-                name=self._llm_config.get("provider", "minimax"),
-                api_key=self._llm_config.get("api_key", ""),
-                model=self._llm_config.get("model", "MiniMax-M2.7"),
+                name=self._llm_config.get("provider", "minimax") if self._llm_config else "minimax",
+                api_key=api_key,
+                model=self._llm_config.get("model", "MiniMax-M2.7") if self._llm_config else "MiniMax-M2.7",
             )
             prompt = self._build_scene_prompt(title, keywords, angle, num_scenes)
             text = llm.chat(prompt, max_tokens=1536)

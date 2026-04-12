@@ -5,7 +5,6 @@ Provides swappable LLM backends via PluginRegistry pattern.
 """
 
 import logging
-from pathlib import Path
 from typing import Optional
 
 from core.plugins import LLMProvider, register_provider, get_provider
@@ -18,20 +17,6 @@ from .minimax import MiniMaxLLMProvider
 register_provider("llm", "minimax", MiniMaxLLMProvider)
 
 
-def _resolve_key_from_config(provider_name: str) -> str:
-    """Resolve API key from config_technical.yaml."""
-    try:
-        import yaml
-        cfg_path = Path(__file__).parent.parent.parent / "configs" / "technical" / "config_technical.yaml"
-        if cfg_path.exists():
-            with open(cfg_path, encoding="utf-8") as f:
-                cfg = yaml.safe_load(f)
-            return cfg.get("api", {}).get("minimax_key", "")
-    except Exception:
-        pass
-    return ""
-
-
 def get_llm_provider(name: str = "minimax", api_key: str = "",
                      model: str = "MiniMax-M2.7", **kwargs) -> LLMProvider:
     """
@@ -39,20 +24,20 @@ def get_llm_provider(name: str = "minimax", api_key: str = "",
 
     Args:
         name: Provider name (default: "minimax")
-        api_key: API key. If empty, resolves from config_technical.yaml
+        api_key: API key. Caller should resolve from ConfigLoader.
         model: Model name (default: MiniMax-M2.7)
-        **kwargs: Additional provider-specific args (max_tokens, timeout, ...)
+        **kwargs: Additional provider-specific args (max_tokens, timeout, api_url, ...)
 
     Returns:
         LLMProvider instance
 
     Example:
-        llm = get_llm_provider("minimax", model="MiniMax-M2.7")
+        llm = get_llm_provider("minimax", api_key="your-key", model="MiniMax-M2.7")
         response = llm.chat("Hello in Vietnamese")
     """
-    # Resolve key from config if not provided
+    # api_key must be provided by caller (resolved from ConfigLoader)
     if not api_key:
-        api_key = _resolve_key_from_config(name)
+        raise ValueError("api_key is required for LLM provider. Use ConfigLoader to resolve.")
 
     # Get provider class from registry
     cls = get_provider("llm", name)

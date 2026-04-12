@@ -22,6 +22,7 @@ DRY_RUN_TTS = False
 DRY_RUN_IMAGES = False
 FORCE_START = False
 UPLOAD_TO_SOCIALS = False
+STOP_BEFORE_LIPSYNC = False
 
 
 # ==================== BACKWARD-COMPATIBLE WRAPPER ====================
@@ -35,7 +36,7 @@ class VideoPipelineV3:
 
     def __init__(self, config_path):
         from modules.pipeline.config_loader import ConfigLoader
-        from modules.pipeline.pipeline_runner import VideoPipelineRunner
+        from modules.pipeline.pipeline_runner import VideoPipelineRunner, STOP_BEFORE_LIPSYNC
 
         global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START
 
@@ -82,6 +83,7 @@ class VideoPipelineV3:
             dry_run=DRY_RUN,
             dry_run_tts=DRY_RUN_TTS,
             dry_run_images=DRY_RUN_IMAGES,
+            stop_before_lipsync=STOP_BEFORE_LIPSYNC,
         )
 
         # Mirror key state for external consumers
@@ -119,6 +121,9 @@ if __name__ == "__main__":
         elif arg == "--upload-to-socials":
             UPLOAD_TO_SOCIALS = True
             log("📤 SOCIAL UPLOAD MODE: Will upload to FB/TikTok after generation")
+        elif arg == "--stop-before-lipsync":
+            STOP_BEFORE_LIPSYNC = True
+            log("⏭️  STOP BEFORE LIPSYNC: Will stop after TTS+Image to save credit")
         elif arg in ["--config", "-c"] and i + 2 < len(sys.argv):
             config_flag = sys.argv[i + 2]
         elif arg in ["--start", "--fresh"]:

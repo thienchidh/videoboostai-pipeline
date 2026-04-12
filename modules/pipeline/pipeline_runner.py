@@ -38,6 +38,7 @@ from modules.llm.minimax import MiniMaxLLMProvider  # noqa: F401
 # CLI flags (not in video_utils since they're runner-specific)
 FORCE_START = False
 UPLOAD_TO_SOCIALS = False
+STOP_BEFORE_LIPSYNC = False
 
 
 class VideoPipelineRunner:
@@ -48,18 +49,21 @@ class VideoPipelineRunner:
     """
 
     def __init__(self, config: PipelineConfig, dry_run: bool = False,
-                 dry_run_tts: bool = False, dry_run_images: bool = False):
+                 dry_run_tts: bool = False, dry_run_images: bool = False,
+                 stop_before_lipsync: bool = False):
         """
         Args:
             config: Loaded PipelineConfig from ConfigLoader
             dry_run: Mock all API calls
             dry_run_tts: Mock TTS only
             dry_run_images: Mock image gen only
+            stop_before_lipsync: If True, stop after TTS+Image to save credit
         """
-        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START
+        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START, STOP_BEFORE_LIPSYNC
         DRY_RUN = dry_run
         DRY_RUN_TTS = dry_run_tts
         DRY_RUN_IMAGES = dry_run_images
+        STOP_BEFORE_LIPSYNC = stop_before_lipsync
 
         self.config = config
         self.timestamp = int(time.time())
@@ -100,7 +104,11 @@ class VideoPipelineRunner:
     def _build_tts_provider(self):
         """Instantiate TTS provider via PluginRegistry."""
         models = self._get_models()
-        tts_name = models.get("tts") or self.config.get("generation", {}).get("tts", {}).get("provider")
+        tts_name = models.get("tts")
+        if not tts_name:
+            tts_fallback = self.config.get("generation", {}).get("tts", {}).get("provider")
+            if tts_fallback:
+                tts_name = tts_fallback
         if not tts_name:
             raise MissingConfigError("models.tts provider must be configured")
         provider_cls = get_provider("tts", tts_name)
@@ -108,7 +116,6 @@ class VideoPipelineRunner:
             raise ValueError(f"Unknown TTS provider: {tts_name}")
 
         if tts_name == "edge":
-            # TTS audio will be uploaded to S3 by lipsync provider, so no local upload needed
             return provider_cls(upload_func=None)
         return provider_cls(api_key=self.config.minimax_key)
 
@@ -213,6 +220,18 @@ class VideoPipelineRunner:
 
         return self.lipsync_provider.generate(image_path, audio_path, output_path, config=config)
 
+    def _make_lipsync_wrapper(self):
+        """Create a lipsync wrapper that respects STOP_BEFORE_LIPSYNC flag."""
+        real_lipsync = self.lipsync_generate
+
+        def lipsync_wrapper(image_path, audio_path, output_path, scene_id=0, prompt=None):
+            global STOP_BEFORE_LIPSYNC
+            if STOP_BEFORE_LIPSYNC:
+                log(f"  ⏭️ STOP_BEFORE_LIPSYNC: skipping lipsync (image={Path(image_path).name})")
+                return None
+            return real_lipsync(image_path, audio_path, output_path, scene_id=scene_id, prompt=prompt)
+        return lipsync_wrapper
+
     # ---- Main run ----
 
     def run(self) -> tuple[str, list]:
@@ -221,10 +240,12 @@ class VideoPipelineRunner:
         Returns:
             Tuple of (final_video_path, combined_word_timestamps)
         """
-        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START
+        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START, STOP_BEFORE_LIPSYNC
 
         log(f"\n{'='*60}")
         log(f"🎬 VIDEO PIPELINE RUNNER")
+        if STOP_BEFORE_LIPSYNC:
+            log(f"⏭️  STOP_BEFORE_LIPSYNC mode: will stop after TTS+Image")
         log(f"{'='*60}")
 
         scenes = self.config.get("scenes", [])
@@ -244,6 +265,9 @@ class VideoPipelineRunner:
 
         scene_videos = []
         scene_scripts = []
+
+        # Build wrapped lipsync function
+        lipsync_fn = self._make_lipsync_wrapper()
 
         for scene in scenes:
             scene_id = scene.get("id", 0)
@@ -271,7 +295,7 @@ class VideoPipelineRunner:
                     scene, scene_output,
                     tts_fn=self.tts_generate,
                     image_fn=self.image_generate,
-                    lipsync_fn=self.lipsync_generate,
+                    lipsync_fn=lipsync_fn,
                 )
                 if video_path:
                     scene_videos.append(video_path)
@@ -281,7 +305,7 @@ class VideoPipelineRunner:
                     scene, scene_output,
                     tts_fn=self.tts_generate,
                     image_fn=self.image_generate,
-                    lipsync_fn=self.lipsync_generate,
+                    lipsync_fn=lipsync_fn,
                 )
                 if video_path:
                     scene_videos.append(video_path)

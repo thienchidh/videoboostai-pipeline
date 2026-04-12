@@ -106,16 +106,7 @@ def _font_search_dirs() -> list[Path]:
 
 
 def find_font(name: str) -> Path:
-    """Search common font directories for `name`. Returns first match.
-
-    Args:
-        name: Font file name, e.g. "LiberationSans-Bold.ttf" or
-              "LiberationSans-Bold" (extension added automatically).
-    Returns:
-        Path to the font file.
-    Raises:
-        FileNotFoundError: If the font cannot be found in any search directory.
-    """
+    """Find font file. Checks FONTS_DIR first (bundled), then system font directories."""
     if not name:
         raise FileNotFoundError("Font name cannot be empty")
 
@@ -123,14 +114,20 @@ def find_font(name: str) -> Path:
     if not Path(name).suffix:
         name = name + ".ttf"
 
+    # 1. Check bundled fonts directory first
+    bundled = FONTS_DIR / name
+    if bundled.is_file():
+        return bundled
+
+    # 2. Fall back to system font directories
     for dir_path in _font_search_dirs():
         candidate = dir_path / name
         if candidate.is_file():
             return candidate
 
-    searched = [str(d) for d in _font_search_dirs()]
+    searched = [str(FONTS_DIR)] + [str(d) for d in _font_search_dirs()]
     raise FileNotFoundError(
-        f"Font '{name}' not found. Searched {len(searched)} directories: {', '.join(searched)}"
+        f"Font '{name}' not found. Checked: {', '.join(searched)}"
     )
 
 

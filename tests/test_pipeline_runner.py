@@ -13,7 +13,7 @@ mock_db = MagicMock()
 sys.modules['db'] = mock_db
 
 
-# Minimal valid config data for tests that need scenes + lipsync
+# Minimal valid config data for tests that need scenes + lipsync + s3
 def make_test_data(overrides=None):
     data = {
         "generation": {"models": {"tts": "edge", "image": "minimax"}},
@@ -43,7 +43,7 @@ class TestVideoPipelineRunnerInit:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data=make_test_data({"models": {"tts": "edge", "image": "minimax"}}),
+            data=make_test_data(),
             minimax_key="test_minimax",
             wavespeed_key="test_wavespeed",
             output_dir=tmp_path / "output",
@@ -52,7 +52,8 @@ class TestVideoPipelineRunnerInit:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider'):
+             patch('modules.pipeline.pipeline_runner.get_provider'), \
+             patch('modules.media.s3_uploader.configure'):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             runner = VideoPipelineRunner(config, dry_run=True)
@@ -73,7 +74,8 @@ class TestVideoPipelineRunnerInit:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider'):
+             patch('modules.pipeline.pipeline_runner.get_provider'), \
+             patch('modules.media.s3_uploader.configure'):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             runner = VideoPipelineRunner(config, dry_run=True)
@@ -89,7 +91,7 @@ class TestProviderBuilders:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data=make_test_data({"models": {"tts": "minimax"}}),
+            data=make_test_data({"generation": {"models": {"tts": "minimax", "image": "minimax"}}}),
             minimax_key="my_minimax_key",
             wavespeed_key="my_wavespeed_key",
             output_dir=tmp_path / "output",
@@ -111,7 +113,8 @@ class TestProviderBuilders:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider):
+             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
+             patch('modules.media.s3_uploader.configure'):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             runner = VideoPipelineRunner(config, dry_run=True)
@@ -124,7 +127,7 @@ class TestProviderBuilders:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data=make_test_data({"models": {"tts": "edge"}}),
+            data=make_test_data({"generation": {"models": {"tts": "edge", "image": "minimax"}}}),
             minimax_key="my_minimax_key",
             wavespeed_key="my_wavespeed_key",
             wavespeed_base="https://api.wavespeed.ai",
@@ -147,7 +150,8 @@ class TestProviderBuilders:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider):
+             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
+             patch('modules.media.s3_uploader.configure'):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             runner = VideoPipelineRunner(config, dry_run=True)
@@ -157,11 +161,12 @@ class TestProviderBuilders:
         assert tts_call.kwargs.get('upload_func') is None
 
     def test_build_image_provider_minimax(self, tmp_path):
-        """Test building MiniMax image provider passes wavespeed_key."""
+        """Test building MiniMax image provider passes minimax_key."""
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data=make_test_data({"models": {"image": "minimax"}}),
+            data=make_test_data({"generation": {"models": {"tts": "edge", "image": "minimax"}}}),
+            minimax_key="my_minimax_key",
             wavespeed_key="my_wavespeed_key",
             output_dir=tmp_path / "output",
             run_id="test",
@@ -182,20 +187,21 @@ class TestProviderBuilders:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider):
+             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
+             patch('modules.media.s3_uploader.configure'):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             runner = VideoPipelineRunner(config, dry_run=True)
 
-        # Image should be called with wavespeed_key
-        mock_img_cls.assert_called_once_with(api_key="my_wavespeed_key")
+        # Image should be called with minimax_key (MiniMax provider uses minimax_key)
+        mock_img_cls.assert_called_once_with(api_key="my_minimax_key")
 
     def test_build_lipsync_provider_kieai(self, tmp_path):
         """Test building KieAI lipsync provider passes correct keys."""
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data=make_test_data({"lipsync": {"prompt": "test", "resolution": "480p"}}),
+            data=make_test_data(),
             lipsync_provider="kieai",
             kieai_key="test_kieai",
             wavespeed_key="my_wavespeed",
@@ -218,7 +224,8 @@ class TestProviderBuilders:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider):
+             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
+             patch('modules.media.s3_uploader.configure'):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             runner = VideoPipelineRunner(config, dry_run=True)
@@ -237,7 +244,7 @@ class TestDRYRunModes:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data=make_test_data({"models": {"tts": "edge"}}),
+            data=make_test_data({"generation": {"models": {"tts": "edge", "image": "minimax"}}}),
             minimax_key="test_key",
             wavespeed_key="test_wavespeed",
             output_dir=tmp_path / "output",
@@ -260,6 +267,7 @@ class TestDRYRunModes:
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
+             patch('modules.media.s3_uploader.configure'), \
              patch('core.video_utils.mock_generate_tts') as mock_tts:
 
             mock_tts.return_value = "/tmp/dry_tts.mp3"
@@ -277,7 +285,7 @@ class TestDRYRunModes:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data=make_test_data({"models": {"image": "minimax"}}),
+            data=make_test_data({"generation": {"models": {"tts": "edge", "image": "minimax"}}}),
             wavespeed_key="test_key",
             output_dir=tmp_path / "output",
             run_id="test",
@@ -299,6 +307,7 @@ class TestDRYRunModes:
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
+             patch('modules.media.s3_uploader.configure'), \
              patch('core.video_utils.mock_generate_image') as mock_img:
 
             mock_img.return_value = "/tmp/dry_image.png"
@@ -320,7 +329,7 @@ class TestProviderUnknownRaises:
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
-            data=make_test_data({"models": {"tts": "unknown_tts"}}),
+            data=make_test_data({"generation": {"models": {"tts": "unknown_tts"}}}),
             minimax_key="test_minimax",
             output_dir=tmp_path / "output",
             run_id="test",
@@ -333,7 +342,8 @@ class TestProviderUnknownRaises:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider):
+             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
+             patch('modules.media.s3_uploader.configure'):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             with pytest.raises(ValueError, match="Unknown TTS provider"):
@@ -358,7 +368,8 @@ class TestProviderUnknownRaises:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider):
+             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
+             patch('modules.media.s3_uploader.configure'):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             with pytest.raises(ValueError, match="Unknown lipsync provider"):

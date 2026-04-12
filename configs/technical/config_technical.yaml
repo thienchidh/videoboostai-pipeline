@@ -13,7 +13,7 @@ api:
   minimax_key: "sk-cp-vTtVLjCDfMCyf6P6dJKmVkg8Hwx-UxF0E0nK1-0AEVKH4G8SkzJEauMWKq8JQ5snXc3Wo1KosS_ng_7e4zjwtxWe2Uud0AOSw_XMwSLLT2yhfqk-9fL7aeQ"
 
   # Kie.ai - lipsync alternative (đang dùng)
-  kie_ai_key: "f5116468a49733bd607ffc05e606e3d3"
+  kie_ai_key: "4686236a7d7d362d147bbd9907c59814"
   kie_ai_webhook_key: "3cd3833cc8ab5521ff87418b605c195bd6e571a098d3916ae93911e47cf71245"
 
   # YouSearch - web search for topic research

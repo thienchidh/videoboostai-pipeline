@@ -154,13 +154,43 @@ class VideoPipelineRunner:
             return mock_generate_image(prompt, output_path)
         return self.image_provider.generate(prompt, output_path, aspect_ratio="9:16")
 
-    def lipsync_generate(self, image_path: str, audio_path: str, output_path: str):
-        """Generate lipsync video."""
+    def lipsync_generate(self, image_path: str, audio_path: str, output_path: str,
+                        scene_id: int = 0, prompt: str = None):
+        """Generate lipsync video.
+
+        Args:
+            scene_id: scene number (used for unique S3 key)
+            prompt: lipsync prompt from config
+        """
         global DRY_RUN
         if DRY_RUN:
             from core.video_utils import mock_lipsync_video
             return mock_lipsync_video(image_path, audio_path, output_path)
-        return self.lipsync_provider.generate(image_path, audio_path, output_path)
+
+        # Configure S3 with unique prefix per scene
+        from modules.media.s3_uploader import upload_file as s3_upload_file
+        from modules.media.s3_uploader import configure as configure_s3
+
+        configure_s3({
+            'endpoint': self.config.s3_endpoint,
+            'access_key': self.config.s3_access_key,
+            'secret_key': self.config.s3_secret_key,
+            'bucket': self.config.s3_bucket,
+            'region': self.config.s3_region,
+            'public_url_base': self.config.s3_public_url_base,
+        })
+        lipsync_prefix = f"lipsync/{self.config.timestamp}/scene_{scene_id}"
+        self.lipsync_provider.upload_func = lambda fp: s3_upload_file(fp, lipsync_prefix)
+
+        # Build config with prompt and resolution from config
+        lipsync_cfg = self.config.get('lipsync', {})
+        config = {
+            'prompt': prompt or lipsync_cfg.get('prompt', 'A person talking'),
+            'resolution': lipsync_cfg.get('resolution', '480p'),
+            'max_wait': lipsync_cfg.get('max_wait', 300),
+        }
+
+        return self.lipsync_provider.generate(image_path, audio_path, output_path, config=config)
 
     # ---- Main run ----
 

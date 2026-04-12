@@ -127,7 +127,7 @@ class SingleCharSceneProcessor(SceneProcessor):
             scene_output: Path to scene output directory
             tts_fn: callable(text, voice, speed, output_path) -> (audio_path, timestamps)
             image_fn: callable(prompt, output_path) -> image_path or None
-            lipsync_fn: callable(image_path, audio_path, output_path) -> video_path or None
+            lipsync_fn: callable(image_path, audio_path, output_path, scene_id, prompt) -> video_path or None
 
         Returns:
             (video_path, timestamps)
@@ -204,7 +204,8 @@ class SingleCharSceneProcessor(SceneProcessor):
         video_raw = scene_output / "video_raw.mp4"
         if not video_raw.exists():
             log(f"  🎬 Generating lipsync video...")
-            lipsync_result = lipsync_fn(str(scene_img), audio, str(video_raw))
+            lipsync_result = lipsync_fn(str(scene_img), audio, str(video_raw),
+                                         scene_id=scene_id, prompt=prompt)
             if not lipsync_result:
                 log(f"  ❌ Lipsync failed")
                 return None, []
@@ -323,7 +324,8 @@ class MultiCharSceneProcessor(SceneProcessor):
         video_left = scene_output / "video_left.mp4"
         if not video_left.exists():
             log(f"  🎬 Generating left lipsync...")
-            if not lipsync_fn(str(scene_img), audio_left, str(video_left)):
+            if not lipsync_fn(str(scene_img), audio_left, str(video_left),
+                              scene_id=scene_id, prompt=f"Character 1 talking"):
                 log(f"  ❌ Left lipsync failed")
                 return None, []
             log(f"  ✅ Left lipsync done: {video_left.stat().st_size/1024/1024:.1f}MB")
@@ -332,7 +334,8 @@ class MultiCharSceneProcessor(SceneProcessor):
         video_right = scene_output / "video_right.mp4"
         if not video_right.exists():
             log(f"  🎬 Generating right lipsync...")
-            if not lipsync_fn(str(scene_img), audio_right, str(video_right)):
+            if not lipsync_fn(str(scene_img), audio_right, str(video_right),
+                              scene_id=scene_id, prompt=f"Character 2 talking"):
                 log(f"  ❌ Right lipsync failed")
                 return None, []
             log(f"  ✅ Right lipsync done: {video_right.stat().st_size/1024/1024:.1f}MB")

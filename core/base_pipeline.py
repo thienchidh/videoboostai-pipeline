@@ -276,7 +276,9 @@ class BasePipeline(ABC):
             draw = ImageDraw.Draw(overlay)
 
             try:
-                fnt = ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf', scaled_font_size)
+                font_path = self.config.get("fonts", {}).get("watermark",
+                    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")
+                fnt = ImageFont.truetype(font_path, scaled_font_size)
             except Exception:
                 fnt = ImageFont.load_default()
 

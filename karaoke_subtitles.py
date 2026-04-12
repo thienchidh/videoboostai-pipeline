@@ -4,6 +4,7 @@ Each word appears one at a time in a rounded pill at 85% from top.
 """
 import argparse
 import json
+import os
 import subprocess
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
@@ -23,7 +24,8 @@ def get_pil_python():
         return LINUXBREW_PYTHON
     return sys.executable
 
-FONT_PATH = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+FONT_PATH = os.environ.get("PIPELINE_FONT_PATH",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")
 FONT_SIZE = 60
 PILL_COLOR = (0, 0, 0, 200)   # Black with alpha
 TEXT_COLOR = (255, 255, 0)     # Yellow
@@ -86,7 +88,7 @@ def render_frame(timestamps, t, w, h, font):
         ww = bbox[2] - bbox[0]
         wh = bbox[3] - bbox[1]
         baseline_offset = -bbox[1]
-    except:
+    except Exception:
         ww, wh = font.getsize(word)
         baseline_offset = wh * 0.2
     
@@ -154,52 +156,54 @@ def main():
     # Load font
     try:
         font = ImageFont.truetype(args.font, args.font_size)
-    except:
+    except Exception:
         print(f"[karaoke] Warning: font {args.font} not found, using default")
         font = ImageFont.load_default()
     
     # Create temp directory for frames
     tmpdir = Path(tempfile.mkdtemp())
-    
+
     # Generate full-size frames
     num_frames = int(duration * fps)
     print(f"[karaoke] Generating {num_frames} frames at {w}x{h}...")
-    
-    for i in range(num_frames):
-        t = i / fps
-        frame = render_frame(timestamps, t, w, h, font)
-        frame.save(tmpdir / f"frame_{i+1:06d}.png")
-        if (i + 1) % 50 == 0:
-            print(f"[karaoke] Frame {i+1}/{num_frames}")
-    
-    print(f"[karaoke] Frames generated: {num_frames}")
-    
-    # Build video: video as base, karaoke frames overlaid on top
-    print(f"[karaoke] Building video...")
-    result = subprocess.run([
-        "ffmpeg", "-y",
-        "-i", args.input_video,
-        "-framerate", str(fps),
-        "-i", str(tmpdir / "frame_%06d.png"),
-        "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
-        "-map", "[out]",
-        "-map", "0:a?",
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "22",
-        "-c:a", "copy",
-        "-shortest",
-        args.output_video
-    ], capture_output=True, text=True)
-    
-    # Cleanup
-    shutil.rmtree(tmpdir)
-    
-    if result.returncode != 0:
-        print(f"[karaoke] Error: {result.stderr[:300]}")
-        return 1
-    
-    print(f"[karaoke] Success: {args.output_video}")
+
+    try:
+        for i in range(num_frames):
+            t = i / fps
+            frame = render_frame(timestamps, t, w, h, font)
+            frame.save(tmpdir / f"frame_{i+1:06d}.png")
+            if (i + 1) % 50 == 0:
+                print(f"[karaoke] Frame {i+1}/{num_frames}")
+
+        print(f"[karaoke] Frames generated: {num_frames}")
+
+        # Build video: video as base, karaoke frames overlaid on top
+        print(f"[karaoke] Building video...")
+        result = subprocess.run([
+            "ffmpeg", "-y",
+            "-i", args.input_video,
+            "-framerate", str(fps),
+            "-i", str(tmpdir / "frame_%06d.png"),
+            "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
+            "-map", "[out]",
+            "-map", "0:a?",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "22",
+            "-c:a", "copy",
+            "-shortest",
+            args.output_video
+        ], capture_output=True, text=True)
+
+        if result.returncode != 0:
+            print(f"[karaoke] Error: {result.stderr[:300]}")
+            return 1
+
+        print(f"[karaoke] Success: {args.output_video}")
+    finally:
+        shutil.rmtree(tmpdir)
+
+    return 0
     return 0
 
 if __name__ == "__main__":

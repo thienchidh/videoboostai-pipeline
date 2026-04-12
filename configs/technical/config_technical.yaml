@@ -98,3 +98,14 @@ s3:
   bucket: "videopipeline"
   region: "us-east-1"
   public_url_base: "https://s3.trachanhtv.top/videopipeline"
+
+# ================================================
+# FONTS - Font paths for video rendering
+# ================================================
+# Must be installed on the system
+# ================================================
+
+fonts:
+  default: "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+  karaoke: "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+  watermark: "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"

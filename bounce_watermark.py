@@ -3,6 +3,7 @@ Bounce watermark: realistic physics-based bounce around screen edges.
 Watermark moves in a direction, bounces off walls.
 """
 import argparse
+import os
 import subprocess
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
@@ -12,7 +13,8 @@ import shutil
 import math
 import sys
 
-FONT_PATH = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+FONT_PATH = os.environ.get("PIPELINE_FONT_PATH",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")
 
 def get_video_info(path):
     result = subprocess.run(
@@ -51,7 +53,7 @@ def main():
     # Load font
     try:
         font = ImageFont.truetype(FONT_PATH, args.font_size)
-    except:
+    except Exception:
         font = ImageFont.load_default()
     
     # Measure text
@@ -86,70 +88,72 @@ def main():
     # Generate frames
     tmpdir = Path(tempfile.mkdtemp())
     num_frames = int(duration * fps)
-    
+
     print(f"[bounce] Generating {num_frames} frames...")
-    for i in range(num_frames):
-        t = i / fps
-        
-        # Move
-        x += vx / fps
-        y += vy / fps
-        
-        # Bounce off walls
-        if x < min_x:
-            x = min_x
-            vx = abs(vx)
-        elif x > max_x:
-            x = max_x
-            vx = -abs(vx)
-        
-        if y < min_y:
-            y = min_y
-            vy = abs(vy)
-        elif y > max_y:
-            y = max_y
-            vy = -abs(vy)
-        
-        # Create frame
-        frame = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(frame)
-        
-        # Draw text with stroke for readability
-        stroke_alpha = int(alpha * 0.6)
-        draw.text((int(x), int(y)), args.text, font=font, fill=(0, 0, 0, stroke_alpha))  # stroke
-        draw.text((int(x), int(y)), args.text, font=font, fill=(255, 255, 255, alpha))  # fill
-        
-        frame.save(tmpdir / f"frame_{i+1:06d}.png")
-        
-        if (i + 1) % 100 == 0:
-            print(f"[bounce] Frame {i+1}/{num_frames}")
-    
-    print(f"[bounce] Building video...")
-    
-    # Build video: video as base (0), watermark frames overlaid on top (1)
-    result = subprocess.run([
-        "ffmpeg", "-y",
-        "-i", args.input_video,
-        "-framerate", str(fps),
-        "-i", str(tmpdir / "frame_%06d.png"),
-        "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
-        "-map", "[out]",
-        "-map", "0:a?",
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "20",
-        "-c:a", "copy",
-        "-shortest",
-        args.output_video
-    ], capture_output=True, text=True)
-    
-    shutil.rmtree(tmpdir)
-    
-    if result.returncode != 0:
-        print(f"[bounce] Error: {result.stderr[-300:]}")
-        return 1
-    
-    print(f"[bounce] Success: {args.output_video}")
+    try:
+        for i in range(num_frames):
+            t = i / fps
+
+            # Move
+            x += vx / fps
+            y += vy / fps
+
+            # Bounce off walls
+            if x < min_x:
+                x = min_x
+                vx = abs(vx)
+            elif x > max_x:
+                x = max_x
+                vx = -abs(vx)
+
+            if y < min_y:
+                y = min_y
+                vy = abs(vy)
+            elif y > max_y:
+                y = max_y
+                vy = -abs(vy)
+
+            # Create frame
+            frame = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(frame)
+
+            # Draw text with stroke for readability
+            stroke_alpha = int(alpha * 0.6)
+            draw.text((int(x), int(y)), args.text, font=font, fill=(0, 0, 0, stroke_alpha))  # stroke
+            draw.text((int(x), int(y)), args.text, font=font, fill=(255, 255, 255, alpha))  # fill
+
+            frame.save(tmpdir / f"frame_{i+1:06d}.png")
+
+            if (i + 1) % 100 == 0:
+                print(f"[bounce] Frame {i+1}/{num_frames}")
+
+        print(f"[bounce] Building video...")
+
+        # Build video: video as base (0), watermark frames overlaid on top (1)
+        result = subprocess.run([
+            "ffmpeg", "-y",
+            "-i", args.input_video,
+            "-framerate", str(fps),
+            "-i", str(tmpdir / "frame_%06d.png"),
+            "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
+            "-map", "[out]",
+            "-map", "0:a?",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "20",
+            "-c:a", "copy",
+            "-shortest",
+            args.output_video
+        ], capture_output=True, text=True)
+
+        if result.returncode != 0:
+            print(f"[bounce] Error: {result.stderr[-300:]}")
+            return 1
+
+        print(f"[bounce] Success: {args.output_video}")
+    finally:
+        shutil.rmtree(tmpdir)
+
     return 0
 
 if __name__ == "__main__":

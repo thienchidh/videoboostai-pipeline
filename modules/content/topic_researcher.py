@@ -13,6 +13,8 @@ from typing import List, Dict, Optional, Any
 
 logger = logging.getLogger(__name__)
 
+from psycopg2.extras import Json
+
 # Optional: import ollama for LLM
 try:
     import ollama
@@ -50,7 +52,7 @@ class TopicResearcher:
             try:
                 topics = json.loads(content)
                 return topics if isinstance(topics, list) else []
-            except:
+            except (json.JSONDecodeError, ValueError):
                 # Try to extract JSON from markdown
                 import re
                 match = re.search(r'\[.*\]', content, re.DOTALL)

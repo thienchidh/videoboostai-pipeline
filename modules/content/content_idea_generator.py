@@ -165,7 +165,7 @@ Scene 2 and 3 provide main content.
             if isinstance(scenes, dict):
                 scenes = scenes.get('scenes', [scenes])
             return scenes
-        except:
+        except (json.JSONDecodeError, ValueError):
             import re
             match = re.search(r'\[.*\]', content, re.DOTALL)
             if match:

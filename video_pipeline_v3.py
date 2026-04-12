@@ -421,16 +421,26 @@ class VideoPipelineV3:
             data = resp.json()
             if data.get("base_resp", {}).get("status_code", 0) != 0:
                 log(f"  ❌ MiniMax TTS error: {data.get('base_resp', {}).get('status_msg', 'unknown')}")
-                return None
+                return None, None
             audio_hex = data.get("data", {}).get("audio", "")
             if audio_hex:
                 audio_bytes = bytes.fromhex(audio_hex)
                 with open(output_path, "wb") as f:
                     f.write(audio_bytes)
-                return output_path
+                # Extract timestamps from the same response
+                timestamps = None
+                words_data = data.get("data", {}).get("words", [])
+                if words_data:
+                    timestamps = [
+                        {"word": w.get("text", ""),
+                         "start": w.get("start_time", 0) / 1000.0,
+                         "end": w.get("end_time", 0) / 1000.0}
+                        for w in words_data
+                    ]
+                return output_path, timestamps
         except Exception as e:
             log(f"  ❌ MiniMax TTS error: {e}")
-        return None
+        return None, None
 
     def generate_tts_edge(self, text, voice="female_voice", speed=1.0, output_path=None):
         """Generate TTS using Edge TTS + upload to WaveSpeed"""
@@ -477,52 +487,21 @@ class VideoPipelineV3:
             if result and Path(result).exists():
                 log(f"  ✅ TTS done: {Path(result).stat().st_size/1024:.1f}KB")
                 return result, None  # Edge doesn't provide word timestamps
-            return result, None
+            return None, None
 
         # Try MiniMax first
         log(f"  🔊 MiniMax TTS ({voice})...")
-        result = self.generate_tts_minimax(text, voice, speed, output_path)
-        if result and Path(result).exists():
-            timestamps = self._get_minimax_tts_words(text, voice, speed)
+        audio_path, timestamps = self.generate_tts_minimax(text, voice, speed, output_path)
+        if audio_path and Path(audio_path).exists():
             if timestamps:
-                log(f"  ✅ TTS done: {Path(result).stat().st_size/1024:.1f}KB ({len(timestamps)} words)")
-                return result, timestamps
-            return result, None
+                log(f"  ✅ TTS done: {Path(audio_path).stat().st_size/1024:.1f}KB ({len(timestamps)} words)")
+            else:
+                log(f"  ✅ TTS done: {Path(audio_path).stat().st_size/1024:.1f}KB")
+            return audio_path, timestamps
 
         log(f"  🔊 Fallback: Edge TTS...")
-        return self.generate_tts_edge(text, voice, speed, output_path), None
-
-    def _get_minimax_tts_words(self, text, voice, speed):
-        """Get word timestamps from MiniMax TTS"""
-        # female_voice = Vietnamese female voice (verified working)
-        voice_map = {"female_voice": "female_voice", "male-qn-qingse": "male-qn-qingse",
-                    "female": "female_voice", "male": "male-qn-qingse"}
-        voice_id = voice_map.get(voice, "female_voice")
-        
-        minimax_tts_url = self.config.get("api_urls", {}).get("minimax_tts", "https://api.minimax.io/v1/t2a_v2")
-        headers = {"Authorization": f"Bearer {self.minimax_key}", "Content-Type": "application/json"}
-        payload = {
-            "model": "speech-2.8-hd", "text": text, "stream": False, "output_format": "hex",
-            "voice_setting": {"voice_id": voice_id, "speed": speed, "vol": 1, "pitch": 0},
-            "audio_setting": {"sample_rate": 32000, "bitrate": 128000, "format": "mp3", "channel": 1},
-            "language_boost": "Vietnamese"
-        }
-        try:
-            resp = requests.post(minimax_tts_url, headers=headers, json=payload, timeout=60)
-            data = resp.json()
-            words_data = data.get("data", {}).get("words", [])
-            if words_data:
-                timestamps = []
-                for w in words_data:
-                    timestamps.append({
-                        "word": w.get("text", ""),
-                        "start": w.get("start_time", 0) / 1000.0,  # ms to seconds
-                        "end": w.get("end_time", 0) / 1000.0
-                    })
-                return timestamps
-        except Exception as e:
-            log(f"  ⚠️ Could not get TTS word timestamps: {e}")
-        return None
+        result = self.generate_tts_edge(text, voice, speed, output_path)
+        return result, None
 
     def _get_whisper_timestamps(self, audio_path, output_dir=None):
         """Get word timestamps from audio using Whisper"""
@@ -596,7 +575,7 @@ class VideoPipelineV3:
                     continue
                 job_id = data["data"]["id"]
                 result_url = data["data"]["urls"]["get"]
-                for poll_attempt in range(24):
+                for _ in range(24):
                     time.sleep(5)
                     resp = requests.get(result_url, headers=headers, timeout=15)
                     result = resp.json()
@@ -1330,8 +1309,10 @@ class VideoPipelineV3:
             
             from PIL import Image as PILImage, ImageFont, ImageDraw
             try:
-                fnt = ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf', scaled_font_size)
-            except:
+                font_path = self.config.get("fonts", {}).get("watermark",
+                    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")
+                fnt = ImageFont.truetype(font_path, scaled_font_size)
+            except Exception:
                 fnt = ImageFont.load_default()
             
             overlay = PILImage.new('RGBA', (vw, vh), (0, 0, 0, 0))

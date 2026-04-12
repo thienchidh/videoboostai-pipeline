@@ -87,7 +87,10 @@ class ContentCalendar:
         Returns items where scheduled_date <= today AND status = 'scheduled'.
         """
         as_of = as_of or datetime.now()
-        platform_filter = f"AND platform = '{platform}'" if platform else ""
+        platform_filter = "AND platform = %s" if platform else ""
+        params: list = [as_of.date()]
+        if platform:
+            params.append(platform)
 
         try:
             from db import get_db
@@ -102,7 +105,7 @@ class ContentCalendar:
                             AND cc.scheduled_date <= %s
                             {platform_filter}
                             ORDER BY cc.scheduled_date, cc.scheduled_time""",
-                        (as_of.date(),)
+                        tuple(params)
                     )
                     return cur.fetchall()
         except Exception as e:
@@ -113,7 +116,10 @@ class ContentCalendar:
         """Get upcoming scheduled content for next N days."""
         today = date.today()
         end_date = today + timedelta(days=days)
-        platform_filter = f"AND platform = '{platform}'" if platform else ""
+        platform_filter = "AND platform = %s" if platform else ""
+        params: list = [today, end_date]
+        if platform:
+            params.append(platform)
 
         try:
             from db import get_db
@@ -128,7 +134,7 @@ class ContentCalendar:
                             AND cc.scheduled_date BETWEEN %s AND %s
                             {platform_filter}
                             ORDER BY cc.scheduled_date, cc.scheduled_time""",
-                        (today, end_date)
+                        tuple(params)
                     )
                     return cur.fetchall()
         except Exception as e:

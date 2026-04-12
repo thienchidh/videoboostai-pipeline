@@ -3,6 +3,7 @@
 db.py - PostgreSQL database module for video pipeline state management
 Uses psycopg2 with connection pooling
 """
+import atexit
 import os
 import json
 import psycopg2
@@ -33,7 +34,16 @@ def get_pool():
             maxconn=10,
             **DB_CONFIG
         )
+        atexit.register(close_pool)
     return _connection_pool
+
+
+def close_pool():
+    """Close the connection pool at exit."""
+    global _connection_pool
+    if _connection_pool is not None:
+        _connection_pool.closeall()
+        _connection_pool = None
 
 
 @contextmanager
@@ -176,6 +186,55 @@ def init_db():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_api_calls_run ON api_calls(run_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_social_posts_run ON social_posts(run_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_credits_provider ON credits_log(provider)")
+
+            # Content ideas table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS content_ideas (
+                    id SERIAL PRIMARY KEY,
+                    project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+                    title VARCHAR(500),
+                    topic_keywords TEXT,
+                    script_json JSONB,
+                    platform VARCHAR(50),
+                    status VARCHAR(50) DEFAULT 'idea',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Content calendar table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS content_calendar (
+                    id SERIAL PRIMARY KEY,
+                    idea_id INTEGER REFERENCES content_ideas(id) ON DELETE CASCADE,
+                    platform VARCHAR(50),
+                    scheduled_date DATE,
+                    scheduled_time TIME,
+                    status VARCHAR(50) DEFAULT 'scheduled',
+                    priority VARCHAR(20) DEFAULT 'medium',
+                    notes TEXT,
+                    video_run_id INTEGER REFERENCES video_runs(id) ON DELETE SET NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Topic sources table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS topic_sources (
+                    id SERIAL PRIMARY KEY,
+                    source_type VARCHAR(50),
+                    source_query TEXT,
+                    topics JSONB,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Indexes for content tables
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_content_ideas_project ON content_ideas(project_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_content_calendar_idea ON content_calendar(idea_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_content_calendar_status ON content_calendar(status)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_content_calendar_scheduled ON content_calendar(scheduled_date)")
 
 
 # ─── Project Operations ─────────────────────────────────────────────

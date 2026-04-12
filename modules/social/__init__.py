@@ -11,13 +11,9 @@ Both Facebook clients skip actual API calls when tokens are placeholder/missing.
 """
 
 from modules.social.facebook import FacebookPublisher
-from modules.social.facebook_api import FacebookAPIClient, FacebookUploadResult, get_facebook_client
 from modules.social.tiktok import TikTokPublisher
 
 __all__ = [
     "FacebookPublisher",
-    "FacebookAPIClient",
-    "FacebookUploadResult",
-    "get_facebook_client",
     "TikTokPublisher",
 ]

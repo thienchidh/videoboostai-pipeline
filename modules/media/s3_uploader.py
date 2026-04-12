@@ -9,18 +9,11 @@ from pathlib import Path
 
 
 def get_s3_config():
-    """Load S3 config from pipeline config if available, else use env/defaults."""
-    try:
-        from video_pipeline_v3 import VideoPipeline
-        # Config loaded at pipeline init
-        cfg = getattr(VideoPipeline, '_config_cache', {})
-        s3 = cfg.get('s3', {})
-        if s3:
-            return s3
-    except Exception:
-        pass
-    
-    # Fallback to env or hardcoded defaults
+    """Load S3 config from environment variables.
+
+    Uses env vars S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY, S3_BUCKET,
+    S3_REGION, S3_PUBLIC_URL_BASE. Falls back to safe defaults.
+    """
     return {
         'endpoint': os.environ.get('S3_ENDPOINT', 'https://s3.trachanhtv.top'),
         'access_key': os.environ.get('S3_ACCESS_KEY', 'minio-admin'),

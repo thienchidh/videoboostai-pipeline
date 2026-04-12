@@ -103,6 +103,9 @@ class VideoPipelineRunner:
         provider_cls = get_provider("image", img_name)
         if provider_cls is None:
             raise ValueError(f"Unknown image provider: {img_name}")
+        # Use minimax_key for MiniMax provider, wavespeed_key for WaveSpeed provider
+        if img_name == "minimax":
+            return provider_cls(api_key=self.config.minimax_key)
         return provider_cls(api_key=self.config.wavespeed_key)
 
     def _build_lipsync_provider(self):

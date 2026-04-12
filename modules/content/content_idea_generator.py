@@ -86,10 +86,15 @@ class ContentIdeaGenerator:
         try:
             api_key = self._llm_config.get("api_key", "") if self._llm_config else ""
             if not api_key:
-                # Fallback: resolve from ConfigLoader
-                from modules.pipeline.config_loader import ConfigLoader
-                cfg = ConfigLoader.load("config_technical")
-                api_key = cfg.minimax_key
+                # Fallback: resolve from technical config directly
+                from pathlib import Path
+                import yaml
+                from core.paths import PROJECT_ROOT
+                tech_cfg_path = PROJECT_ROOT / "configs" / "technical" / "config_technical.yaml"
+                if tech_cfg_path.exists():
+                    with open(tech_cfg_path, encoding="utf-8") as f:
+                        tech_cfg = yaml.safe_load(f)
+                    api_key = tech_cfg.get("api", {}).get("keys", {}).get("minimax", "")
             llm = get_llm_provider(
                 name=self._llm_config.get("provider", "minimax") if self._llm_config else "minimax",
                 api_key=api_key,

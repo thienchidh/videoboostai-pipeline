@@ -93,7 +93,9 @@ class VideoPipelineV3:
         log(f"📁 Output: {self.run_dir}")
 
     def run(self):
-        return self._runner.run()
+        video_path, word_timestamps = self._runner.run()
+        self.word_timestamps = word_timestamps
+        return video_path
 
 
 # ==================== CLI ====================

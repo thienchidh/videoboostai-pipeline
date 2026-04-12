@@ -90,12 +90,19 @@ class VideoPipelineRunner:
 
     # ---- Provider builders ----
 
+    def _get_models(self) -> dict:
+        """Get models config, checking generation.models first then default_models."""
+        models = self.config.get_nested("generation", "models")
+        if not models:
+            models = self.config.get("default_models", {})
+        return models or {}
+
     def _build_tts_provider(self):
         """Instantiate TTS provider via PluginRegistry."""
-        models = self.config.get("models")
-        if not models or not models.get("tts"):
+        models = self._get_models()
+        tts_name = models.get("tts") or self.config.get("generation", {}).get("tts", {}).get("provider")
+        if not tts_name:
             raise MissingConfigError("models.tts provider must be configured")
-        tts_name = models["tts"]
         provider_cls = get_provider("tts", tts_name)
         if provider_cls is None:
             raise ValueError(f"Unknown TTS provider: {tts_name}")
@@ -107,10 +114,10 @@ class VideoPipelineRunner:
 
     def _build_image_provider(self):
         """Instantiate image provider via PluginRegistry."""
-        models = self.config.get("models")
-        if not models or not models.get("image"):
+        models = self._get_models()
+        img_name = models.get("image") or self.config.get("generation", {}).get("image", {}).get("provider")
+        if not img_name:
             raise MissingConfigError("models.image provider must be configured")
-        img_name = models["image"]
         provider_cls = get_provider("image", img_name)
         if provider_cls is None:
             raise ValueError(f"Unknown image provider: {img_name}")
@@ -208,8 +215,12 @@ class VideoPipelineRunner:
 
     # ---- Main run ----
 
-    def run(self) -> Optional[str]:
-        """Run the full pipeline."""
+    def run(self) -> tuple[str, list]:
+        """Run the full pipeline.
+
+        Returns:
+            Tuple of (final_video_path, combined_word_timestamps)
+        """
         global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START
 
         log(f"\n{'='*60}")
@@ -264,7 +275,7 @@ class VideoPipelineRunner:
                 )
                 if video_path:
                     scene_videos.append(video_path)
-                    scene_scripts.append(script)
+                    scene_scripts.append(tts_text)
             elif len(chars) == 2:
                 video_path, timestamps = self.multi_processor.process(
                     scene, scene_output,
@@ -274,11 +285,11 @@ class VideoPipelineRunner:
                 )
                 if video_path:
                     scene_videos.append(video_path)
-                    scene_scripts.append(script)
+                    scene_scripts.append(tts_text)
 
         if not scene_videos:
             log(f"\n❌ No scene videos generated")
-            return None
+            return None, []
 
         log(f"\n{'='*60}")
         log(f"🔗 CONCATENATING {len(scene_videos)} scenes...")
@@ -289,7 +300,7 @@ class VideoPipelineRunner:
 
         if not self.concat_videos(scene_videos, str(concat_output)):
             log(f"\n❌ Pipeline failed at concat")
-            return None
+            return None, []
 
         shutil.copy(str(concat_output), str(final_video))
         log(f"  ✅ Concat copied: {final_video.stat().st_size/1024/1024:.1f}MB")
@@ -350,7 +361,7 @@ class VideoPipelineRunner:
             final_output = music_result if Path(music_result).exists() else str(subtitled_video)
 
         log(f"\n✅ DONE: {final_output}")
-        return str(final_output)
+        return str(final_output), combined_timestamps
 
     def concat_videos(self, video_paths: List[str], output_path: str) -> Optional[str]:
         """Concatenate scene videos."""

@@ -40,7 +40,8 @@ class ContentPipeline:
     """
 
     def __init__(self, project_id: int, config: Dict = None, config_path: str = None,
-                 output_dir: str = None, dry_run: bool = True):
+                 output_dir: str = None, dry_run: bool = True,
+                 channel_id: str = "nang_suat_thong_minh"):
         """
         Args:
             project_id: project ID
@@ -48,10 +49,12 @@ class ContentPipeline:
             config_path: path to config JSON file
             output_dir: where to save generated configs/scripts
             dry_run: if True, don't actually produce/upload videos
+            channel_id: channel ID for scenario output (default: nang_suat_thong_minh)
         """
         self.project_id = project_id
         self.dry_run = dry_run
         self.project_root = PROJECT_ROOT
+        self.channel_id = channel_id
         self.output_dir = Path(output_dir or self.project_root / "output" / "content_pipeline")
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -150,65 +153,41 @@ class ContentPipeline:
         return results
 
     def _save_script_config(self, idea_id: int, script: Dict):
-        """Save scene script as JSON config file for video_pipeline."""
-        script_config = {
-            "video": {
-                "title": script.get("title", ""),
-                "aspect_ratio": "9:16",
-                "style": script.get("style", "3D animated Pixar Disney style"),
-                "resolution": "480p",
-                "fps": 25
-            },
-            "subtitle": {
-                "enable": True,
-                "font": str(get_font_path()),
-                "font_size": 60,
-                "color": "yellow",
-                "language": "vi"
-            },
-            "background_music": {
-                "enable": True,
-                "file": "random",
-                "volume": 0.15,
-                "fade_duration": 2
-            },
-            "watermark": {
-                "enable": True,
-                "text": "@NangSuatThongMinh",
-                "font": "LiberationSans-Bold",
-                "font_size": 64,
-                "opacity": 15,
-                "shadow_opacity": 12,
-                "stroke_opacity": 50,
-                "velocity_x": 1.2,
-                "velocity_y": 0.8,
-                "margin": 5
-            },
-            "prompt": {
-                "style": script.get("style", ""),
-                "script_hints": {
-                    "default": "modern office, productive workspace, Pixar Disney quality"
-                }
-            },
-            "characters": [
-                {
-                    "name": "GiaoVien",
-                    "description": "friendly female professional",
-                    "prompt": "3D animated Pixar Disney style friendly professional woman, modern office attire, warm smile",
-                    "avatar_file": "GiaoVien.png",
-                    "tts_voice": "Vietnamese_kindhearted_girl",
-                    "tts_speed": 1.0,
-                    "auto_create": True
-                }
-            ],
-            "scenes": script.get("scenes", [])
+        """Save scene script as YAML scenario file for video_pipeline.
+
+        Output path: configs/channels/{channel_id}/scenarios/{YYYY-MM-DD}/{slugified_title}.yaml
+        Only 'scenes' and 'title' keys are included (ConfigLoader allowlist).
+        """
+        import re
+        from datetime import date
+
+        title = script.get("title", f"idea_{idea_id}")
+        scenes = script.get("scenes", [])
+
+        # Slugify title for filename
+        slug = re.sub(r'[^a-zA-Z0-9\s]', '', title)
+        slug = re.sub(r'\s+', '-', slug.lower())
+        slug = slug[:50]  # limit length
+
+        # Use today's date
+        scenario_date = date.today().strftime("%Y-%m-%d")
+
+        # Build scenario output (only title + scenes for ConfigLoader allowlist)
+        scenario_data = {
+            "title": title,
+            "scenes": scenes,
         }
 
-        config_path = self.output_dir / f"idea_{idea_id}_config.json"
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(script_config, f, ensure_ascii=False, indent=2)
+        # Ensure directory exists
+        scenario_dir = self.project_root / "configs" / "channels" / self.channel_id / "scenarios" / scenario_date
+        scenario_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"  Config saved: {config_path}")
+        config_path = scenario_dir / f"{slug}.yaml"
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(scenario_data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+        logger.info(f"  Scenario saved: {config_path}")
+        return config_path
 
     def produce_video(self, idea_id: int, run_dir: str = None) -> Dict:
         """
@@ -227,10 +206,9 @@ class ContentPipeline:
         if not script_json:
             return {"success": False, "error": f"Idea {idea_id} has no script"}
 
-        # Save config
+        # Save config (YAML scenario file)
         idea_id_val = idea_id
-        self._save_script_config(idea_id_val, script_json)
-        config_path = self.output_dir / f"idea_{idea_id_val}_config.json"
+        config_path = self._save_script_config(idea_id_val, script_json)
 
         if self.dry_run:
             logger.info(f"DRY RUN: would run pipeline with {config_path}")
@@ -256,8 +234,16 @@ class ContentPipeline:
             vp_module.DRY_RUN_IMAGES = False
             vp_module.UPLOAD_TO_SOCIALS = False
 
-            # Run pipeline directly
-            pipeline = VideoPipelineV3(str(config_path))
+            # Convert YAML path to ConfigLoader-compatible path: {channel_id}/{date}/{slug}
+            # e.g. d:\Work\.../configs/channels/nang_suat_thong_minh/scenarios/2026-04-12/some-slug.yaml
+            #      → nang_suat_thong_minh/2026-04-12/some-slug
+            config_path_obj = Path(config_path)
+            rel_parts = config_path_obj.relative_to(self.project_root / "configs" / "channels").parts
+            # rel_parts = (channel_id, "scenarios", date, slug.yaml)
+            scenario_path = f"{rel_parts[0]}/{rel_parts[2]}/{config_path_obj.stem}"
+
+            # Run pipeline
+            pipeline = VideoPipelineV3(scenario_path)
             result = pipeline.run()
 
             # Find output video
@@ -345,7 +331,7 @@ class ContentPipeline:
             return {"success": True, "dry_run": True, "post_id": "dry_run_fb"}
 
         try:
-            from modules.social.facebook_publisher import FacebookPublisher
+            from modules.social.facebook import FacebookPublisher
             page_id = self.fb_page.get("page_id")
             if not page_id:
                 return {"success": False, "error": "Facebook page_id not configured"}
@@ -370,7 +356,7 @@ class ContentPipeline:
             return {"success": True, "dry_run": True, "post_id": "dry_run_tt"}
 
         try:
-            from modules.social.tiktok_publisher import TikTokPublisher
+            from modules.social.tiktok import TikTokPublisher
             account_id = self.tiktok_account.get("account_id")
             if not account_id:
                 return {"success": False, "error": "TikTok account_id not configured"}

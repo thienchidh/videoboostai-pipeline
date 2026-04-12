@@ -467,7 +467,9 @@ def mock_generate_tts(text: str, voice: str = "female_voice",
     if not output_path:
         output_path = f"/tmp/tts_dryrun_{int(time.time()*1000)}.mp3"
 
-    estimated_duration = max(2.0, len(text) / 3.0)
+    estimated_duration = max(3.0, len(text.split()) / 2.5)
+    # Cap at 14s to stay under kie.ai max_duration=15s limit
+    estimated_duration = min(estimated_duration, 14.0)
     cmd = [
         str(get_ffmpeg()), "-y",
         "-f", "lavfi", "-i", f"sine=frequency=440:duration={estimated_duration}",

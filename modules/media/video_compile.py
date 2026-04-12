@@ -136,14 +136,16 @@ def crop_to_9x16(input_video: str, output_video: str) -> Optional[str]:
 
 # ==================== SCRIPT EXPANSION ====================
 
-def expand_script(script: str, min_duration: float = 5.0) -> str:
+def expand_script(script: str, min_duration: float = 5.0, words_per_second: float = 2.5) -> str:
     """Ensure script produces TTS audio of at least min_duration seconds.
 
-    Uses ~0.3s per word estimate for Vietnamese. Adds natural filler
-    phrases if duration is insufficient.
+    Args:
+        script: Input script text
+        min_duration: Minimum audio duration in seconds
+        words_per_second: TTS speed (default 2.5 words/sec for Vietnamese)
     """
     words = script.split()
-    estimated_duration = len(words) * 0.3
+    estimated_duration = len(words) / words_per_second
     if estimated_duration >= min_duration:
         return script
 
@@ -169,7 +171,7 @@ def expand_script(script: str, min_duration: float = 5.0) -> str:
 
     current_script = script
     filler_idx = 0
-    while len(current_script.split()) * 0.3 < min_duration:
+    while len(current_script.split()) / words_per_second < min_duration:
         filler = fillers[filler_idx % len(fillers)]
         filler_idx += 1
         if len(sentences) > 1:

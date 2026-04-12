@@ -3,6 +3,324 @@
   "archived": [],
   "metadata": {
     "last_updated": "2026-04-11T12:46:00Z",
+    "total_tasks": 19,
+    "done_tasks": 16,
+    "schema_version": 1
+  },
+  "tasks": [
+    {
+      "id": "VP-001",
+      "title": "Phase 1: Add --dry-run flag to video_pipeline_v3.py",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-10T15:00:00Z",
+      "source": "manual",
+      "reason": "Enable testing without spending API budget",
+      "type": "inhouse",
+      "blocked_by": [],
+      "assigned_to": "cron-heartbeat",
+      "claimed_at": "2026-04-10T08:38:22.959370+00:00",
+      "note": "Already implemented - --dry-run flags + mock functions exist in code",
+      "completed_at": "2026-04-10T08:39:18.924014+00:00"
+    },
+    {
+      "id": "VP-002",
+      "title": "Phase 1: Mock TTS with local audio (edge-tts or ffmpeg)",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-10T15:00:00Z",
+      "source": "manual",
+      "reason": "Dry-run needs mock TTS",
+      "type": "inhouse",
+      "blocked_by": [
+        "VP-001"
+      ],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Mock functions already implemented in video_pipeline_v3.py",
+      "completed_at": "2026-04-10T08:39:18.924014+00:00"
+    },
+    {
+      "id": "VP-003",
+      "title": "Phase 1: Mock image generation with placeholder",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-10T15:00:00Z",
+      "source": "manual",
+      "reason": "Dry-run needs mock images",
+      "type": "inhouse",
+      "blocked_by": [
+        "VP-001"
+      ],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Mock functions already implemented in video_pipeline_v3.py",
+      "completed_at": "2026-04-10T08:39:18.924014+00:00"
+    },
+    {
+      "id": "VP-004",
+      "title": "Phase 1: Mock lipsync with ffmpeg local video",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-10T15:00:00Z",
+      "source": "manual",
+      "reason": "Dry-run needs mock lipsync",
+      "type": "inhouse",
+      "blocked_by": [
+        "VP-001"
+      ],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Mock functions already implemented in video_pipeline_v3.py",
+      "completed_at": "2026-04-10T08:39:18.924014+00:00"
+    },
+    {
+      "id": "VP-005",
+      "title": "Phase 1: Add --dry-run-tts and --dry-run-images partial modes",
+      "status": "done",
+      "priority": "medium",
+      "created": "2026-04-10T15:00:00Z",
+      "source": "manual",
+      "reason": "Allow hybrid dry-run modes",
+      "type": "inhouse",
+      "blocked_by": [
+        "VP-001"
+      ],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Already implemented - --dry-run-tts and --dry-run-images exist",
+      "completed_at": "2026-04-10T08:39:27.716235+00:00"
+    },
+    {
+      "id": "VP-006",
+      "title": "Phase 1: Test dry-run with video_config_productivity.json",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-10T15:00:00Z",
+      "source": "manual",
+      "reason": "Verify dry-run works end-to-end",
+      "type": "inhouse",
+      "blocked_by": [
+        "VP-002",
+        "VP-003",
+        "VP-004"
+      ],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Dry-run smoke test passed - mock TTS and images work",
+      "completed_at": "2026-04-10T08:40:05.889781+00:00"
+    },
+    {
+      "id": "VP-007",
+      "title": "Phase 2: Database setup - SQLite for video pipeline state management",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-10T16:33:00Z",
+      "source": "manual",
+      "reason": "Need persistent DB to track video projects, scenes, API calls, credits",
+      "type": "inhouse",
+      "blocked_by": [],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Implemented: db.py (projects, video_runs, scenes, api_calls, credits_log), scripts/init_db.py, DB integration in pipeline __init__ and run().",
+      "completed_at": "2026-04-11T00:25:00Z"
+    },
+    {
+      "id": "VP-008",
+      "title": "Phase 2: Caption generation module - auto-generate FB/TikTok captions from script",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-10T16:33:00Z",
+      "source": "manual",
+      "reason": "Auto-generate engaging captions from video script for social media",
+      "type": "inhouse",
+      "blocked_by": [],
+      "assigned_to": "cron-heartbeat",
+      "claimed_at": "2026-04-10T16:51:29.865214+00:00",
+      "note": "Implemented: modules/content/caption_generator.py - auto-caption generator / SRT generator + FB/TikTok upload.",
+      "completed_at": "2026-04-10T16:54:28.421890+00:00"
+    },
+    {
+      "id": "VP-009",
+      "title": "Phase 2: SRT upload module - generate and upload SRT subtitles to social platforms",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-10T16:33:00Z",
+      "source": "manual",
+      "reason": "Upload SRT subtitle files to Facebook/TikTok for video upload",
+      "type": "inhouse",
+      "blocked_by": [],
+      "assigned_to": "cron-heartbeat",
+      "claimed_at": "2026-04-10T16:51:29.865214+00:00",
+      "note": "Implemented: modules/media/srt_generator.py - auto-caption generator / SRT generator + FB/TikTok upload.",
+      "completed_at": "2026-04-10T16:54:28.421890+00:00"
+    },
+    {
+      "id": "VP-010",
+      "title": "Phase 2: Facebook Page API integration - upload video with caption + SRT",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-10T16:33:00Z",
+      "source": "manual",
+      "reason": "Upload video directly to Facebook Page via Graph API",
+      "type": "social",
+      "blocked_by": [
+        "VP-007"
+      ],
+      "assigned_to": "cron-heartbeat",
+      "claimed_at": "2026-04-10T17:56:00Z",
+      "note": "Implemented: modules/social/facebook_api.py — FacebookAPIClient with Graph API v19.0 resumable upload, SRT captions, DB credential store/retrieve, dry-run mode. Tests: tests/test_facebook_api.py (12 tests passing).",
+      "completed_at": "2026-04-11T00:57:00.000000+07:00"
+    },
+    {
+      "id": "VP-011",
+      "title": "Phase 2: TikTok API integration - upload video with caption",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-10T16:33:00Z",
+      "source": "manual",
+      "reason": "Upload video directly to TikTok via TikTok API",
+      "type": "social",
+      "blocked_by": [
+        "VP-007"
+      ],
+      "assigned_to": "heartbeat-0411",
+      "claimed_at": "2026-04-10T21:15:00Z",
+      "note": "Implemented: modules/social/tiktok_api.py — TikTokAPIClient with Marketing API v2 upload/initiate→PUT chunks→publish flow, DB credential store/retrieve, dry-run mode. Tests: tests/test_tiktok_api.py (20 tests passing).",
+      "completed_at": "2026-04-11T04:16:00.000000+07:00"
+    },
+    {
+      "status": "done",
+      "completed_at": "2026-04-10T17:48:24Z",
+      "note": "Encrypted storage, no hardcoding",
+      "assigned_to": null,
+      "claimed_at": null,
+      "id": "VP-012",
+      "title": "Phase 2: Credentials management - store FB/TikTok API keys in database",
+      "priority": "high",
+      "created": "2026-04-10T16:33:00Z",
+      "source": "manual",
+      "reason": "Securely store and manage social media API credentials",
+      "type": "inhouse",
+      "blocked_by": [
+        "VP-007"
+      ]
+    },
+    {
+      "id": "VP-013",
+      "title": "Phase 2: Pipeline integration - connect video output to social upload",
+      "status": "done",
+      "priority": "medium",
+      "created": "2026-04-10T16:33:00Z",
+      "source": "manual",
+      "reason": "End-to-end: generate video → create caption → upload to socials",
+      "type": "inhouse",
+      "blocked_by": [
+        "VP-008",
+        "VP-009",
+        "VP-010",
+        "VP-011"
+      ],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Implemented: modules/pipeline/publisher.py (SocialPublisher, get_publisher), modules/pipeline/__init__.py. Orchestrates: caption generation (FB/TT) via caption_generator, SRT generation via srt_generator, FB upload via facebook_api.py, TT upload via tiktok.py, DB logging to social_posts. Dry-run mode simulates full flow without real API calls. Added --upload-to-socials flag + UPLOAD_TO_SOCIALS global in video_pipeline_v3.py. Tested OK.",
+      "completed_at": "2026-04-10T21:15:34.000000+07:00"
+    },
+    {
+      "id": "VP-014",
+      "title": "Phase 2: Add watermark bounce to video_pipeline_v3.py (script fix)",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-10T16:33:00Z",
+      "source": "manual",
+      "reason": "Implement bouncing watermark in main pipeline",
+      "type": "inhouse",
+      "blocked_by": [],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Implemented: bounce mode with horizontal sine-wave, 5px padding, 15% opacity, vertically centered, 4s period. Fallback to static on failure.",
+      "completed_at": "2026-04-10T16:40:00Z"
+    },
+    {
+      "id": "VP-015",
+      "title": "Phase 2: Add karaoke pill-style subtitles to video_pipeline_v3.py",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-10T16:33:00Z",
+      "source": "manual",
+      "reason": "Implement karaoke pill subtitles in main pipeline",
+      "type": "inhouse",
+      "blocked_by": [],
+      "assigned_to": "cron-heartbeat",
+      "claimed_at": "2026-04-10T17:56:00Z",
+      "note": "Implemented: karaoke pill-style subtitles in karaoke_subtitles.py - LiberationSans-Bold size=60, yellow text, rounded pill bg (black 200/255 alpha), karaoke word highlight effect using moviepy + PIL. Updated add_subtitles_with_timestamps to font-size=60.",
+      "completed_at": "2026-04-10T18:06:04.035730+00:00"
+    },
+    {
+      "id": "VP-016",
+      "title": "Phase 2: Content Topic Research Module - research, generate & schedule content ideas for page",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-11T09:28:00Z",
+      "source": "manual",
+      "reason": "Auto-generate content ideas, research trending topics for productivity niche, schedule and track content calendar",
+      "type": "inhouse",
+      "blocked_by": [],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "modules/content/ topic_researcher.py, content_idea_generator.py, content_calendar.py, content_pipeline.py. DB tables: topic_sources, content_ideas, content_calendar. Video config: video_config_content.json.example",
+      "completed_at": "2026-04-11T09:28:00Z"
+    },
+    {
+      "id": "VP-017",
+      "title": "Phase 2: Kie.ai integration - add Kie.ai as WaveSpeed alternative for lipsync",
+      "status": "done",
+      "priority": "high",
+      "created": "2026-04-11T09:51:00Z",
+      "source": "manual",
+      "reason": "Kie.ai is cheaper than WaveSpeed. Integrate Kie.ai lipsync API as alternative provider.",
+      "type": "inhouse",
+      "blocked_by": [],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Done. Kie.ai Infinitalk API confirmed working: POST /api/v1/jobs/createTask (model=infinitalk/from-audio, input: image_url+audio_url+prompt+resolution), GET /api/v1/jobs/recordInfo?taskId=xxx. Implemented: modules/media/kie_ai_client.py (KieAIClient with infinitalk/poll_task), modules/media/lipsync.py (KieAIInfinitalkProvider registered as 'kieai'). Test task success: tempfile.aiquickdraw.com/h/e7623c458fe23eb3afecf93a5f1aa568_1775886103.mp4. Next: wire kieai into video_pipeline_v3.py via config (lipsync.provider: kieai).",
+      "completed_at": "2026-04-11T05:16:00Z"
+    },
+    {
+      "id": "VP-018",
+      "title": "Fallback khi hết credits lipsync - tạo video tĩnh từ ảnh + audio TTS",
+      "status": "todo",
+      "priority": "high",
+      "created": "2026-04-13T01:14:00Z",
+      "source": "manual",
+      "reason": "Khi hết credits Kie.ai/WaveSpeed, pipeline vẫn tạo được video từ ảnh tĩnh + TTS audio đã gen",
+      "type": "feature",
+      "blocked_by": [],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Phát hiện lỗi hết quota → fallback sang static image + TTS audio → video vẫn có subtitles + watermark + music"
+    },
+    {
+      "id": "VP-019",
+      "title": "Research và tích hợp MiniMax Music API làm background music",
+      "status": "todo",
+      "priority": "medium",
+      "created": "2026-04-13T01:14:00Z",
+      "source": "manual",
+      "reason": "Hiện tại chỉ có add_background_music local, cần nghiên cứu MiniMax Music API để generate nhạc nền từ prompt",
+      "type": "research",
+      "blocked_by": [],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Tìm hiểu MiniMax music generation API, tích hợp vào pipeline"
+    }
+  ]
+}
+{
+  "project": "videopipeline",
+  "archived": [],
+  "metadata": {
+    "last_updated": "2026-04-11T12:46:00Z",
     "total_tasks": 17,
     "done_tasks": 16,
     "schema_version": 1
@@ -169,7 +487,7 @@
       ],
       "assigned_to": "cron-heartbeat",
       "claimed_at": "2026-04-10T17:56:00Z",
-      "note": "Implemented: modules/social/facebook_api.py \u2014 FacebookAPIClient with Graph API v19.0 resumable upload, SRT captions, DB credential store/retrieve, dry-run mode. Tests: tests/test_facebook_api.py (12 tests passing).",
+      "note": "Implemented: modules/social/facebook_api.py — FacebookAPIClient with Graph API v19.0 resumable upload, SRT captions, DB credential store/retrieve, dry-run mode. Tests: tests/test_facebook_api.py (12 tests passing).",
       "completed_at": "2026-04-11T00:57:00.000000+07:00"
     },
     {
@@ -186,7 +504,7 @@
       ],
       "assigned_to": "heartbeat-0411",
       "claimed_at": "2026-04-10T21:15:00Z",
-      "note": "Implemented: modules/social/tiktok_api.py \u2014 TikTokAPIClient with Marketing API v2 upload/initiate\u2192PUT chunks\u2192publish flow, DB credential store/retrieve, dry-run mode. Tests: tests/test_tiktok_api.py (20 tests passing).",
+      "note": "Implemented: modules/social/tiktok_api.py — TikTokAPIClient with Marketing API v2 upload/initiate→PUT chunks→publish flow, DB credential store/retrieve, dry-run mode. Tests: tests/test_tiktok_api.py (20 tests passing).",
       "completed_at": "2026-04-11T04:16:00.000000+07:00"
     },
     {
@@ -213,7 +531,7 @@
       "priority": "medium",
       "created": "2026-04-10T16:33:00Z",
       "source": "manual",
-      "reason": "End-to-end: generate video \u2192 create caption \u2192 upload to socials",
+      "reason": "End-to-end: generate video → create caption → upload to socials",
       "type": "inhouse",
       "blocked_by": [
         "VP-008",
@@ -285,6 +603,34 @@
       "claimed_at": null,
       "note": "Done. Kie.ai Infinitalk API confirmed working: POST /api/v1/jobs/createTask (model=infinitalk/from-audio, input: image_url+audio_url+prompt+resolution), GET /api/v1/jobs/recordInfo?taskId=xxx. Implemented: modules/media/kie_ai_client.py (KieAIClient with infinitalk/poll_task), modules/media/lipsync.py (KieAIInfinitalkProvider registered as 'kieai'). Test task success: tempfile.aiquickdraw.com/h/e7623c458fe23eb3afecf93a5f1aa568_1775886103.mp4. Next: wire kieai into video_pipeline_v3.py via config (lipsync.provider: kieai).",
       "completed_at": "2026-04-11T05:16:00Z"
+    },
+    {
+      "id": "VP-018",
+      "title": "Fallback khi hết credits lipsync - tạo video tĩnh từ ảnh + audio TTS",
+      "status": "todo",
+      "priority": "high",
+      "created": "2026-04-13T01:14:00Z",
+      "source": "manual",
+      "reason": "Khi hết credits Kie.ai/WaveSpeed, pipeline vẫn tạo được video từ ảnh tĩnh + TTS audio đã gen",
+      "type": "feature",
+      "blocked_by": [],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Phát hiện lỗi hết quota → fallback sang static image + TTS audio → video vẫn có subtitles + watermark + music"
+    },
+    {
+      "id": "VP-019",
+      "title": "Research và tích hợp MiniMax Music API làm background music",
+      "status": "todo",
+      "priority": "medium",
+      "created": "2026-04-13T01:14:00Z",
+      "source": "manual",
+      "reason": "Hiện tại chỉ có add_background_music local, cần nghiên cứu MiniMax Music API để generate nhạc nền từ prompt",
+      "type": "research",
+      "blocked_by": [],
+      "assigned_to": null,
+      "claimed_at": null,
+      "note": "Tìm hiểu MiniMax music generation API, tích hợp vào pipeline"
     }
   ]
 }

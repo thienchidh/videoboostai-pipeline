@@ -16,6 +16,9 @@ api:
   kie_ai_key: "f5116468a49733bd607ffc05e606e3d3"
   kie_ai_webhook_key: "3cd3833cc8ab5521ff87418b605c195bd6e571a098d3916ae93911e47cf71245"
 
+  # YouSearch - web search for topic research
+  you_search_key: "ydc-sk-78f9c97c8af4be3a-qGYUAr2RCQJ8Mqo1yV7Ow9AmYgzQ1SGO-d8b74e04"
+
 # ================================================
 # MODELS - Chọn provider cho từng bộ phận
 # ================================================
@@ -28,6 +31,19 @@ models:
   tts: "edge"      # Edge TTS - free, Vietnamese tốt
   image: "minimax" # MiniMax Image - chất lượng cao
   video: "kieai"   # Kie.ai Infinitalk - lipsync
+
+# ================================================
+# LLM - Text generation for script creation
+# ================================================
+# Provider: minimax (Anthropic-compatible API)
+# Swap provider by changing: llm.provider = "openai" | "anthropic"
+# ================================================
+
+llm:
+  provider: "minimax"   # minimax | openai | anthropic
+  model: "MiniMax-M2.7"
+  max_tokens: 1536
+  timeout: 60
 
 # ================================================
 # IMAGE GENERATION

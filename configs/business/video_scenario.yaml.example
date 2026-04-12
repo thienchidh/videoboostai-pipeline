@@ -137,6 +137,18 @@ lipsync:
   max_wait: 300               # seconds to wait for job completion
 
 # ------------------------------------------------------------
+# LLM — Language model for script generation
+# ------------------------------------------------------------
+# Used by: modules.content.content_idea_generator
+# API key resolved from configs/technical/config_technical.yaml
+# Swap provider: change provider name (minimax | openai | anthropic)
+# ------------------------------------------------------------
+llm:
+  provider: "minimax"   # minimax | openai | anthropic
+  model: "MiniMax-M2.7"
+  max_tokens: 1536
+
+# ------------------------------------------------------------
 # SOCIAL — Page/Channel configuration for auto-posting
 # ------------------------------------------------------------
 social:

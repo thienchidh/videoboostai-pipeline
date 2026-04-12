@@ -13,14 +13,10 @@ from typing import List, Dict, Optional, Any
 
 logger = logging.getLogger(__name__)
 
-from psycopg2.extras import Json
-
-# Optional: import ollama for LLM
 try:
-    import ollama
-    OLLAMA_AVAILABLE = True
+    from psycopg2.extras import Json
 except ImportError:
-    OLLAMA_AVAILABLE = False
+    Json = None  # lazy import, psycopg2 only needed at runtime
 
 
 class TopicResearcher:
@@ -36,32 +32,58 @@ class TopicResearcher:
         self.project_id = project_id
 
     def web_search_trending(self, query: str, count: int = 10) -> List[Dict]:
-        """Search web for trending topics using ollama web search or fallback."""
+        """Search web for trending topics using YouSearch API."""
         try:
-            from ollama import Client
-            client = Client(host='http://localhost:11434')
-            response = client.chat(
-                model='llama3.2',
-                messages=[{
-                    'role': 'user',
-                    'content': f'Search for trending topics about: {query}. Return a JSON array of {count} trending topics with fields: title, summary, keywords (array), source_url.'
-                }]
+            import requests
+            api_key = self._get_you_search_key()
+            if not api_key:
+                logger.warning("YouSearch API key not configured, using fallback topics")
+                return self._fallback_topics(query)
+
+            headers = {"X-API-Key": api_key}
+            params = {"query": query, "count": count}
+            response = requests.get(
+                "https://ydc-index.io/v1/search",
+                headers=headers,
+                params=params,
+                timeout=15
             )
-            # Try to parse as JSON
-            content = response['message']['content']
-            try:
-                topics = json.loads(content)
-                return topics if isinstance(topics, list) else []
-            except (json.JSONDecodeError, ValueError):
-                # Try to extract JSON from markdown
-                import re
-                match = re.search(r'\[.*\]', content, re.DOTALL)
-                if match:
-                    return json.loads(match.group())
-                return []
+            response.raise_for_status()
+            data = response.json()
+
+            topics = []
+            for item in data.get("results", {}).get("web", [])[:count]:
+                title = item.get("title", "")
+                description = item.get("description", "") or item.get("url", "")
+                url = item.get("url", "")
+                # Extract keywords from title/description words
+                words = (title + " " + description).split()
+                keywords = list(set(w.lower() for w in words if len(w) > 4))[:5]
+                topics.append({
+                    "title": title,
+                    "summary": description[:200],
+                    "keywords": keywords,
+                    "source_url": url
+                })
+            return topics
         except Exception as e:
-            logger.warning(f"Web search failed: {e}")
+            logger.warning(f"YouSearch failed: {e}, using fallback topics")
             return self._fallback_topics(query)
+
+    def _get_you_search_key(self) -> str:
+        """Get YouSearch API key from config."""
+        try:
+            from core.paths import PROJECT_ROOT
+            import yaml
+            cfg_path = PROJECT_ROOT / "configs" / "technical" / "config_technical.yaml"
+            if cfg_path.exists():
+                with open(cfg_path, encoding="utf-8") as f:
+                    cfg = yaml.safe_load(f)
+                return cfg.get("you_search", {}).get("api_key", "") or \
+                       cfg.get("api", {}).get("you_search_key", "")
+        except Exception:
+            pass
+        return ""
 
     def _fallback_topics(self, query: str) -> List[Dict]:
         """Fallback static topics when web search unavailable."""

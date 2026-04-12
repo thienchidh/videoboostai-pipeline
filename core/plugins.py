@@ -51,6 +51,15 @@ class LipsyncProvider(ABC):
         ...
 
 
+class LLMProvider(ABC):
+    """Abstract base for LLM chat providers."""
+
+    @abstractmethod
+    def chat(self, prompt: str, system: str = "", max_tokens: int = 1024) -> str:
+        """Send a chat prompt, return response text."""
+        ...
+
+
 # ==================== Plugin Registry ====================
 
 class PluginRegistry:
@@ -60,6 +69,7 @@ class PluginRegistry:
         self._tts: Dict[str, Type[TTSProvider]] = {}
         self._image: Dict[str, Type[ImageProvider]] = {}
         self._lipsync: Dict[str, Type[LipsyncProvider]] = {}
+        self._llm: Dict[str, Type[LLMProvider]] = {}
 
     def register_tts(self, name: str, provider_class: Type[TTSProvider]) -> None:
         self._tts[name] = provider_class
@@ -73,6 +83,10 @@ class PluginRegistry:
         self._lipsync[name] = provider_class
         logger.debug(f"Registered lipsync provider: {name}")
 
+    def register_llm(self, name: str, provider_class: Type[LLMProvider]) -> None:
+        self._llm[name] = provider_class
+        logger.debug(f"Registered LLM provider: {name}")
+
     def get_tts(self, name: str) -> Optional[Type[TTSProvider]]:
         return self._tts.get(name)
 
@@ -82,6 +96,9 @@ class PluginRegistry:
     def get_lipsync(self, name: str) -> Optional[Type[LipsyncProvider]]:
         return self._lipsync.get(name)
 
+    def get_llm(self, name: str) -> Optional[Type[LLMProvider]]:
+        return self._llm.get(name)
+
     def list_tts(self) -> List[str]:
         return list(self._tts.keys())
 
@@ -90,6 +107,9 @@ class PluginRegistry:
 
     def list_lipsync(self) -> List[str]:
         return list(self._lipsync.keys())
+
+    def list_llm(self) -> List[str]:
+        return list(self._llm.keys())
 
 
 # Global registry instance
@@ -104,6 +124,8 @@ def register_provider(category: str, name: str, cls: Type) -> None:
         _registry.register_image(name, cls)
     elif category == "lipsync":
         _registry.register_lipsync(name, cls)
+    elif category == "llm":
+        _registry.register_llm(name, cls)
     else:
         raise ValueError(f"Unknown provider category: {category}")
 
@@ -116,6 +138,8 @@ def get_provider(category: str, name: str) -> Optional[Type]:
         return _registry.get_image(name)
     elif category == "lipsync":
         return _registry.get_lipsync(name)
+    elif category == "llm":
+        return _registry.get_llm(name)
     return None
 
 
@@ -127,4 +151,6 @@ def list_providers(category: str) -> List[str]:
         return _registry.list_image()
     elif category == "lipsync":
         return _registry.list_lipsync()
+    elif category == "llm":
+        return _registry.list_llm()
     return []

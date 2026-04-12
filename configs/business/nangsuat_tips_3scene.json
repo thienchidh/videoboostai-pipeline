@@ -1,28 +1,28 @@
 {
   "_comment": "Business config - 3 scenes - NangSuatThongMinh channel",
-  
+
   "watermark": {
     "text": "@NangSuatThongMinh"
   },
-  
+
   "video": {
-    "title": "3 Meo Tang Nang Suat"
+    "title": "3 Mẹo Tăng Năng Suất"
   },
-  
+
   "scenes": [
     {
       "id": 1,
-      "script": "Ban co biet rang 80% cong viec chi can 20% thoi gian khong? Day goi la nguyen tac Pareto. Hom nay toi chia se 3 meo giup ban lam viec thong minh hon, ket qua nhieu hon trong thoi gian it hon.",
+      "script": "Bạn có biết rằng 80% công việc chỉ cần 20% thời gian không? Đây gọi là nguyên tắc Pareto. Hôm nay tôi chia sẻ 3 mẹo giúp bạn làm việc thông minh hơn, kết quả nhiều hơn trong thời gian ít hơn.",
       "characters": ["GiaoVien"]
     },
     {
       "id": 2,
-      "script": "Meo thu nhat: Quy tac 2 phut. Neu mot viec lam duoi 2 phut, hay lam ngay, khong can suy nghi. Tra loi tin nhan ngan, sap xep giay, don dep ban lam. Dieu nay giup ban giai phong dau luc cho viec lon.",
+      "script": "Mẹo thứ nhất: Quy tắc 2 phút. Nếu một việc làm dưới 2 phút, hãy làm ngay, không cần suy nghĩ. Trả lời tin nhắn ngắn, sắp xếp giấy tờ, dọn dẹp bàn làm. Điều này giúp bạn giải phóng đầu lực cho việc lớn.",
       "characters": ["GiaoVien"]
     },
     {
       "id": 3,
-      "script": "Meo thu hai: Khoi tao mot lan. Khi bat dau mot viec, hay lam lien tuc cho den khi xong, khong ngat quang giua chung. Ngat quang lam mat 23 phut de quay lai. Lam xong roi moi chuyen sang viec tiep theo.",
+      "script": "Mẹo thứ hai: Khởi tạo một lần. Khi bắt đầu một việc, hãy làm liên tục cho đến khi xong, không ngắt quãng giữa chừng. Ngắt quãng làm mất 23 phút để quay lại. Làm xong rồi mới chuyển sang việc tiếp theo.",
       "characters": ["GiaoVien"]
     }
   ]

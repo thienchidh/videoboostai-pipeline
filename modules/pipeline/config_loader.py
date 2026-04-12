@@ -5,17 +5,14 @@ Handles:
 - Loading technical base config (YAML/JSON)
 - Merging business config
 - Merging secrets
-- Resolving API keys (WaveSpeed from TOOLS.md, MiniMax from auth-profiles.json)
 """
 
 import json
-import re
-import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from core.paths import PROJECT_ROOT, get_config_path
+from core.paths import PROJECT_ROOT
 from core.video_utils import deep_merge
 
 
@@ -136,18 +133,11 @@ class ConfigLoader:
 
         # ---- Resolve API keys ----
         wsp_key = merged.get("api", {}).get("wavespeed_key", "")
-        if wsp_key == "REPLACE_WITH_YOUR_WAVESPEED_KEY":
-            wsp_key = ConfigLoader._get_wavespeed_key()
-
         wsp_base = merged.get("api_urls", {}).get("wavespeed", "https://api.wavespeed.ai")
-        minimax_key = ConfigLoader._get_minimax_key(merged)
+        minimax_key = merged.get("api", {}).get("minimax_key", "")
         kieai_key = merged.get("api", {}).get("kie_ai_key", "")
         kieai_webhook_key = merged.get("api", {}).get("kie_ai_webhook_key", "")
-
-        # Lipsync provider selection
         lipsync_provider = merged.get("lipsync", {}).get("provider", "wavespeed")
-        if lipsync_provider == "kieai" and not kieai_key:
-            lipsync_provider = "wavespeed"
 
         return PipelineConfig(
             data=merged,
@@ -158,26 +148,3 @@ class ConfigLoader:
             kieai_webhook_key=kieai_webhook_key,
             lipsync_provider=lipsync_provider,
         )
-
-    @staticmethod
-    def _get_wavespeed_key() -> str:
-        """Get WaveSpeed key from TOOLS.md"""
-        tools_file = get_config_path("workspace/TOOLS.md")
-        if tools_file.exists():
-            content = tools_file.read_text()
-            match = re.search(r'wavespeed.*?([a-f0-9]{64})', content, re.IGNORECASE)
-            if match:
-                return match.group(1)
-        return ""
-
-    @staticmethod
-    def _get_minimax_key(config: Dict[str, Any]) -> str:
-        """Get MiniMax key from auth-profiles.json or config."""
-        auth_file = get_config_path("agents/main/agent/auth-profiles.json")
-        if auth_file.exists():
-            with open(auth_file) as f:
-                data = json.load(f)
-                for k, v in data.get("profiles", {}).items():
-                    if v.get("provider") == "minimax":
-                        return v.get("key", "")
-        return config.get("api", {}).get("minimax_key", "")

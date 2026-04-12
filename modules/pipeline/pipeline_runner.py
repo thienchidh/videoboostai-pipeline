@@ -82,11 +82,9 @@ class VideoPipelineRunner:
     def _build_tts_provider(self):
         """Instantiate TTS provider via PluginRegistry."""
         tts_name = self.config.get("models", {}).get("tts", "minimax")
-        try:
-            provider_cls = get_provider("tts", tts_name)
-        except ValueError:
-            log(f"⚠️ Unknown TTS provider '{tts_name}', defaulting to minimax")
-            provider_cls = get_provider("tts", "minimax")
+        provider_cls = get_provider("tts", tts_name)
+        if provider_cls is None:
+            raise ValueError(f"Unknown TTS provider: {tts_name}")
 
         if tts_name == "edge":
             return provider_cls(upload_func=lambda fp: upload_file(fp, self.config.wavespeed_base, self.config.wavespeed_key))
@@ -95,21 +93,17 @@ class VideoPipelineRunner:
     def _build_image_provider(self):
         """Instantiate image provider via PluginRegistry."""
         img_name = self.config.get("models", {}).get("image", "minimax")
-        try:
-            provider_cls = get_provider("image", img_name)
-        except ValueError:
-            log(f"⚠️ Unknown image provider '{img_name}', defaulting to minimax")
-            provider_cls = get_provider("image", "minimax")
+        provider_cls = get_provider("image", img_name)
+        if provider_cls is None:
+            raise ValueError(f"Unknown image provider: {img_name}")
         return provider_cls(api_key=self.config.wavespeed_key)
 
     def _build_lipsync_provider(self):
         """Instantiate lipsync provider via PluginRegistry."""
         lipsync_name = self.config.lipsync_provider
-        try:
-            provider_cls = get_provider("lipsync", lipsync_name)
-        except ValueError:
-            log(f"⚠️ Unknown lipsync provider '{lipsync_name}', defaulting to wavespeed")
-            provider_cls = get_provider("lipsync", "wavespeed")
+        provider_cls = get_provider("lipsync", lipsync_name)
+        if provider_cls is None:
+            raise ValueError(f"Unknown lipsync provider: {lipsync_name}")
 
         upload_fn = lambda fp: upload_file(fp, self.config.wavespeed_base, self.config.wavespeed_key)
         if lipsync_name == "kieai":

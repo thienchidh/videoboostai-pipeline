@@ -299,11 +299,11 @@ class TestDRYRunModes:
             assert result == "/tmp/dry_image.png"
 
 
-class TestLipsyncProviderFallback:
-    """Test fallback behavior when provider is unknown."""
+class TestProviderUnknownRaises:
+    """Test that unknown providers raise ValueError."""
 
-    def test_unknown_tts_provider_fallback(self, tmp_path):
-        """Test fallback to minimax when TTS provider unknown."""
+    def test_unknown_tts_provider_raises(self, tmp_path):
+        """Test that unknown TTS provider raises ValueError."""
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
@@ -313,20 +313,10 @@ class TestLipsyncProviderFallback:
             run_id="test",
         )
 
-        mock_tts_cls = MagicMock()
-        mock_img_cls = MagicMock()
-        mock_lip_cls = MagicMock()
-
         def mock_get_provider(category, name):
             if category == "tts":
-                if name == "unknown_tts":
-                    raise ValueError(f"Unknown TTS provider: {name}")
-                return mock_tts_cls
-            elif category == "image":
-                return mock_img_cls
-            elif category == "lipsync":
-                return mock_lip_cls
-            return None
+                return None  # Unknown provider
+            return MagicMock()
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
@@ -334,13 +324,11 @@ class TestLipsyncProviderFallback:
              patch('modules.pipeline.pipeline_runner.upload_file'):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
-            runner = VideoPipelineRunner(config, dry_run=True)
+            with pytest.raises(ValueError, match="Unknown TTS provider"):
+                VideoPipelineRunner(config, dry_run=True)
 
-        # Should have tried unknown_tts and fallen back to minimax
-        assert mock_tts_cls.called
-
-    def test_unknown_lipsync_provider_fallback(self, tmp_path):
-        """Test fallback to wavespeed when lipsync provider unknown."""
+    def test_unknown_lipsync_provider_raises(self, tmp_path):
+        """Test that unknown lipsync provider raises ValueError."""
         from modules.pipeline.config_loader import PipelineConfig
 
         config = PipelineConfig(
@@ -352,20 +340,10 @@ class TestLipsyncProviderFallback:
             run_id="test",
         )
 
-        mock_tts_cls = MagicMock()
-        mock_img_cls = MagicMock()
-        mock_lip_cls = MagicMock()
-
         def mock_get_provider(category, name):
-            if category == "tts":
-                return mock_tts_cls
-            elif category == "image":
-                return mock_img_cls
-            elif category == "lipsync":
-                if name == "unknown_lipsync":
-                    raise ValueError(f"Unknown lipsync provider: {name}")
-                return mock_lip_cls
-            return None
+            if category == "lipsync":
+                return None  # Unknown provider
+            return MagicMock()
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
@@ -373,7 +351,5 @@ class TestLipsyncProviderFallback:
              patch('modules.pipeline.pipeline_runner.upload_file'):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
-            runner = VideoPipelineRunner(config, dry_run=True)
-
-        # Should have fallen back to wavespeed
-        assert mock_lip_cls.called
+            with pytest.raises(ValueError, match="Unknown lipsync provider"):
+                VideoPipelineRunner(config, dry_run=True)

@@ -42,7 +42,7 @@ class TestConfigLoader:
     """Test ConfigLoader class."""
 
     def test_load_technical_config_uses_yaml_values(self, tmp_path):
-        """Test that ConfigLoader uses the yaml values when no auth file exists."""
+        """Test that ConfigLoader uses the yaml values directly."""
         from modules.pipeline.config_loader import ConfigLoader
 
         # Create minimal config structure
@@ -56,11 +56,7 @@ class TestConfigLoader:
             "  minimax_key: test_minimax_key\n"
         )
 
-        # Patch get_config_path in config_loader's namespace
-        fake_auth = tmp_path / "nonexistent_auth.json"
-
-        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path), \
-             patch('modules.pipeline.config_loader.get_config_path', return_value=fake_auth):
+        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path):
             config = ConfigLoader.load("config_technical")
 
         assert config.wavespeed_key == "test_wavespeed_key"
@@ -86,9 +82,7 @@ class TestConfigLoader:
         biz_file = biz_dir / "test_scenario.yaml"
         biz_file.write_text("title: Test Video\nscenes:\n  - id: 1\n    script: test\n")
 
-        fake_auth = tmp_path / "nonexistent_auth.json"
-        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path), \
-             patch('modules.pipeline.config_loader.get_config_path', return_value=fake_auth):
+        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path):
             config = ConfigLoader.load("test_scenario")
 
         assert config.wavespeed_key == "tech_key"
@@ -110,74 +104,13 @@ class TestConfigLoader:
         secrets_file = biz_dir / "secrets.json"
         secrets_file.write_text('{"api": {"wavespeed_key": "secret_key"}}')
 
-        fake_auth = tmp_path / "nonexistent_auth.json"
-        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path), \
-             patch('modules.pipeline.config_loader.get_config_path', return_value=fake_auth):
+        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path):
             config = ConfigLoader.load("config_technical")
 
         assert config.wavespeed_key == "secret_key"
 
-    def test_wavespeed_key_placeholder_triggers_fallback(self, tmp_path):
-        """Test that REPLACE_WITH_YOUR_WAVESPEED_KEY triggers TOOLS.md fallback."""
-        from modules.pipeline.config_loader import ConfigLoader
-
-        tech_dir = tmp_path / "configs" / "technical"
-        tech_dir.mkdir(parents=True)
-        tech_file = tech_dir / "config_technical.yaml"
-        tech_file.write_text("api:\n  wavespeed_key: REPLACE_WITH_YOUR_WAVESPEED_KEY\n")
-
-        # Create TOOLS.md with fallback key at the path get_config_path would return
-        tools_dir = tmp_path / ".openclaw" / "workspace"
-        tools_dir.mkdir(parents=True)
-        tools_file = tools_dir / "TOOLS.md"
-        tools_file.write_text(
-            "wavespeed_api_key = abc123def456789012345678901234567890123456789012345678901234abcd"
-        )
-
-        # When get_config_path is called with "workspace/TOOLS.md", return our test file
-        def fake_get_config(rel):
-            if rel == "workspace/TOOLS.md":
-                return tools_file
-            return tmp_path / ".openclaw" / rel
-
-        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path), \
-             patch('modules.pipeline.config_loader.get_config_path', side_effect=fake_get_config):
-            config = ConfigLoader.load("config_technical")
-
-        assert config.wavespeed_key == "abc123def456789012345678901234567890123456789012345678901234abcd"
-
-    def test_minimax_key_from_auth_profiles(self, tmp_path):
-        """Test that minimax_key is resolved from auth-profiles.json first."""
-        from modules.pipeline.config_loader import ConfigLoader
-
-        tech_dir = tmp_path / "configs" / "technical"
-        tech_dir.mkdir(parents=True)
-        tech_file = tech_dir / "config_technical.yaml"
-        tech_file.write_text("api:\n  minimax_key: yaml_key\n")
-
-        # Create auth-profiles.json at the path get_config_path would return
-        auth_dir = tmp_path / ".openclaw" / "agents" / "main" / "agent"
-        auth_dir.mkdir(parents=True)
-        auth_file = auth_dir / "auth-profiles.json"
-        auth_file.write_text(json.dumps({
-            "profiles": {
-                "work": {"provider": "minimax", "key": "auth_key_from_profile"}
-            }
-        }))
-
-        def fake_get_config(rel):
-            if "auth-profiles.json" in rel:
-                return auth_file
-            return tmp_path / ".openclaw" / rel
-
-        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path), \
-             patch('modules.pipeline.config_loader.get_config_path', side_effect=fake_get_config):
-            config = ConfigLoader.load("config_technical")
-
-        assert config.minimax_key == "auth_key_from_profile"
-
-    def test_lipsync_provider_kieai_fallback_to_wavespeed(self, tmp_path):
-        """Test that lipsync provider falls back to wavespeed if kieai key missing."""
+    def test_lipsync_provider_from_config(self, tmp_path):
+        """Test that lipsync provider is read from config."""
         from modules.pipeline.config_loader import ConfigLoader
 
         tech_dir = tmp_path / "configs" / "technical"
@@ -187,15 +120,13 @@ class TestConfigLoader:
             "lipsync:\n"
             "  provider: kieai\n"
             "api:\n"
-            "  kie_ai_key: \"\"\n"
+            "  kie_ai_key: test_key\n"
         )
 
-        fake_auth = tmp_path / "nonexistent_auth.json"
-        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path), \
-             patch('modules.pipeline.config_loader.get_config_path', return_value=fake_auth):
+        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path):
             config = ConfigLoader.load("config_technical")
 
-        assert config.lipsync_provider == "wavespeed"
+        assert config.lipsync_provider == "kieai"
 
     def test_api_urls_loaded(self, tmp_path):
         """Test that api_urls are available in config data."""
@@ -210,9 +141,7 @@ class TestConfigLoader:
             "  wavespeed: https://custom.wavespeed.api\n"
         )
 
-        fake_auth = tmp_path / "nonexistent_auth.json"
-        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path), \
-             patch('modules.pipeline.config_loader.get_config_path', return_value=fake_auth):
+        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path):
             config = ConfigLoader.load("config_technical")
 
         assert config.get_nested("api_urls", "minimax_tts") == "https://custom.tts.api"
@@ -226,8 +155,7 @@ class TestConfigLoaderErrors:
         """Test that missing technical config raises FileNotFoundError."""
         from modules.pipeline.config_loader import ConfigLoader
 
-        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path), \
-             patch('modules.pipeline.config_loader.get_config_path', return_value=tmp_path / "nonexistent"):
+        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path):
             with pytest.raises(FileNotFoundError):
                 ConfigLoader.load("config_technical")
 
@@ -240,7 +168,6 @@ class TestConfigLoaderErrors:
         tech_file = tech_dir / "config_technical.yaml"
         tech_file.write_text("invalid: yaml: content: [\n")
 
-        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path), \
-             patch('modules.pipeline.config_loader.get_config_path', return_value=tmp_path / "nonexistent"):
+        with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path):
             with pytest.raises(RuntimeError):
                 ConfigLoader.load("config_technical")

@@ -2,18 +2,74 @@
 # NĂNG SUẤT THÔNG MINH - Intelligent Productivity Video
 # ================================================================
 
-video:
-  title: "Năng Suất Thông Minh - 3 Nguyên Tắc Để Làm Việc Hiệu Quả Hơn"
-  aspect_ratio: "9:16"
-  style: "3D animated Pixar Disney style, high quality 3D render, ultra detailed, vibrant colors, smooth animation, cinematic lighting"
-  resolution: "480p"
-  fps: 25
+# ===== VOICE CATALOG =====
+voices:
+  - id: "mentor_female"
+    name: "Mentor Nữ"
+    gender: "female"
+    providers:
+      - provider: "edge"
+        model: "vi-VN-HoaiMyNeural"
+        speed: 1.0
+      - provider: "openai"
+        model: "tts-1"
+        voice: "alloy"
+        speed: 1.0
 
-subtitle:
-  enable: true
-  font_size: 40
-  color: "yellow"
-  language: "vi"
+  - id: "student_male"
+    name: "Học sinh Nam"
+    gender: "male"
+    providers:
+      - provider: "edge"
+        model: "vi-VN-NamMinhNeural"
+        speed: 1.0
+
+# ===== CHARACTERS =====
+characters:
+  - name: "Mentor"
+    voice_id: "mentor_female"
+
+  - name: "Student"
+    voice_id: "student_male"
+
+# ===== SCENES =====
+scenes:
+  - id: 1
+    tts: "Xin chào các bạn! Bạn có muốn làm việc hiệu quả hơn không? Hôm nay tôi sẽ chia sẻ 3 nguyên tắc quản lý thời gian rất hiệu quả."
+    video_prompt: "A friendly female teacher standing in modern bright office, warm welcoming smile, gesturing enthusiastically"
+    characters:
+      - name: "Mentor"
+    background: "office"
+
+  - id: 2
+    tts: "Nguyên tắc thứ nhất: Viết ra ba điều quan trọng nhất mỗi sáng. Điều này giúp bạn tập trung vào những gì thực sự quan trọng thay vì bị cuốn vào những việc vặt."
+    video_prompt: "Female teacher pointing at whiteboard with THREE KEY PRIORITIES written, focused and confident expression"
+    characters:
+      - name: "Mentor"
+    background: "office"
+
+  - id: 3
+    video_prompt: "Female teacher and male student having an engaging conversation in modern classroom, both looking at camera and talking"
+    characters:
+      - name: "Mentor"
+        tts: "Nguyên tắc thứ hai: Làm việc theo block 90 phút. Tập trung hoàn toàn vào một nhiệm vụ trong 90 phút, sau đó nghỉ ngắn 15 phút."
+        speed: 1.0
+      - name: "Student"
+        tts: "Ý kiến hay! Tôi sẽ áp dụng ngay. Còn nguyên tắc thứ ba là gì?"
+        speed: 1.1
+    background: "classroom"
+
+  - id: 4
+    tts: "Nguyên tắc thứ ba: Nghỉ ngơi và tái tạo năng lượng. Não bộ cần thời gian để xử lý thông tin. Hãy đứng dậy và vận động mỗi giờ!"
+    video_prompt: "Female teacher stretching and relaxing, smiling confidently in bright office"
+    characters:
+      - name: "Mentor"
+    background: "office"
+
+# ===== VIDEO =====
+video:
+  aspect_ratio: "9:16"
+  resolution: "480p"
 
 background_music:
   enable: true
@@ -29,43 +85,14 @@ watermark:
   motion: "bounce"
   bounce_speed: 80
   bounce_padding: 20
-  shadow_opacity: 40
-  stroke_opacity: 120
   velocity_x: 1.2
   velocity_y: 0.8
   margin: 8
 
-prompt:
-  style: "3D animated Pixar Disney style, high quality 3D render, ultra detailed, vibrant colors, smooth animation, cinematic lighting, modern professional"
-  script_hints:
-    office: "modern bright office workspace, professional working environment, computer desk setup, plants and natural light, organized and productive space, Pixar Disney quality"
-    default: "modern professional setting, bright colorful atmosphere, Pixar Disney quality"
+subtitle:
+  font_size: 60
 
-characters:
-  - name: "Mentor"
-    description: "friendly wise female mentor character, glasses, professional casual attire, warm encouraging smile"
-    prompt: "3D animated Pixar Disney style friendly professional female mentor, wearing smart casual clothes with glasses, warm welcoming smile, confident teaching pose, standing in modern bright office with large window and plants, natural lighting, Disney Pixar high quality 3D render, cinematic lighting, vibrant colors"
-    avatar_file: ""
-    tts_voice: "vi-VN-HoaiMyNeural"
-    tts_speed: 1.0
-    auto_create: true
-
-scenes:
-  - id: 1
-    script: "Xin chào các bạn! Bạn có muốn làm việc hiệu quả hơn không? Hôm nay tôi sẽ chia sẻ 3 nguyên tắc quản lý thời gian rất hiệu quả."
-    characters: ["Mentor"]
-    background: "office"
-
-  - id: 2
-    script: "Nguyên tắc thứ nhất: Viết ra ba điều quan trọng nhất mỗi sáng. Điều này giúp bạn tập trung vào những gì thực sự quan trọng thay vì bị cuốn vào những việc vặt."
-    characters: ["Mentor"]
-    background: "office"
-
-  - id: 3
-    script: "Nguyên tắc thứ hai: Làm việc theo block 90 phút. Tập trung hoàn toàn vào một nhiệm vụ trong 90 phút, sau đó nghỉ ngắn 15 phút. Não bộ sẽ hoạt động hiệu quả hơn gấp 3 lần."
-    characters: ["Mentor"]
-    background: "office"
-
+# ===== MODELS =====
 models:
   tts: "edge"
   image: "minimax"
@@ -74,11 +101,11 @@ models:
 tts:
   max_duration: 15.0
   min_duration: 5.0
+  words_per_second: 2.5
 
 lipsync:
   provider: "kieai"
   resolution: "480p"
-  prompt: "A friendly female teacher speaking enthusiastically about productivity tips"
   max_wait: 300
 
 llm:
@@ -86,14 +113,11 @@ llm:
   model: "MiniMax-M2.7"
   max_tokens: 2048
 
+# ===== SOCIAL =====
 social:
   facebook:
-    page_id: ""
     page_name: "Năng Suất Thông Minh"
-    access_token: ""
     auto_publish: false
   tiktok:
-    account_id: ""
     account_name: "@NangSuatThongMinh"
-    refresh_token: ""
     auto_publish: false

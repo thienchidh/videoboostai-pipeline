@@ -4,15 +4,37 @@
 # Very short scripts to minimize API costs and generation time
 # ================================================================
 
-video:
-  title: "Test Minimal Video"
-  aspect_ratio: "9:16"
-  style: "3D animated Pixar Disney style, high quality 3D render"
-  resolution: "480p"
-  fps: 25
+voices:
+  - id: "test_voice"
+    name: "Test Voice"
+    gender: "female"
+    providers:
+      - provider: "edge"
+        model: "vi-VN-HoaiMyNeural"
+        speed: 1.0
 
-subtitle:
-  enable: false
+characters:
+  - name: "TestChar"
+    voice_id: "test_voice"
+
+scenes:
+  - id: 1
+    tts: "Xin chào"
+    video_prompt: "A friendly cartoon character smiling warmly"
+    characters:
+      - name: "TestChar"
+    background: "default"
+
+  - id: 2
+    tts: "Tạm biệt"
+    video_prompt: "A friendly cartoon character waving goodbye"
+    characters:
+      - name: "TestChar"
+    background: "default"
+
+video:
+  aspect_ratio: "9:16"
+  resolution: "480p"
 
 background_music:
   enable: false
@@ -20,30 +42,8 @@ background_music:
 watermark:
   enable: false
 
-prompt:
-  style: "3D animated Pixar Disney style, high quality 3D render, vibrant colors"
-  script_hints:
-    default: "warm natural lighting, Pixar Disney quality"
-
-characters:
-  - name: "TestChar"
-    description: "friendly cartoon character"
-    prompt: "3D animated Pixar Disney style friendly cartoon character, simple design, bright colors, warm smile, standing in simple background, Disney Pixar high quality 3D render"
-    avatar_file: ""
-    tts_voice: "female_voice"
-    tts_speed: 1.0
-    auto_create: true
-
-scenes:
-  - id: 1
-    script: "Xin chào"
-    characters: ["TestChar"]
-    background: "default"
-
-  - id: 2
-    script: "Tạm biệt"
-    characters: ["TestChar"]
-    background: "default"
+subtitle:
+  font_size: 60
 
 models:
   tts: "edge"
@@ -58,7 +58,6 @@ tts:
 lipsync:
   provider: "kieai"
   resolution: "480p"
-  prompt: "A person talking"
   max_wait: 300
 
 llm:
@@ -68,12 +67,8 @@ llm:
 
 social:
   facebook:
-    page_id: ""
     page_name: ""
-    access_token: ""
     auto_publish: false
   tiktok:
-    account_id: ""
     account_name: ""
-    refresh_token: ""
     auto_publish: false

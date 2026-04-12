@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Tuple
 
 from core.paths import PROJECT_ROOT, get_whisper, get_ffmpeg, get_ffprobe, get_config_path
 from core.video_utils import (
@@ -40,6 +40,43 @@ class SceneProcessor:
             if char["name"] == name:
                 return char
         return None
+
+    def get_voice(self, voice_id: str) -> Optional[Dict[str, Any]]:
+        """Get voice config by id from voices catalog."""
+        for voice in self.config.get("voices", []):
+            if voice["id"] == voice_id:
+                return voice
+        return None
+
+    def resolve_voice(self, character: Dict[str, Any], scene: Dict[str, Any]) -> Tuple[str, str, float]:
+        """Resolve (provider, model, speed) from voice_id or fallback to character tts_voice.
+
+        Returns:
+            (provider_name, model_name, speed)
+        """
+        voice_id = character.get("voice_id")
+        voice = self.get_voice(voice_id) if voice_id else None
+
+        if voice:
+            providers = voice.get("providers", [])
+            if providers:
+                primary = providers[0]
+                return (
+                    primary.get("provider", "edge"),
+                    primary.get("model", ""),
+                    primary.get("speed", 1.0)
+                )
+
+        # Fallback: use character tts_voice/tts_speed directly (backward compat)
+        return "edge", character.get("tts_voice", "female_voice"), character.get("tts_speed", 1.0)
+
+    def get_video_prompt(self, scene: Dict[str, Any]) -> str:
+        """Get video prompt from scene config, fallback to build_scene_prompt."""
+        explicit = scene.get("video_prompt")
+        if explicit:
+            return explicit
+        # Fallback for backward compat
+        return self.build_scene_prompt(scene)
 
     def build_scene_prompt(self, scene: Dict[str, Any]) -> str:
         cfg = self.config.get("prompt", {})
@@ -133,7 +170,7 @@ class SingleCharSceneProcessor(SceneProcessor):
             (video_path, timestamps)
         """
         scene_id = scene.get("id", 0)
-        script = scene["script"]
+        tts_text = scene.get("tts", scene.get("script", ""))
         chars = scene.get("characters", [])
 
         scene_output.mkdir(parents=True, exist_ok=True)
@@ -147,17 +184,21 @@ class SingleCharSceneProcessor(SceneProcessor):
                     timestamps = json.load(f)
             return str(existing), timestamps
 
-        char_cfg = self.get_character(chars[0])
+        char_cfg = self.get_character(chars[0]["name"] if isinstance(chars[0], dict) else chars[0])
         if not char_cfg:
             log(f"  ❌ Character '{chars[0]}' not found")
             return None, []
-        voice = char_cfg.get("tts_voice", "female_voice")
-        speed = char_cfg.get("tts_speed", 1.0)
-        prompt = self.build_scene_prompt(scene)
+        provider, voice, speed = self.resolve_voice(char_cfg, scene)
+
+        # Per-scene character override (speed)
+        if isinstance(chars[0], dict) and chars[0].get("speed"):
+            speed = chars[0]["speed"]
+
+        prompt = self.get_video_prompt(scene)
         log(f"  📝 Prompt: {prompt[:80]}...")
 
         # 1. Expand script
-        script = expand_script(script,
+        tts_text = expand_script(tts_text,
                                min_duration=self.get_tts_config().get("min_duration", 5.0),
                                max_duration=self.get_tts_config().get("max_duration", 15.0),
                                words_per_second=self.get_tts_config().get("words_per_second", 2.5))
@@ -165,7 +206,7 @@ class SingleCharSceneProcessor(SceneProcessor):
         # 2. TTS
         audio_output = scene_output / f"audio_tts_{self.timestamp}.mp3"
         log(f"  🔊 Generating TTS...")
-        audio_result = tts_fn(script, voice, speed, str(audio_output))
+        audio_result = tts_fn(tts_text, voice, speed, str(audio_output))
         audio = audio_result[0] if isinstance(audio_result, tuple) else audio_result
         word_timestamps = audio_result[1] if isinstance(audio_result, tuple) else None
         if not audio:
@@ -239,7 +280,7 @@ class MultiCharSceneProcessor(SceneProcessor):
                tts_fn, image_fn, lipsync_fn) -> Tuple[Optional[str], List[Dict]]:
         """Process a two-character scene."""
         scene_id = scene.get("id", 0)
-        script = scene["script"]
+        scene_tts = scene.get("tts", scene.get("script", ""))
         chars = scene.get("characters", [])
 
         scene_output.mkdir(parents=True, exist_ok=True)
@@ -248,41 +289,57 @@ class MultiCharSceneProcessor(SceneProcessor):
             log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping")
             return str(existing), []
 
-        char0 = self.get_character(chars[0])
+        char0_cfg = chars[0] if isinstance(chars[0], dict) else {"name": chars[0]}
+        char1_cfg = chars[1] if isinstance(chars[1], dict) else {"name": chars[1]}
+
+        char0 = self.get_character(char0_cfg["name"])
         if not char0:
-            log(f"  ❌ Character '{chars[0]}' not found")
+            log(f"  ❌ Character '{char0_cfg['name']}' not found")
             return None, []
-        char1 = self.get_character(chars[1])
+        char1 = self.get_character(char1_cfg["name"])
         if not char1:
-            log(f"  ❌ Character '{chars[1]}' not found")
+            log(f"  ❌ Character '{char1_cfg['name']}' not found")
             return None, []
 
-        voice0 = char0.get("tts_voice", "female_voice")
-        speed0 = char0.get("tts_speed", 1.0)
-        voice1 = char1.get("tts_voice", "male-qn-qingse")
-        speed1 = char1.get("tts_speed", 1.0)
+        _, voice0, speed0 = self.resolve_voice(char0, scene)
+        _, voice1, speed1 = self.resolve_voice(char1, scene)
 
-        # Split script 60/40
-        words = script.split()
-        split_at = max(3, len(words) * 60 // 100)
-        left_script = " ".join(words[:split_at])
-        right_script = " ".join(words[split_at:])
+        # Per-scene overrides
+        if char0_cfg.get("speed"):
+            speed0 = char0_cfg["speed"]
+        if char1_cfg.get("speed"):
+            speed1 = char1_cfg["speed"]
 
-        left_script = expand_script(left_script,
-                                    min_duration=self.get_tts_config().get("min_duration", 5.0),
-                                    max_duration=self.get_tts_config().get("max_duration", 15.0),
-                                    words_per_second=self.get_tts_config().get("words_per_second", 2.5))
-        right_script = expand_script(right_script,
-                                     min_duration=self.get_tts_config().get("min_duration", 5.0),
-                                     max_duration=self.get_tts_config().get("max_duration", 15.0),
-                                     words_per_second=self.get_tts_config().get("words_per_second", 2.5))
+        # Determine TTS text per character
+        char0_tts = char0_cfg.get("tts")
+        char1_tts = char1_cfg.get("tts")
+
+        if not char0_tts or not char1_tts:
+            # Auto-split scene tts 60/40
+            words = scene_tts.split()
+            split_at = max(3, len(words) * 60 // 100)
+            left_words = " ".join(words[:split_at])
+            right_words = " ".join(words[split_at:])
+            if not char0_tts:
+                char0_tts = left_words
+            if not char1_tts:
+                char1_tts = right_words
+
+        char0_tts = expand_script(char0_tts,
+                                  min_duration=self.get_tts_config().get("min_duration", 5.0),
+                                  max_duration=self.get_tts_config().get("max_duration", 15.0),
+                                  words_per_second=self.get_tts_config().get("words_per_second", 2.5))
+        char1_tts = expand_script(char1_tts,
+                                   min_duration=self.get_tts_config().get("min_duration", 5.0),
+                                   max_duration=self.get_tts_config().get("max_duration", 15.0),
+                                   words_per_second=self.get_tts_config().get("words_per_second", 2.5))
 
         max_tts = self.get_tts_config().get("max_duration", 15.0)
 
         # Left TTS
         audio_left_output = scene_output / f"audio_left_{self.timestamp}.mp3"
         log(f"  🔊 TTS left ({chars[0]})...")
-        left_result = tts_fn(left_script, voice0, speed0, str(audio_left_output))
+        left_result = tts_fn(char0_tts, voice0, speed0, str(audio_left_output))
         audio_left = left_result[0] if isinstance(left_result, tuple) else left_result
         if not audio_left:
             log(f"  ❌ Left TTS failed")
@@ -297,7 +354,7 @@ class MultiCharSceneProcessor(SceneProcessor):
         # Right TTS
         audio_right_output = scene_output / f"audio_right_{self.timestamp}.mp3"
         log(f"  🔊 TTS right ({chars[1]})...")
-        right_result = tts_fn(right_script, voice1, speed1, str(audio_right_output))
+        right_result = tts_fn(char1_tts, voice1, speed1, str(audio_right_output))
         audio_right = right_result[0] if isinstance(right_result, tuple) else right_result
         if not audio_right:
             log(f"  ❌ Right TTS failed")
@@ -310,10 +367,10 @@ class MultiCharSceneProcessor(SceneProcessor):
             return None, []
 
         # Shared image
+        video_prompt = self.get_video_prompt(scene)
         scene_img = scene_output / "scene_multi.png"
         if not scene_img.exists():
-            prompt = self.build_scene_prompt(scene)
-            multi_prompt = f"{prompt}, featuring two children characters together"
+            multi_prompt = f"{video_prompt}, featuring two characters together"
             log(f"  🎨 Generating multi scene image...")
             if not image_fn(multi_prompt, str(scene_img)):
                 log(f"  ❌ Multi scene image failed")
@@ -325,7 +382,7 @@ class MultiCharSceneProcessor(SceneProcessor):
         if not video_left.exists():
             log(f"  🎬 Generating left lipsync...")
             if not lipsync_fn(str(scene_img), audio_left, str(video_left),
-                              scene_id=scene_id, prompt=f"Character 1 talking"):
+                              scene_id=scene_id, prompt=f"{video_prompt}, character on the left, talking"):
                 log(f"  ❌ Left lipsync failed")
                 return None, []
             log(f"  ✅ Left lipsync done: {video_left.stat().st_size/1024/1024:.1f}MB")
@@ -335,7 +392,7 @@ class MultiCharSceneProcessor(SceneProcessor):
         if not video_right.exists():
             log(f"  🎬 Generating right lipsync...")
             if not lipsync_fn(str(scene_img), audio_right, str(video_right),
-                              scene_id=scene_id, prompt=f"Character 2 talking"):
+                              scene_id=scene_id, prompt=f"{video_prompt}, character on the right, talking"):
                 log(f"  ❌ Right lipsync failed")
                 return None, []
             log(f"  ✅ Right lipsync done: {video_right.stat().st_size/1024/1024:.1f}MB")

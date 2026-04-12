@@ -26,7 +26,6 @@ class PipelineConfig:
     wavespeed_base: str = "https://api.wavespeed.ai"
     minimax_key: str = ""
     kieai_key: str = ""
-    kieai_webhook_key: str = ""
     # Provider preference
     lipsync_provider: str = "wavespeed"
     # S3/MinIO config for media uploads
@@ -143,7 +142,7 @@ class ConfigLoader:
         wsp_base = merged.get("api_urls", {}).get("wavespeed", "https://api.wavespeed.ai")
         minimax_key = merged.get("api", {}).get("minimax_key", "")
         kieai_key = merged.get("api", {}).get("kie_ai_key", "")
-        kieai_webhook_key = merged.get("api", {}).get("kie_ai_webhook_key", "")
+        kieai_key = merged.get("api", {}).get("kie_ai_key", "")
         lipsync_provider = merged.get("lipsync", {}).get("provider", "wavespeed")
 
         # ---- Resolve S3 config ----
@@ -161,7 +160,6 @@ class ConfigLoader:
             wavespeed_base=wsp_base,
             minimax_key=minimax_key,
             kieai_key=kieai_key,
-            kieai_webhook_key=kieai_webhook_key,
             lipsync_provider=lipsync_provider,
             s3_endpoint=s3_endpoint,
             s3_access_key=s3_access_key,

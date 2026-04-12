@@ -1,13 +1,14 @@
 {
   "step": 3,
   "results": {
-    "1": {
-      "video_path": "video_v3_output\\nang_suat_thong_minh\\run_1776002859\\scene_1\\video_raw.mp4",
-      "file_size": 936965
-    },
     "2": {
       "video_path": "video_v3_output\\nang_suat_thong_minh\\run_1776002859\\scene_2\\video_raw.mp4",
-      "file_size": 936965
+      "file_size": 695068
+    },
+    "3": {
+      "video_path": "video_v3_output\\nang_suat_thong_minh\\run_1776002859\\scene_3\\video_raw.mp4",
+      "file_size": 633426
     }
-  }
+  },
+  "prompt": "A friendly female teacher speaking enthusiastically about productivity tips"
 }

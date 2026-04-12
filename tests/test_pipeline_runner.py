@@ -89,8 +89,7 @@ class TestProviderBuilders:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
-             patch('modules.pipeline.pipeline_runner.upload_file'):
+             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             runner = VideoPipelineRunner(config, dry_run=True)
@@ -126,15 +125,14 @@ class TestProviderBuilders:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
-             patch('modules.pipeline.pipeline_runner.upload_file'):
+             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             runner = VideoPipelineRunner(config, dry_run=True)
 
-        # Edge TTS should be called with upload_func
+        # Edge TTS should be called with upload_func=None (TTS audio uploaded by lipsync)
         tts_call = mock_tts_cls.call_args
-        assert 'upload_func' in tts_call.kwargs or len(tts_call.args) > 0
+        assert tts_call.kwargs.get('upload_func') is None
 
     def test_build_image_provider_minimax(self, tmp_path):
         """Test building MiniMax image provider passes wavespeed_key."""
@@ -162,8 +160,7 @@ class TestProviderBuilders:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
-             patch('modules.pipeline.pipeline_runner.upload_file'):
+             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             runner = VideoPipelineRunner(config, dry_run=True)
@@ -179,9 +176,7 @@ class TestProviderBuilders:
             data={},
             lipsync_provider="kieai",
             kieai_key="test_kieai",
-            kieai_webhook_key="test_webhook",
             wavespeed_key="my_wavespeed",
-            wavespeed_base="https://api.wavespeed.ai",
             output_dir=tmp_path / "output",
             run_id="test",
         )
@@ -201,8 +196,7 @@ class TestProviderBuilders:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
-             patch('modules.pipeline.pipeline_runner.upload_file'):
+             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             runner = VideoPipelineRunner(config, dry_run=True)
@@ -211,7 +205,6 @@ class TestProviderBuilders:
         mock_lip_cls.assert_called_once()
         lip_call = mock_lip_cls.call_args
         assert lip_call.kwargs['api_key'] == "test_kieai"
-        assert lip_call.kwargs['webhook_key'] == "test_webhook"
 
 
 class TestDRYRunModes:
@@ -245,7 +238,6 @@ class TestDRYRunModes:
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
-             patch('modules.pipeline.pipeline_runner.upload_file'), \
              patch('core.video_utils.mock_generate_tts') as mock_tts:
 
             mock_tts.return_value = "/tmp/dry_tts.mp3"
@@ -285,7 +277,6 @@ class TestDRYRunModes:
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
-             patch('modules.pipeline.pipeline_runner.upload_file'), \
              patch('core.video_utils.mock_generate_image') as mock_img:
 
             mock_img.return_value = "/tmp/dry_image.png"
@@ -320,8 +311,7 @@ class TestProviderUnknownRaises:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
-             patch('modules.pipeline.pipeline_runner.upload_file'):
+             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             with pytest.raises(ValueError, match="Unknown TTS provider"):
@@ -335,7 +325,6 @@ class TestProviderUnknownRaises:
             data={},
             lipsync_provider="unknown_lipsync",
             wavespeed_key="test_wavespeed",
-            wavespeed_base="https://api.wavespeed.ai",
             output_dir=tmp_path / "output",
             run_id="test",
         )
@@ -347,8 +336,7 @@ class TestProviderUnknownRaises:
 
         with patch('modules.pipeline.pipeline_runner.SingleCharSceneProcessor'), \
              patch('modules.pipeline.pipeline_runner.MultiCharSceneProcessor'), \
-             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider), \
-             patch('modules.pipeline.pipeline_runner.upload_file'):
+             patch('modules.pipeline.pipeline_runner.get_provider', side_effect=mock_get_provider):
 
             from modules.pipeline.pipeline_runner import VideoPipelineRunner
             with pytest.raises(ValueError, match="Unknown lipsync provider"):

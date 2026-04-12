@@ -20,7 +20,6 @@ from core.video_utils import (
     add_background_music,
     add_static_watermark,
     get_video_duration,
-    upload_file,
     DRY_RUN,
     DRY_RUN_TTS,
     DRY_RUN_IMAGES,
@@ -64,6 +63,7 @@ class VideoPipelineRunner:
 
         self.config = config
         self.timestamp = int(time.time())
+        self.config.timestamp = self.timestamp  # sync to config for S3 key uniqueness
 
         # Setup directories
         self.output_dir = config.output_dir
@@ -93,7 +93,8 @@ class VideoPipelineRunner:
             raise ValueError(f"Unknown TTS provider: {tts_name}")
 
         if tts_name == "edge":
-            return provider_cls(upload_func=lambda fp: upload_file(fp, self.config.wavespeed_base, self.config.wavespeed_key))
+            # TTS audio will be uploaded to S3 by lipsync provider, so no local upload needed
+            return provider_cls(upload_func=None)
         return provider_cls(api_key=self.config.minimax_key)
 
     def _build_image_provider(self):
@@ -131,7 +132,6 @@ class VideoPipelineRunner:
         if lipsync_name == "kieai":
             return provider_cls(
                 api_key=self.config.kieai_key,
-                webhook_key=self.config.kieai_webhook_key,
                 upload_func=upload_fn,
             )
         return provider_cls(api_key=self.config.wavespeed_key, upload_func=upload_fn)
@@ -222,12 +222,12 @@ class VideoPipelineRunner:
 
         for scene in scenes:
             scene_id = scene.get("id", 0)
-            script = scene["script"]
+            tts_text = scene.get("tts", scene.get("script", ""))
             chars = scene.get("characters", [])
             scene_output = self.run_dir / f"scene_{scene_id}"
 
             log(f"\n{'='*40}")
-            log(f"🎬 SCENE {scene_id}: {script[:50]}...")
+            log(f"🎬 SCENE {scene_id}: {tts_text[:50]}...")
             log(f"   Characters: {chars}")
             log(f"{'='*40}")
 
@@ -238,7 +238,7 @@ class VideoPipelineRunner:
             if existing.exists():
                 log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping")
                 scene_videos.append(str(existing))
-                scene_scripts.append(script)
+                scene_scripts.append(tts_text)
                 continue
 
             if len(chars) == 1:
@@ -322,7 +322,7 @@ class VideoPipelineRunner:
         log(f"{'='*60}")
 
         add_subtitles(video_for_subtitles, full_script, combined_timestamps or None,
-                     str(subtitled_video), font_size=60, run_dir=self.run_dir)
+                     str(subtitled_video), font_size=self.config.get("subtitle", {}).get("font_size", 60), run_dir=self.run_dir)
 
         # Add background music
         music_enabled = self.config.get("background_music", {}).get("enable", True)

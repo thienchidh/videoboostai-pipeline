@@ -1,0 +1,35 @@
+{
+  "_comment": "Technical config template - copy to config_technical.json and add your API keys",
+
+  "api": {
+    "wavespeed_key": "YOUR_WAVESPEED_KEY",
+    "minimax_key": "YOUR_MINIMAX_KEY",
+    "kie_ai_key": "YOUR_KIE_AI_KEY",
+    "kie_ai_webhook_key": "YOUR_KIE_AI_WEBHOOK_KEY"
+  },
+
+  "models": {
+    "tts": "edge",
+    "image": "minimax",
+    "video": "kieai"
+  },
+
+  "image": {
+    "provider": "minimax",
+    "fallback_providers": [],
+    "aspect_ratio": "9:16",
+    "timeout": 120
+  },
+
+  "lipsync": {
+    "provider": "kieai",
+    "prompt": "A person talking",
+    "resolution": "480p",
+    "max_wait": 300
+  },
+
+  "seeds": {
+    "image": 42,
+    "video": 12345
+  }
+}

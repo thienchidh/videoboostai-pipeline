@@ -56,3 +56,20 @@ lipsync:
 seeds:
   image: 42      # seed cho image generation
   video: 12345    # seed cho video generation
+
+# ================================================
+# S3 STORAGE - Upload media files lên S3/MinIO
+# ================================================
+# Dùng để lưu images, audio, video trước khi gửi sang lipsync API
+# Endpoint: MinIO tại s3.trachanhtv.top
+# Bucket: videopipeline
+# CDN: https://s3.trachanhtv.top/videopipeline/
+# ================================================
+
+s3:
+  endpoint: "https://s3.trachanhtv.top"
+  access_key: "minio-admin"
+  secret_key: "minio-password-change-me"
+  bucket: "videopipeline"
+  region: "us-east-1"
+  public_url_base: "https://s3.trachanhtv.top/videopipeline"

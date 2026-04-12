@@ -7,24 +7,38 @@ import boto3
 import os
 from pathlib import Path
 
-# S3 Config from k8s secret
-S3_ENDPOINT = "https://s3.trachanhtv.top"
-S3_ACCESS_KEY = "minio-admin"
-S3_SECRET_KEY = "minio-password-change-me"
-S3_REGION = "us-east-1"
-S3_BUCKET = "videopipeline"
 
-# Public URL base (Cloudflare CDN)
-PUBLIC_URL_BASE = "https://s3.trachanhtv.top/videopipeline"
+def get_s3_config():
+    """Load S3 config from pipeline config if available, else use env/defaults."""
+    try:
+        from video_pipeline_v3 import VideoPipeline
+        # Config loaded at pipeline init
+        cfg = getattr(VideoPipeline, '_config_cache', {})
+        s3 = cfg.get('s3', {})
+        if s3:
+            return s3
+    except Exception:
+        pass
+    
+    # Fallback to env or hardcoded defaults
+    return {
+        'endpoint': os.environ.get('S3_ENDPOINT', 'https://s3.trachanhtv.top'),
+        'access_key': os.environ.get('S3_ACCESS_KEY', 'minio-admin'),
+        'secret_key': os.environ.get('S3_SECRET_KEY', 'minio-password-change-me'),
+        'bucket': os.environ.get('S3_BUCKET', 'videopipeline'),
+        'region': os.environ.get('S3_REGION', 'us-east-1'),
+        'public_url_base': os.environ.get('S3_PUBLIC_URL_BASE', 'https://s3.trachanhtv.top/videopipeline'),
+    }
 
 
 def get_s3_client():
+    cfg = get_s3_config()
     return boto3.client(
         's3',
-        endpoint_url=S3_ENDPOINT,
-        aws_access_key_id=S3_ACCESS_KEY,
-        aws_secret_access_key=S3_SECRET_KEY,
-        region_name=S3_REGION
+        endpoint_url=cfg['endpoint'],
+        aws_access_key_id=cfg['access_key'],
+        aws_secret_access_key=cfg['secret_key'],
+        region_name=cfg['region']
     )
 
 
@@ -39,18 +53,19 @@ def upload_file(file_path: str, key_prefix: str = "uploads") -> str:
     Returns:
         Public URL of uploaded file
     """
+    cfg = get_s3_config()
     file_path = Path(file_path)
     key = f"{key_prefix}/{file_path.name}"
     
     client = get_s3_client()
     client.upload_file(
         str(file_path),
-        S3_BUCKET,
+        cfg['bucket'],
         key,
         ExtraArgs={"ContentType": _guess_content_type(file_path.suffix)}
     )
     
-    return f"{PUBLIC_URL_BASE}/{key}"
+    return f"{cfg['public_url_base']}/{key}"
 
 
 def _guess_content_type(ext: str) -> str:

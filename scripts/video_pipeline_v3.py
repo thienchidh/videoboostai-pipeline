@@ -140,21 +140,16 @@ if __name__ == "__main__":
     elif len(config_files) == 1:
         config_path = config_files[0]
     else:
-        config_path = "configs/business/video_scenario.yaml.example"
+        config_path = "configs/channels"
 
     if isinstance(config_path, tuple):
         if not all(Path(p).exists() for p in config_path):
             print(f"❌ Config files not found: {config_path}")
             sys.exit(1)
-    elif not Path(config_path).exists():
-        # Fallback: try configs/business/{name}.yaml
-        name = Path(config_path).name
-        fallback = PROJECT_ROOT / "configs" / "business" / f"{name}.yaml"
-        if fallback.exists():
-            config_path = str(fallback)
-        else:
-            print(f"❌ Config not found: {config_path}")
-            sys.exit(1)
+    else:
+        # config_path is now a channel_id or channel_id/date/scenario identifier
+        # ConfigLoader.load() will handle path resolution
+        pass
 
     pipeline = VideoPipelineV3(config_path)
 

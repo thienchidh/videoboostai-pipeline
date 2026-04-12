@@ -71,12 +71,27 @@ class SceneProcessor:
         return "edge", character.get("tts_voice", "female_voice"), character.get("tts_speed", 1.0)
 
     def get_video_prompt(self, scene: Dict[str, Any]) -> str:
-        """Get video prompt from scene config, fallback to build_scene_prompt."""
+        """Get video prompt from scene config, with image_style appended from channel config."""
         explicit = scene.get("video_prompt")
-        if explicit:
-            return explicit
-        # Fallback for backward compat
-        return self.build_scene_prompt(scene)
+        if not explicit:
+            # Fallback for backward compat
+            explicit = self.build_scene_prompt(scene)
+
+        # Append image_style from channel config for consistent visual style
+        image_style = self.config.get("image_style", {})
+        if image_style:
+            style_parts = [
+                image_style.get("lighting", ""),
+                image_style.get("camera", ""),
+                image_style.get("art_style", ""),
+                image_style.get("environment", ""),
+                image_style.get("composition", ""),
+            ]
+            style_str = ", ".join(part for part in style_parts if part)
+            if style_str:
+                return f"{explicit}, {style_str}"
+
+        return explicit
 
     def build_scene_prompt(self, scene: Dict[str, Any]) -> str:
         cfg = self.config.get("prompt", {})

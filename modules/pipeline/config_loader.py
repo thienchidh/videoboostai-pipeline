@@ -77,19 +77,27 @@ class PipelineConfig:
 
 
 class ConfigLoader:
-    """Loads and merges technical + business + secrets config files."""
+    """Loads and merges technical + channel + scenario config files."""
+
+    # Allowlist: only these keys are merged from scenario files
+    ALLOWED_SCENARIO_KEYS = {"scenes", "title"}
 
     @staticmethod
     def load(config_path: str | Path) -> PipelineConfig:
         """Load and merge all config sources.
 
         Args:
-            config_path: Path to business config file, or just technical config name
+            config_path: Scenario path in format:
+                - "{channel_id}" - uses default/latest scenario
+                - "{channel_id}/YYYY-MM-DD/{scenario}" - specific scenario
+                Examples: "nang_suat_thong_minh", "nang_suat_thong_minh/2026-04-12/3-nguyen-tac"
 
         Returns:
             PipelineConfig with all merged data and resolved keys
         """
         config_path = Path(config_path)
+        parts = config_path.parts if len(config_path.parts) > 1 else [config_path.name]
+        channel_id = parts[0]
 
         # ---- Load technical base config ----
         tech_config_path = PROJECT_ROOT / "configs" / "technical" / "config_technical.yaml"
@@ -109,48 +117,66 @@ class ConfigLoader:
         except (yaml.YAMLError, json.JSONDecodeError) as e:
             raise RuntimeError(f"Failed to parse technical config {tech_config_path}: {e}")
 
-        # ---- Load and merge business config ----
-        if config_path.name not in ("config_technical.json", "config_technical.yaml"):
-            # Try as-is first
-            if not config_path.exists():
-                # Try configs/business/{name}.yaml
-                biz_path = PROJECT_ROOT / "configs" / "business" / f"{config_path.name}.yaml"
-                if biz_path.exists():
-                    config_path = biz_path
+        # ---- Load channel config ----
+        channel_config_path = PROJECT_ROOT / "configs" / "channels" / channel_id / "config.yaml"
+        if channel_config_path.exists():
+            try:
+                with open(channel_config_path, encoding="utf-8") as f:
+                    channel_config = yaml.safe_load(f)
+                merged = deep_merge(merged, channel_config)
+            except (yaml.YAMLError, json.JSONDecodeError) as e:
+                raise RuntimeError(f"Failed to parse channel config {channel_config_path}: {e}")
+
+        # ---- Load scenario with allowlist filter ----
+        if len(parts) > 1:
+            # scenario path: channel_id/YYYY-MM-DD/scenario_name.yaml
+            scenario_date = parts[1]
+            scenario_name = parts[2] if len(parts) > 2 else None
+
+            if scenario_name:
+                scenario_path = PROJECT_ROOT / "configs" / "channels" / channel_id / "scenarios" / scenario_date / f"{scenario_name}.yaml"
+            else:
+                # Find first scenario in date folder
+                scenario_dir = PROJECT_ROOT / "configs" / "channels" / channel_id / "scenarios" / scenario_date
+                yaml_files = list(scenario_dir.glob("*.yaml")) + list(scenario_dir.glob("*.yml"))
+                if yaml_files:
+                    scenario_path = yaml_files[0]
                 else:
-                    # Try configs/business/{name}.json
-                    biz_path_json = PROJECT_ROOT / "configs" / "business" / f"{config_path.name}.json"
-                    if biz_path_json.exists():
-                        config_path = biz_path_json
-                    else:
-                        # Try configs/business/{name} directly (e.g. video_scenario.yaml.example)
-                        biz_path_direct = PROJECT_ROOT / "configs" / "business" / config_path.name
-                        if biz_path_direct.exists():
-                            config_path = biz_path_direct
+                    raise FileNotFoundError(f"No scenario found in {scenario_dir}")
+        else:
+            # No date provided - find latest scenario
+            scenarios_dir = PROJECT_ROOT / "configs" / "channels" / channel_id / "scenarios"
+            if scenarios_dir.exists():
+                date_dirs = sorted(scenarios_dir.iterdir(), reverse=True)
+                for date_dir in date_dirs:
+                    yaml_files = list(date_dir.glob("*.yaml")) + list(date_dir.glob("*.yml"))
+                    if yaml_files:
+                        scenario_path = yaml_files[0]
+                        break
+                else:
+                    raise FileNotFoundError(f"No scenarios found in {scenarios_dir}")
+            else:
+                raise FileNotFoundError(f"Channel '{channel_id}' has no scenarios directory")
 
-            if config_path.exists():
-                try:
-                    with open(config_path, encoding="utf-8") as f:
-                        # Business configs in configs/business/ are always YAML
-                        if "configs" in str(config_path.resolve()):
-                            biz_config = yaml.safe_load(f)
-                        elif str(config_path).endswith((".yaml", ".yml")):
-                            biz_config = yaml.safe_load(f)
-                        else:
-                            biz_config = json.load(f)
-                    merged = deep_merge(merged, biz_config)
-                except (yaml.YAMLError, json.JSONDecodeError) as e:
-                    raise RuntimeError(f"Failed to parse business config {config_path}: {e}")
+        if scenario_path and scenario_path.exists():
+            try:
+                with open(scenario_path, encoding="utf-8") as f:
+                    raw_scenario = yaml.safe_load(f)
+                # Filter to allowlist only - security measure
+                filtered_scenario = {k: v for k, v in raw_scenario.items() if k in ConfigLoader.ALLOWED_SCENARIO_KEYS}
+                merged = deep_merge(merged, filtered_scenario)
+            except (yaml.YAMLError, json.JSONDecodeError) as e:
+                raise RuntimeError(f"Failed to parse scenario {scenario_path}: {e}")
 
-        # ---- Load secrets ----
+        # ---- Load secrets (but do NOT merge into config dict) ----
+        secrets = None
         secrets_path = PROJECT_ROOT / "configs" / "business" / "secrets.json"
         if not secrets_path.exists():
             secrets_path = PROJECT_ROOT / "video_config_secrets.json"
         if secrets_path.exists():
             try:
                 with open(secrets_path, encoding="utf-8") as f:
-                    secrets_data = json.load(f)
-                merged = deep_merge(merged, secrets_data)
+                    secrets = json.load(f)
             except json.JSONDecodeError as e:
                 raise RuntimeError(f"Failed to parse secrets {secrets_path}: {e}")
 

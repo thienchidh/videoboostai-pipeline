@@ -1,0 +1,109 @@
+# ================================================================
+# CHANNEL CONFIG - Năng Suất Thông Minh
+# ================================================================
+# Channel configuration - used for all videos in this channel
+# Technical config is inherited from configs/technical/config_technical.yaml
+# ================================================================
+
+channel_id: "nang_suat_thong_minh"
+name: "Năng Suất Thông Minh"
+
+# ===== VOICE CATALOG =====
+voices:
+  - id: "mentor_female"
+    name: "Mentor Nữ"
+    gender: "female"
+    providers:
+      - provider: "edge"
+        model: "vi-VN-HoaiMyNeural"
+        speed: 1.0
+      - provider: "openai"
+        model: "tts-1"
+        voice: "alloy"
+        speed: 1.0
+
+  - id: "student_male"
+    name: "Học sinh Nam"
+    gender: "male"
+    providers:
+      - provider: "edge"
+        model: "vi-VN-NamMinhNeural"
+        speed: 1.0
+
+# ===== CHARACTERS =====
+characters:
+  - name: "Mentor"
+    voice_id: "mentor_female"
+
+  - name: "Student"
+    voice_id: "student_male"
+
+# ===== VIDEO =====
+video:
+  aspect_ratio: "9:16"
+  resolution: "480p"
+
+# ===== WATERMARK =====
+watermark:
+  enable: true
+  text: "@NangSuatThongMinh"
+  font_size: 30
+  opacity: 0.15
+  motion: "bounce"
+  bounce_speed: 80
+  bounce_padding: 20
+  velocity_x: 1.2
+  velocity_y: 0.8
+  margin: 8
+
+# ===== SUBTITLE =====
+subtitle:
+  font_size: 60
+
+# ===== BACKGROUND MUSIC =====
+background_music:
+  enable: true
+  file: "random"
+  volume: 0.15
+  fade_duration: 2
+
+# ===== IMAGE STYLE - Consistent visual style for all channel videos =====
+image_style:
+  lighting: "warm"                      # warm | cinematic | golden hour | moody | bright
+  camera: "eye-level"                   # close-up | wide angle | eye-level | bird-eye view
+  art_style: "realistic"                # realistic | anime | illustration | 3D render
+  environment: "modern office"         # indoor | outdoor | studio | bokeh | clean background
+  composition: "professional"           # minimalist | detailed | professional
+
+# ===== DEFAULT MODELS =====
+default_models:
+  tts: "edge"
+  image: "minimax"
+  video: "kieai"
+
+# ===== TTS SETTINGS =====
+tts:
+  max_duration: 15.0
+  min_duration: 5.0
+  words_per_second: 2.5
+
+# ===== LIPSYNC =====
+lipsync:
+  provider: "kieai"
+  resolution: "480p"
+  max_wait: 300
+
+# ===== LLM =====
+llm:
+  provider: "minimax"
+  model: "MiniMax-M2.7"
+  max_tokens: 2048
+
+# ===== SOCIAL =====
+social:
+  facebook:
+    page_name: "Năng Suất Thông Minh"
+    auto_publish: false
+  tiktok:
+    account_name: "@NangSuatThongMinh"
+    auto_publish: false

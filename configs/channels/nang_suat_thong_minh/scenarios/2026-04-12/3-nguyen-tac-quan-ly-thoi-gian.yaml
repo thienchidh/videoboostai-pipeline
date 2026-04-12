@@ -1,0 +1,43 @@
+# ================================================================
+# SCENARIO - 3 Nguyên Tắc Quản Lý Thời Gian
+# Channel: nang_suat_thong_minh
+# Date: 2026-04-12
+# ================================================================
+# Only scenes and title are allowed in scenario files.
+# All technical config comes from channel config.yaml
+# ================================================================
+
+title: "3 Nguyên Tắc Quản Lý Thời Gian"
+
+scenes:
+  - id: 1
+    tts: "Xin chào các bạn! Bạn có muốn làm việc hiệu quả hơn không? Hôm nay tôi sẽ chia sẻ 3 nguyên tắc quản lý thời gian rất hiệu quả."
+    video_prompt: "A friendly female teacher standing in modern bright office, warm welcoming smile, gesturing enthusiastically"
+    characters:
+      - name: "Mentor"
+    background: "office"
+
+  - id: 2
+    tts: "Nguyên tắc thứ nhất: Viết ra ba điều quan trọng nhất mỗi sáng. Điều này giúp bạn tập trung vào những gì thực sự quan trọng thay vì bị cuốn vào những việc vặt."
+    video_prompt: "Female teacher pointing at whiteboard with THREE KEY PRIORITIES written, focused and confident expression"
+    characters:
+      - name: "Mentor"
+    background: "office"
+
+  - id: 3
+    video_prompt: "Female teacher and male student having an engaging conversation in modern classroom, both looking at camera and talking"
+    characters:
+      - name: "Mentor"
+        tts: "Nguyên tắc thứ hai: Làm việc theo block 90 phút. Tập trung hoàn toàn vào một nhiệm vụ trong 90 phút, sau đó nghỉ ngắn 15 phút."
+        speed: 1.0
+      - name: "Student"
+        tts: "Ý kiến hay! Tôi sẽ áp dụng ngay. Còn nguyên tắc thứ ba là gì?"
+        speed: 1.1
+    background: "classroom"
+
+  - id: 4
+    tts: "Nguyên tắc thứ ba: Nghỉ ngơi và tái tạo năng lượng. Não bộ cần thời gian để xử lý thông tin. Hãy đứng dậy và vận động mỗi giờ!"
+    video_prompt: "Female teacher stretching and relaxing, smiling confidently in bright office"
+    characters:
+      - name: "Mentor"
+    background: "office"

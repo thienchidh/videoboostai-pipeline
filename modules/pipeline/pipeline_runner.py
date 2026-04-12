@@ -75,7 +75,7 @@ class VideoPipelineRunner:
         self.media_dir.mkdir(parents=True, exist_ok=True)
 
         # Configure database if database section is present in config
-        db_cfg = self.config.data.get("database")
+        db_cfg = self.config.data.get("storage", {}).get("database")
         if db_cfg:
             db.configure(db_cfg)
 

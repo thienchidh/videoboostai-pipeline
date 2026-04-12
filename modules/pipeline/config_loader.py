@@ -181,14 +181,14 @@ class ConfigLoader:
                 raise RuntimeError(f"Failed to parse secrets {secrets_path}: {e}")
 
         # ---- Resolve and validate API keys ----
-        wsp_key = require_key(merged, "api", "wavespeed_key")
-        wsp_base = merged.get("api_urls", {}).get("wavespeed", "https://api.wavespeed.ai")
-        minimax_key = require_key(merged, "api", "minimax_key")
-        kieai_key = require_key(merged, "api", "kie_ai_key")
-        lipsync_provider = merged.get("lipsync", {}).get("provider", "wavespeed")
+        wsp_key = require_key(merged, "api", "keys", "wavespeed")
+        wsp_base = merged.get("api", {}).get("urls", {}).get("wavespeed", "https://api.wavespeed.ai")
+        minimax_key = require_key(merged, "api", "keys", "minimax")
+        kieai_key = require_key(merged, "api", "keys", "kie_ai")
+        lipsync_provider = merged.get("generation", {}).get("lipsync", {}).get("provider", "wavespeed")
 
         # ---- Resolve and validate S3 config ----
-        s3_cfg = require_key(merged, "s3")
+        s3_cfg = require_key(merged, "storage", "s3")
         s3_endpoint = s3_cfg.get("endpoint", "https://s3.trachanhtv.top")
         s3_access_key = require_key(s3_cfg, "access_key")
         s3_secret_key = require_key(s3_cfg, "secret_key")

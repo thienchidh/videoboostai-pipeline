@@ -74,8 +74,7 @@ class TopicResearcher:
             if cfg_path.exists():
                 with open(cfg_path, encoding="utf-8") as f:
                     cfg = yaml.safe_load(f)
-                return cfg.get("you_search", {}).get("api_key", "") or \
-                       cfg.get("api", {}).get("you_search_key", "")
+                return cfg.get("api", {}).get("keys", {}).get("you_search", "")
         except Exception:
             pass
         return ""

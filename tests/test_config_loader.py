@@ -136,16 +136,17 @@ class TestConfigLoader:
         tech_dir.mkdir(parents=True)
         tech_file = tech_dir / "config_technical.yaml"
         tech_file.write_text(
-            "api_urls:\n"
-            "  minimax_tts: https://custom.tts.api\n"
-            "  wavespeed: https://custom.wavespeed.api\n"
+            "api:\n"
+            "  urls:\n"
+            "    minimax_tts: https://custom.tts.api\n"
+            "    wavespeed: https://custom.wavespeed.api\n"
         )
 
         with patch('modules.pipeline.config_loader.PROJECT_ROOT', tmp_path):
             config = ConfigLoader.load("config_technical")
 
-        assert config.get_nested("api_urls", "minimax_tts") == "https://custom.tts.api"
-        assert config.get_nested("api_urls", "wavespeed") == "https://custom.wavespeed.api"
+        assert config.get_nested("api", "urls", "minimax_tts") == "https://custom.tts.api"
+        assert config.get_nested("api", "urls", "wavespeed") == "https://custom.wavespeed.api"
 
 
 class TestConfigLoaderErrors:

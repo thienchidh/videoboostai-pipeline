@@ -1,127 +1,71 @@
 # ================================================
 # TECHNICAL CONFIG - Video Pipeline
 # ================================================
-# API Keys (bắt buộc để chạy pipeline)
-# Lấy keys từ: Wavespeed.ai, MiniMax, Kie.ai
+# Last updated: 2026-04-13
 # ================================================
 
+# ================================================
+# API - Provider keys, endpoints, and model selection
+# ================================================
 api:
-  # WaveSpeed AI - lipsync video generation
-  wavespeed_key: "8075a41103d01a02578a1798230f1d6062c60cebb35625e5ee373c7e5dbce523"
-
-  # MiniMax - image generation & TTS
-  minimax_key: "sk-cp-vTtVLjCDfMCyf6P6dJKmVkg8Hwx-UxF0E0nK1-0AEVKH4G8SkzJEauMWKq8JQ5snXc3Wo1KosS_ng_7e4zjwtxWe2Uud0AOSw_XMwSLLT2yhfqk-9fL7aeQ"
-
-  # Kie.ai - lipsync alternative (đang dùng)
-  kie_ai_key: "f5116468a49733bd607ffc05e606e3d3"
-
-  # YouSearch - web search for topic research
-  you_search_key: "ydc-sk-78f9c97c8af4be3a-qGYUAr2RCQJ8Mqo1yV7Ow9AmYgzQ1SGO-d8b74e04"
-
-# ================================================
-# MODELS - Chọn provider cho từng bộ phận
-# ================================================
-# TTS: edge (free, ko tốn quota) | minimax (paid)
-# Image: minimax (ảnh đẹp) | dalle (placeholder)
-# Video: kieai (lipsync) | wavespeed (lipsync)
-# ================================================
-
-models:
-  tts: "edge"      # Edge TTS - free, Vietnamese tốt
-  image: "minimax" # MiniMax Image - chất lượng cao
-  video: "kieai"   # Kie.ai Infinitalk - lipsync
+  keys:
+    wavespeed: "8075a41103d01a02578a1798230f1d6062c60cebb35625e5ee373c7e5dbce523"
+    minimax: "sk-cp-vTtVLjCDfMCyf6P6dJKmVkg8Hwx-UxF0E0nK1-0AEVKH4G8SkzJEauMWKq8JQ5snXc3Wo1KosS_ng_7e4zjwtxWe2Uud0AOSw_XMwSLLT2yhfqk-9fL7aeQ"
+    kie_ai: "f5116468a49733bd607ffc05e606e3d3"
+    you_search: "ydc-sk-78f9c97c8af4be3a-qGYUAr2RCQJ8Mqo1yV7Ow9AmYgzQ1SGO-d8b74e04"
+  urls:
+    wavespeed: "https://api.wavespeed.ai"
+    minimax_tts: "https://api.minimax.io/v1/t2a_v2"
+    minimax_image: "https://api.minimax.io/v1/image_generation"
+    kie_ai: "https://api.kie.ai/api/v1"
+    tiktok: "https://open.tiktokapis.com/v2"
+    facebook_graph: "https://graph.facebook.com/v19.0"
+  models:
+    tts: "edge"      # Edge TTS - free, Vietnamese tốt
+    image: "minimax" # MiniMax Image - chất lượng cao
+    video: "kieai"   # Kie.ai Infinitalk - lipsync
 
 # ================================================
-# LLM - Text generation for script creation
+# GENERATION - All generation-related configs
 # ================================================
-# Provider: minimax (Anthropic-compatible API)
-# Swap provider by changing: llm.provider = "openai" | "anthropic"
-# ================================================
-
-llm:
-  provider: "minimax"   # minimax | openai | anthropic
-  model: "MiniMax-M2.7"
-  max_tokens: 1536
-  timeout: 60
-
-# ================================================
-# IMAGE GENERATION
-# ================================================
-
-image:
-  provider: "minimax"
-  fallback_providers: []
-  aspect_ratio: "9:16"  # TikTok/Reels format
-  timeout: 120          # giây
-
-# ================================================
-# TTS SETTINGS
-# ================================================
-# Kie.ai giới hạn mỗi video scene < 15 giây
-# ================================================
-
-tts:
-  max_duration: 15.0    # seconds - kie.ai hard limit per scene
-  min_duration: 5.0     # seconds - minimum to avoid too-short clips
-  words_per_second: 2.5  # estimated for Vietnamese TTS
+generation:
+  llm:
+    provider: "minimax"   # minimax | openai | anthropic
+    model: "MiniMax-M2.7"
+    max_tokens: 1536
+    timeout: 60
+  image:
+    provider: "minimax"
+    fallback_providers: []
+    aspect_ratio: "9:16"  # TikTok/Reels format
+    timeout: 120
+  tts:
+    max_duration: 15.0    # seconds - kie.ai hard limit per scene
+    min_duration: 5.0     # seconds - minimum to avoid too-short clips
+    words_per_second: 2.5  # estimated for Vietnamese TTS
+  lipsync:
+    provider: "kieai"
+    prompt: "A person talking"  # mô tả cho lipsync model
+    resolution: "480p"           # 480p | 720p | 1080p
+    max_wait: 300                # giây chờ job hoàn thành
+  seeds:
+    image: 42      # seed cho image generation
+    video: 12345    # seed cho video generation
 
 # ================================================
-# LIPSYNC - Tạo video nói từ ảnh + audio
+# STORAGE - S3 and database configuration
 # ================================================
-
-lipsync:
-  provider: "kieai"
-  prompt: "A person talking"  # mô tả cho lipsync model
-  resolution: "480p"           # 480p | 720p | 1080p
-  max_wait: 300                # giây chờ job hoàn thành
-
-# ================================================
-# SEEDS - Reproducible generation
-# ================================================
-
-seeds:
-  image: 42      # seed cho image generation
-  video: 12345    # seed cho video generation
-
-# ================================================
-# API ENDPOINTS - URLs của các service providers
-# ================================================
-# Thường không cần thay đổi trừ khi provider đổi API
-# ================================================
-
-api_urls:
-  wavespeed: "https://api.wavespeed.ai"
-  minimax_tts: "https://api.minimax.io/v1/t2a_v2"
-  minimax_image: "https://api.minimax.io/v1/image_generation"
-  kie_ai: "https://api.kie.ai/api/v1"
-  tiktok: "https://open.tiktokapis.com/v2"
-  facebook_graph: "https://graph.facebook.com/v19.0"
-
-# ================================================
-# S3 STORAGE - Upload media files lên S3/MinIO
-# ================================================
-# Dùng để lưu images, audio, video trước khi gửi sang lipsync API
-# Endpoint: MinIO tại s3.trachanhtv.top
-# Bucket: videopipeline
-# CDN: https://s3.trachanhtv.top/videopipeline/
-# ================================================
-
-s3:
-  endpoint: "https://s3.trachanhtv.top"
-  access_key: "minio-admin"
-  secret_key: "minio-password-change-me"
-  bucket: "videopipeline"
-  region: "us-east-1"
-  public_url_base: "https://s3.trachanhtv.top/videopipeline"
-
-# ================================================
-# ================================================
-# DATABASE - PostgreSQL connection
-# ================================================
-
-database:
-  host: "localhost"
-  port: 5432
-  name: "videopipeline"
-  user: "videopipeline"
-  password: "videopipeline123"
+storage:
+  s3:
+    endpoint: "https://s3.trachanhtv.top"
+    access_key: "minio-admin"
+    secret_key: "minio-password-change-me"
+    bucket: "videopipeline"
+    region: "us-east-1"
+    public_url_base: "https://s3.trachanhtv.top/videopipeline"
+  database:
+    host: "localhost"
+    port: 5432
+    name: "videopipeline"
+    user: "videopipeline"
+    password: "videopipeline123"

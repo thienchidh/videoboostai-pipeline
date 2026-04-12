@@ -53,7 +53,7 @@ class VideoPipelineV3:
 
         # Configure database before any DB operations
         import db as _db
-        db_cfg = self.cfg.data.get("database")
+        db_cfg = self.cfg.data.get("storage", {}).get("database")
         if db_cfg:
             _db.configure(db_cfg)
 

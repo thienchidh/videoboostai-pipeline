@@ -20,6 +20,7 @@ import shutil
 from pathlib import Path
 import db
 
+from core.paths import PROJECT_ROOT, get_karaoke_python
 from modules.media.lipsync import KieAIInfinitalkProvider
 
 
@@ -36,19 +37,6 @@ DRY_RUN_IMAGES = False    # Mock only image generation
 FORCE_START = False       # Force fresh start (ignore previous scene cache)
 UPLOAD_TO_SOCIALS = False # Upload to FB/TikTok after generation
 
-# Detect best python for karaoke/watermark (needs PIL from venv or linuxbrew)
-LINUXBREW_PYTHON = "/home/linuxbrew/.linuxbrew/bin/python3"
-VENV_PYTHON = str(Path(__file__).parent / "venv" / "bin" / "python3")
-SYSTEM_PYTHON = "/usr/bin/python3"
-
-
-def get_karaoke_python():
-    """Return python with PIL/numpy installed (venv > linuxbrew > system)"""
-    if os.path.exists(VENV_PYTHON):
-        return VENV_PYTHON
-    if os.path.exists(LINUXBREW_PYTHON):
-        return LINUXBREW_PYTHON
-    return SYSTEM_PYTHON
 
 sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', buffering=1)
 
@@ -166,20 +154,24 @@ class VideoPipelineV3:
         config_path = Path(config_path)
         
         # Find technical config (YAML priority, JSON fallback)
-        tech_config_path = Path(__file__).parent / "configs" / "technical" / "config_technical.yaml"
+        tech_config_path = PROJECT_ROOT / "configs" / "technical" / "config_technical.yaml"
         if not tech_config_path.exists():
-            tech_config_path = Path(__file__).parent / "configs" / "technical" / "config_technical.json"
-        
+            tech_config_path = PROJECT_ROOT / "configs" / "technical" / "config_technical.json"
+
         if not tech_config_path.exists():
             log(f"❌ Technical config not found: {tech_config_path}")
             raise FileNotFoundError(f"Technical config not found at {tech_config_path}")
-        
+
         import yaml
-        with open(tech_config_path) as f:
-            if tech_config_path.suffix in (".yaml", ".yml"):
-                self.config = yaml.safe_load(f)
-            else:
-                self.config = json.load(f)
+        try:
+            with open(tech_config_path, encoding="utf-8") as f:
+                if tech_config_path.suffix in (".yaml", ".yml"):
+                    self.config = yaml.safe_load(f)
+                else:
+                    self.config = json.load(f)
+        except (yaml.YAMLError, json.JSONDecodeError) as e:
+            log(f"❌ Failed to parse technical config {tech_config_path}: {e}")
+            raise
         log(f"📋 Technical base config: {tech_config_path}")
         
         # Load and merge business config
@@ -190,26 +182,34 @@ class VideoPipelineV3:
             # Business config path
             if not config_path.exists():
                 # Try relative to configs/business/
-                biz_path = Path(__file__).parent / "configs" / "business" / config_path
+                biz_path = PROJECT_ROOT / "configs" / "business" / config_path
                 if biz_path.exists():
                     config_path = biz_path
-            
-            with open(config_path) as f:
-                if config_path.suffix in (".yaml", ".yml"):
-                    biz_config = yaml.safe_load(f)
-                else:
-                    biz_config = json.load(f)
+
+            try:
+                with open(config_path, encoding="utf-8") as f:
+                    if config_path.suffix in (".yaml", ".yml"):
+                        biz_config = yaml.safe_load(f)
+                    else:
+                        biz_config = json.load(f)
+            except (yaml.YAMLError, json.JSONDecodeError) as e:
+                log(f"❌ Failed to parse business config {config_path}: {e}")
+                raise
             self.config = deep_merge(self.config, biz_config)
             log(f"📋 Business config: {config_path}")
 
         # Load secrets file (API keys) - DEPRECATED, now in config_technical.json
         # Kept for backward compatibility only
-        secrets_path = Path(__file__).parent / "configs" / "business" / "secrets.json"
+        secrets_path = PROJECT_ROOT / "configs" / "business" / "secrets.json"
         if not secrets_path.exists():
-            secrets_path = Path(__file__).parent / "video_config_secrets.json"
+            secrets_path = PROJECT_ROOT / "video_config_secrets.json"
         if secrets_path.exists():
-            with open(secrets_path) as f:
-                secrets_data = json.load(f)
+            try:
+                with open(secrets_path, encoding="utf-8") as f:
+                    secrets_data = json.load(f)
+            except json.JSONDecodeError as e:
+                log(f"❌ Failed to parse secrets {secrets_path}: {e}")
+                raise
             # Merge secrets directly (not wrapped in {"api":}) to avoid nesting
             self.config = deep_merge(self.config, secrets_data)
             log(f"📋 Secrets loaded from {secrets_path}")
@@ -240,7 +240,7 @@ class VideoPipelineV3:
         self.minimax_key = self._load_minimax_key()
         
         # Project-local output directory: output/{YYYYMMDD}/{timestamp}_{run_id}/
-        self.project_root = Path(__file__).parent
+        self.project_root = PROJECT_ROOT
         self.output_dir = self.project_root / "output"
         self.timestamp = int(time.time())
         date_str = time.strftime("%Y%m%d")  # YYYYMMDD format
@@ -1080,9 +1080,7 @@ class VideoPipelineV3:
         with open(script_path, "w", encoding="utf-8") as f:
             f.write(script_text)
         
-        karaoke_script = Path(__file__).parent / ".." / "karaoke_subtitles.py"
-        if not karaoke_script.exists():
-            karaoke_script = Path(__file__).parent / "karaoke_subtitles.py"
+        karaoke_script = PROJECT_ROOT / "karaoke_subtitles.py"
         if not karaoke_script.exists():
             log(f"  ⚠️ karaoke_subtitles.py not found, skipping subtitles")
             return video_path
@@ -1111,9 +1109,7 @@ class VideoPipelineV3:
         log(f"  📝 Adding subtitles with {len(timestamps)} pre-calculated timestamps...")
         
         # Check deps
-        karaoke_script = Path(__file__).parent / ".." / "karaoke_subtitles.py"
-        if not karaoke_script.exists():
-            karaoke_script = Path(__file__).parent / "karaoke_subtitles.py"
+        karaoke_script = PROJECT_ROOT / "karaoke_subtitles.py"
         
         import tempfile
         temp_dir = tempfile.mkdtemp()
@@ -1271,13 +1267,15 @@ class VideoPipelineV3:
         try:
             if motion == "bounce":
                 # Use physics-based bounce watermark script
-                bounce_script = Path(__file__).parent / "bounce_watermark.py"
+                bounce_script = PROJECT_ROOT / "bounce_watermark.py"
                 if bounce_script.exists():
                     python = get_karaoke_python()
                     cmd = [
                         python, str(bounce_script),
                         str(video_path), str(output_path),
                         "--text", text,
+                        "--font", self.config.get("fonts", {}).get("watermark",
+                            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
                         "--font-size", str(font_size),
                         "--opacity", str(opacity),
                         "--speed", str(wm_cfg.get("bounce_speed", 120)),
@@ -1855,7 +1853,7 @@ if __name__ == "__main__":
             log("🆕 FRESH START MODE: Previous scene cache will be cleared")
         elif arg in ["--resume", "-r"]:
             # Find most recent run with videos in output/{YYYYMMDD}/*
-            output_base = Path(__file__).parent / "output"
+            output_base = PROJECT_ROOT / "output"
             for run_folder in sorted(output_base.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True):
                 for rd in sorted(run_folder.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True):
                     scene_videos = list(rd.glob("scene_*/video_9x16.mp4"))
@@ -1873,7 +1871,7 @@ if __name__ == "__main__":
     elif len(config_files) == 1:
         config_path = config_files[0]
     else:
-        config_path = Path(__file__).parent / "video_config.json"
+        config_path = PROJECT_ROOT / "video_config.json"
 
     # Validate config files exist
     if isinstance(config_path, tuple):
@@ -1881,7 +1879,7 @@ if __name__ == "__main__":
             print(f"❌ Config files not found: {config_path}")
             sys.exit(1)
     elif not Path(config_path).exists():
-        config_path = Path(__file__).parent / "video_config.json"
+        config_path = PROJECT_ROOT / "video_config.json"
         if not Path(config_path).exists():
             print(f"❌ Config not found: {config_path}")
             sys.exit(1)
@@ -1902,7 +1900,7 @@ if __name__ == "__main__":
             else:
                 print("\n📤 [SOCIAL UPLOAD] Starting upload pipeline...")
             try:
-                sys.path.insert(0, str(Path(__file__).parent))
+                sys.path.insert(0, str(PROJECT_ROOT))
                 from modules.pipeline.publisher import get_publisher
 
                 publisher = get_publisher(

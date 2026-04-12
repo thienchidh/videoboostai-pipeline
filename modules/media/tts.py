@@ -8,7 +8,6 @@ Provides:
 """
 
 import os
-import sys
 import time
 import subprocess
 import requests
@@ -20,8 +19,6 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Add parent directory to path for dry-run imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from core.base_pipeline import (
     DRY_RUN, DRY_RUN_TTS, log, mock_generate_tts
 )

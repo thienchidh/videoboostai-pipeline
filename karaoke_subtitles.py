@@ -11,21 +11,13 @@ from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import tempfile
 import shutil
-
-# Auto-detect Python with PIL
 import sys
-LINUXBREW_PYTHON = "/home/linuxbrew/.linuxbrew/bin/python3"
-def get_pil_python():
-    script_dir = Path(__file__).parent
-    venv_python = script_dir / ".venv" / "bin" / "python3"
-    if venv_python.exists():
-        return str(venv_python)
-    if Path(LINUXBREW_PYTHON).exists():
-        return LINUXBREW_PYTHON
-    return sys.executable
 
-FONT_PATH = os.environ.get("PIPELINE_FONT_PATH",
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")
+# Add project root to path so we can import core.paths
+sys.path.insert(0, str(Path(__file__).parent))
+from core.paths import get_karaoke_python
+
+FONT_PATH = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
 FONT_SIZE = 60
 PILL_COLOR = (0, 0, 0, 200)   # Black with alpha
 TEXT_COLOR = (255, 255, 0)     # Yellow
@@ -203,7 +195,6 @@ def main():
     finally:
         shutil.rmtree(tmpdir)
 
-    return 0
     return 0
 
 if __name__ == "__main__":

@@ -13,8 +13,7 @@ import shutil
 import math
 import sys
 
-FONT_PATH = os.environ.get("PIPELINE_FONT_PATH",
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")
+FONT_PATH = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
 
 def get_video_info(path):
     result = subprocess.run(
@@ -41,7 +40,15 @@ def main():
     parser.add_argument("input_video")
     parser.add_argument("output_video")
     parser.add_argument("--text", default="@NangSuatThongMinh")
+    parser = argparse.ArgumentParser(description="Bouncing watermark video")
+    parser.add_argument("input_video")
+    parser.add_argument("output_video")
+    parser.add_argument("--text", default="@NangSuatThongMinh")
+    parser.add_argument("--font", default=FONT_PATH)
     parser.add_argument("--font-size", type=int, default=60)
+    parser.add_argument("--opacity", type=float, default=0.15)
+    parser.add_argument("--speed", type=float, default=120.0)  # pixels per second
+    parser.add_argument("--padding", type=int, default=15)  # from edges
     parser.add_argument("--opacity", type=float, default=0.15)
     parser.add_argument("--speed", type=float, default=120.0)  # pixels per second
     parser.add_argument("--padding", type=int, default=15)  # from edges
@@ -52,7 +59,7 @@ def main():
     
     # Load font
     try:
-        font = ImageFont.truetype(FONT_PATH, args.font_size)
+        font = ImageFont.truetype(args.font, args.font_size)
     except Exception:
         font = ImageFont.load_default()
     

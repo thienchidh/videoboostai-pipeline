@@ -8,12 +8,28 @@ import os
 from pathlib import Path
 
 
-def get_s3_config():
-    """Load S3 config from environment variables.
+_s3_config = None
 
-    Uses env vars S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY, S3_BUCKET,
-    S3_REGION, S3_PUBLIC_URL_BASE. Falls back to safe defaults.
-    """
+
+def configure(config: dict = None):
+    """Update S3 config from a config dict. Call before get_s3_client()."""
+    global _s3_config
+    if config is None:
+        return
+    _s3_config = {
+        'endpoint': config.get('endpoint', 'https://s3.trachanhtv.top'),
+        'access_key': config.get('access_key', 'minio-admin'),
+        'secret_key': config.get('secret_key', 'minio-password-change-me'),
+        'bucket': config.get('bucket', 'videopipeline'),
+        'region': config.get('region', 'us-east-1'),
+        'public_url_base': config.get('public_url_base', 'https://s3.trachanhtv.top/videopipeline'),
+    }
+
+
+def get_s3_config():
+    """Load S3 config from global config dict or environment variables."""
+    if _s3_config is not None:
+        return _s3_config
     return {
         'endpoint': os.environ.get('S3_ENDPOINT', 'https://s3.trachanhtv.top'),
         'access_key': os.environ.get('S3_ACCESS_KEY', 'minio-admin'),

@@ -7,7 +7,6 @@ Provides:
 """
 
 import os
-import sys
 import time
 import requests
 import logging
@@ -16,7 +15,6 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from core.base_pipeline import DRY_RUN, log, mock_lipsync_video
 from core.plugins import LipsyncProvider, register_provider
 

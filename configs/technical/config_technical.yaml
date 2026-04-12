@@ -109,3 +109,21 @@ fonts:
   default: "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
   karaoke: "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
   watermark: "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+
+# ================================================
+# DATABASE - PostgreSQL connection
+# ================================================
+
+database:
+  host: "localhost"
+  port: 5432
+  name: "videopipeline"
+  user: "videopipeline"
+  password: "videopipeline123"
+
+# ================================================
+# KARAOKE - Python interpreter for karaoke scripts
+# ================================================
+
+karaoke:
+  python: "/home/linuxbrew/.linuxbrew/bin/python3"

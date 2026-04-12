@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import json
+from core.paths import PROJECT_ROOT, get_karaoke_python as _get_karaoke_python
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +28,8 @@ DRY_RUN_IMAGES: bool = False
 
 
 def get_karaoke_python() -> str:
-    """Return python with moviepy installed."""
-    LINUXBREW_PYTHON = "/home/linuxbrew/.linuxbrew/bin/python3"
-    SYSTEM_PYTHON = "/usr/bin/python3"
-    if os.path.exists(LINUXBREW_PYTHON):
-        return LINUXBREW_PYTHON
-    return SYSTEM_PYTHON
+    """Return python with moviepy installed (wrapper for core.paths)."""
+    return str(_get_karaoke_python())
 
 
 def log(msg: str) -> None:
@@ -146,7 +143,7 @@ class BasePipeline(ABC):
         """
         self.config = config
         self.timestamp = int(time.time())
-        self.project_root = Path(__file__).parent.parent  # project root (parent of core/)
+        self.project_root = PROJECT_ROOT
         date_str = time.strftime("%Y%m%d")  # YYYYMMDD format
 
         if run_dir:
@@ -319,9 +316,7 @@ class BasePipeline(ABC):
         if output_path is None:
             output_path = video_path  # overwrite
 
-        karaoke_script = Path(__file__).parent.parent / "karaoke_subtitles.py"
-        if not karaoke_script.exists():
-            karaoke_script = Path(__file__).parent / "karaoke_subtitles.py"
+        karaoke_script = PROJECT_ROOT / "karaoke_subtitles.py"
         if not karaoke_script.exists():
             log(f"  ⚠️ karaoke_subtitles.py not found, skipping subtitles")
             return video_path

@@ -10,7 +10,6 @@ Provides:
 """
 
 import os
-import sys
 import re
 import shutil
 import subprocess
@@ -20,10 +19,14 @@ import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.paths import PROJECT_ROOT, get_karaoke_python
+from core.base_pipeline import log as base_log
+
 logger = logging.getLogger(__name__)
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from core.base_pipeline import get_karaoke_python
+
+def log(msg: str) -> None:
+    base_log(msg)
 
 
 # ==================== CONCATENATION ====================
@@ -201,14 +204,9 @@ def add_subtitles(video_path: str, script_text: str,
 
     karaoke_script = karaoke_script_path
     if not karaoke_script:
-        candidates = [
-            Path(__file__).parent.parent.parent / "karaoke_subtitles.py",
-            Path(__file__).parent.parent / "karaoke_subtitles.py",
-        ]
-        for c in candidates:
-            if c.exists():
-                karaoke_script = str(c)
-                break
+        karaoke_candidate = PROJECT_ROOT / "karaoke_subtitles.py"
+        if karaoke_candidate.exists():
+            karaoke_script = str(karaoke_candidate)
 
     if not karaoke_script:
         logger.warning("karaoke_subtitles.py not found, skipping subtitles")
@@ -265,9 +263,7 @@ def add_background_music(video_path: str,
     """
     if not music_file or music_file == "random":
         if music_dir is None:
-            # Default: project-root/music directory
-            project_root = Path(__file__).parent.parent.parent
-            music_dir = str(project_root / "music")
+            music_dir = str(PROJECT_ROOT / "music")
         music_path = Path(music_dir)
         if music_path.exists():
             mp3_files = [f for f in music_path.glob("*.mp3") + music_path.glob("*.ogg")

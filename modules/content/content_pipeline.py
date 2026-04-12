@@ -13,7 +13,7 @@ from typing import List, Dict, Optional, Any
 
 logger = logging.getLogger(__name__)
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from core.paths import PROJECT_ROOT
 
 from modules.content.topic_researcher import TopicResearcher
 from modules.content.content_idea_generator import ContentIdeaGenerator
@@ -51,7 +51,7 @@ class ContentPipeline:
         """
         self.project_id = project_id
         self.dry_run = dry_run
-        self.project_root = Path(__file__).parent.parent.parent  # project root
+        self.project_root = PROJECT_ROOT
         self.output_dir = Path(output_dir or self.project_root / "output" / "content_pipeline")
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -250,13 +250,12 @@ class ContentPipeline:
         os.makedirs(run_output_dir, exist_ok=True)
 
         try:
-            project_root = Path(__file__).parent.parent.parent
-            pipeline_path = project_root / "video_pipeline_v3.py"
-            secrets_path = project_root / "configs" / "business" / "secrets.json"
+            pipeline_path = PROJECT_ROOT / "video_pipeline_v3.py"
+            secrets_path = PROJECT_ROOT / "configs" / "business" / "secrets.json"
             if not pipeline_path.exists():
-                pipeline_path = project_root / "video_config_secrets.json"
+                pipeline_path = PROJECT_ROOT / "video_config_secrets.json"
             if not secrets_path.exists():
-                secrets_path = project_root / "video_config_secrets.json"
+                secrets_path = PROJECT_ROOT / "video_config_secrets.json"
             result = subprocess.run(
                 [
                     sys.executable,
@@ -408,8 +407,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     # Load config from project root
-    project_root = Path(__file__).parent.parent.parent
-    config_path = project_root / "video_config_content.json"
+    config_path = PROJECT_ROOT / "video_config_content.json"
     if os.path.exists(config_path):
         with open(config_path) as f:
             config = json.load(f)

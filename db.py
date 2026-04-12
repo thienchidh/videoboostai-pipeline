@@ -12,7 +12,7 @@ from psycopg2.extras import RealDictCursor, Json
 from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
 
-# Database connection config
+# Database connection config (updated by configure() or env fallback)
 DB_CONFIG = {
     "host": os.environ.get("DB_HOST", "localhost"),
     "port": int(os.environ.get("DB_PORT", "5432")),
@@ -20,6 +20,19 @@ DB_CONFIG = {
     "user": os.environ.get("DB_USER", "videopipeline"),
     "password": os.environ.get("DB_PASSWORD", "videopipeline123"),
 }
+
+
+def configure(config: dict = None):
+    """Update DB_CONFIG from a config dict. Call before get_pool()."""
+    if config is None:
+        return
+    DB_CONFIG.update({
+        "host": config.get("host", DB_CONFIG["host"]),
+        "port": config.get("port", DB_CONFIG["port"]),
+        "database": config.get("name", DB_CONFIG["database"]),
+        "user": config.get("user", DB_CONFIG["user"]),
+        "password": config.get("password", DB_CONFIG["password"]),
+    })
 
 # Connection pool
 _connection_pool: Optional[pool.ThreadedConnectionPool] = None

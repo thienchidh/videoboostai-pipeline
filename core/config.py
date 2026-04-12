@@ -7,6 +7,7 @@ validation, and safe API key access.
 
 import json
 import logging
+import yaml
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -24,20 +25,24 @@ class ConfigLoader:
         self._load(config_path)
 
     def _load(self, config_path: Union[str, Path, tuple]) -> None:
-        """Load config from single file or (business, secrets) tuple."""
+        """Load config from single file or (business, secrets) tuple. Supports YAML and JSON."""
+        def _load_file(path: Union[str, Path]) -> Dict[str, Any]:
+            path = Path(path)
+            with open(path, encoding="utf-8") as f:
+                if path.suffix in (".yaml", ".yml"):
+                    return yaml.safe_load(f) or {}
+                return json.load(f)
+
         if isinstance(config_path, tuple) and len(config_path) == 2:
             business_path, secrets_path = config_path
-            with open(business_path, encoding="utf-8") as f:
-                business_config = json.load(f)
-            with open(secrets_path, encoding="utf-8") as f:
-                secrets_config = json.load(f)
+            business_config = _load_file(business_path)
+            secrets_config = _load_file(secrets_path)
             # Merge: secrets override business
             self._config = {**business_config, **secrets_config}
             logger.info(f"📋 Loaded business config: {business_path}")
             logger.info(f"📋 Loaded secrets config: {secrets_path}")
         else:
-            with open(config_path, encoding="utf-8") as f:
-                self._config = json.load(f)
+            self._config = _load_file(config_path)
             logger.info(f"📋 Loaded config: {config_path}")
 
     def validate(self) -> bool:
@@ -94,3 +99,28 @@ class ConfigLoader:
                     if profile.get("provider") == "minimax":
                         return profile.get("key", "")
         return self.get("api", "minimax_key", "")
+
+    def get_db_config(self) -> Dict[str, Any]:
+        """Get database connection config from config dict or env var fallback."""
+        import os
+        db = self.get("database", default={})
+        return {
+            "host": db.get("host", os.environ.get("DB_HOST", "localhost")),
+            "port": db.get("port", int(os.environ.get("DB_PORT", "5432"))),
+            "name": db.get("name", os.environ.get("DB_NAME", "videopipeline")),
+            "user": db.get("user", os.environ.get("DB_USER", "videopipeline")),
+            "password": db.get("password", os.environ.get("DB_PASSWORD", "videopipeline123")),
+        }
+
+    def get_s3_config(self) -> Dict[str, Any]:
+        """Get S3 storage config from config dict or env var fallback."""
+        import os
+        s3 = self.get("s3", default={})
+        return {
+            "endpoint": s3.get("endpoint", os.environ.get("S3_ENDPOINT", "")),
+            "access_key": s3.get("access_key", os.environ.get("S3_ACCESS_KEY", "")),
+            "secret_key": s3.get("secret_key", os.environ.get("S3_SECRET_KEY", "")),
+            "bucket": s3.get("bucket", os.environ.get("S3_BUCKET", "videopipeline")),
+            "region": s3.get("region", os.environ.get("S3_REGION", "us-east-1")),
+            "public_url_base": s3.get("public_url_base", os.environ.get("S3_PUBLIC_URL_BASE", "")),
+        }

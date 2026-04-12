@@ -17,7 +17,6 @@ Poll:
 States: waiting, queuing, generating, success, fail
 """
 import os
-import sys
 import json
 import time
 import logging
@@ -26,7 +25,6 @@ from typing import Optional, Dict, Any
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 class KieAIClient:

@@ -177,7 +177,7 @@ class VideoPipelineV3:
         log(f"📋 Technical base config: {tech_config_path}")
         
         # Load and merge business config
-        if config_path.name == "config_technical.json":
+        if config_path.name in ("config_technical.json", "config_technical.yaml"):
             # Only technical config provided
             log(f"📋 Using technical config only (no business config)")
         else:
@@ -189,7 +189,10 @@ class VideoPipelineV3:
                     config_path = biz_path
             
             with open(config_path) as f:
-                biz_config = json.load(f)
+                if config_path.suffix in (".yaml", ".yml"):
+                    biz_config = yaml.safe_load(f)
+                else:
+                    biz_config = json.load(f)
             self.config = deep_merge(self.config, biz_config)
             log(f"📋 Business config: {config_path}")
 

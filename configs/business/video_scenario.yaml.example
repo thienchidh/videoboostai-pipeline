@@ -1,0 +1,60 @@
+# ================================================
+# BUSINESS CONFIG - Video Scenario Template
+# ================================================
+# Copy file này, đổi tên và điền nội dung theo kịch bản video của bạn
+# ================================================
+
+# Watermark hiển thị trên video
+watermark:
+  enable: true
+  text: "@YourChannelName"      # text watermark
+  font_size: 60
+  opacity: 0.15
+  motion: "bounce"              # bounce | fade | slide
+
+# Thông tin video
+video:
+  title: "Tên Video Của Bạn"
+
+# ================================================
+# CHARACTERS - Nhân vật xuất hiện trong video
+# ================================================
+# Mỗi character cần:
+# - name: tên định danh (dùng trong scenes)
+# - description: mô tả cho AI tạo ảnh
+# - prompt: prompt cho image generation (style Pixar, realistic...)
+# - avatar_file: file ảnh avatar (nếu có sẵn)
+# - tts_voice: voice cho TTS (xem docs của edge-tts)
+# - tts_speed: tốc độ nói (0.5 - 2.0)
+# ================================================
+
+characters:
+  - name: "Speaker"
+    description: "friendly female professional"
+    prompt: "3D animated Pixar Disney style friendly professional woman, modern office attire, warm smile, confident, bright colorful setting, high quality 3D render, soft cinematic lighting"
+    avatar_file: "Speaker.png"
+    tts_voice: "Vietnamese_kindhearted_girl"
+    tts_speed: 1.0
+    auto_create: true
+
+# ================================================
+# SCENES - Các cảnh trong video
+# ================================================
+# Mỗi scene gồm:
+# - id: số thứ tự
+# - script: kịch bản nói (tiếng Việt)
+# - characters: list tên nhân vật tham gia
+# ================================================
+
+scenes:
+  - id: 1
+    script: "Hook - câu mở đầu hấp dẫn để giữ ch观众"
+    characters: ["Speaker"]
+
+  - id: 2
+    script: "Nội dung chính - điểm chính đầu tiên"
+    characters: ["Speaker"]
+
+  - id: 3
+    script: "Nội dung chính - điểm chính thứ hai"
+    characters: ["Speaker"]

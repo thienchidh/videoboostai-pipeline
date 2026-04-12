@@ -162,7 +162,7 @@ class VideoPipelineV3:
         # Find technical config
         tech_config_path = Path(__file__).parent / "configs" / "technical" / "config_technical.json"
         if not tech_config_path.exists():
-            tech_config_path = Path.home() / ".openclaw/workspace-videopipeline/configs/technical/config_technical.json"
+            tech_config_path = Path(__file__).parent / "configs" / "technical" / "config_technical.json"
         
         if not tech_config_path.exists():
             log(f"❌ Technical config not found: {tech_config_path}")
@@ -190,13 +190,10 @@ class VideoPipelineV3:
             log(f"📋 Business config: {config_path}")
 
         # Load secrets file (API keys)
-        # Load API secrets from configs/api/secrets.json (keys only)
-        # Falls back to video_config_secrets.json for backward compat
-        secrets_path = Path(__file__).parent / "configs" / "api" / "secrets.json"
+        # Load API secrets from configs/business/secrets.json
+        secrets_path = Path(__file__).parent / "configs" / "business" / "secrets.json"
         if not secrets_path.exists():
             secrets_path = Path(__file__).parent / "video_config_secrets.json"
-        if not secrets_path.exists():
-            secrets_path = Path.home() / ".openclaw/workspace-videopipeline/configs/api/secrets.json"
         if secrets_path.exists():
             with open(secrets_path) as f:
                 secrets_data = json.load(f)

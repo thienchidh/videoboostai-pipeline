@@ -2,7 +2,11 @@
   "_comment": "Business config - 3 scenes - NangSuatThongMinh channel",
 
   "watermark": {
-    "text": "@NangSuatThongMinh"
+    "enable": true,
+    "text": "@NangSuatThongMinh",
+    "font_size": 60,
+    "opacity": 0.15,
+    "motion": "bounce"
   },
 
   "video": {

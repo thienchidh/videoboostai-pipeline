@@ -71,7 +71,7 @@ background_music:
 image_style:
   lighting: "warm"                      # warm | cinematic | golden hour | moody | bright
   camera: "eye-level"                   # close-up | wide angle | eye-level | bird-eye view
-  art_style: "realistic"                # realistic | anime | illustration | 3D render
+  art_style: "3D render"                # realistic | anime | illustration | 3D render
   environment: "modern office"         # indoor | outdoor | studio | bokeh | clean background
   composition: "professional"           # minimalist | detailed | professional
 

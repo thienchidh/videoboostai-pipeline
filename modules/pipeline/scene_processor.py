@@ -95,7 +95,9 @@ class SceneProcessor:
 
     def build_scene_prompt(self, scene: Dict[str, Any]) -> str:
         cfg = self.config.get("prompt", {})
-        style = cfg.get("style", "3D animated Pixar Disney style, high quality 3D render, detailed, vibrant colors")
+        style = cfg.get("style")
+        if not style:
+            raise MissingConfigError("config.prompt.style is required")
         background = scene.get("background", "")
         hints = cfg.get("script_hints", {})
 
@@ -105,7 +107,9 @@ class SceneProcessor:
                 script_hint = hint
                 break
         if not script_hint:
-            script_hint = hints.get("default", "warm natural lighting, lush environment")
+            script_hint = hints.get("default")
+            if not script_hint:
+                raise MissingConfigError("config.prompt.script_hints.default is required")
 
         prompt = f"{style}, {script_hint}"
 
@@ -213,10 +217,13 @@ class SingleCharSceneProcessor(SceneProcessor):
         log(f"  📝 Prompt: {prompt[:80]}...")
 
         # 1. Expand script
-        tts_text = expand_script(tts_text,
-                               min_duration=self.get_tts_config().get("min_duration", 5.0),
-                               max_duration=self.get_tts_config().get("max_duration", 15.0),
-                               words_per_second=self.get_tts_config().get("words_per_second", 2.5))
+        tts_cfg = self.get_tts_config()
+        min_dur = tts_cfg.get("min_duration")
+        max_dur = tts_cfg.get("max_duration")
+        wps = tts_cfg.get("words_per_second")
+        if min_dur is None or max_dur is None or wps is None:
+            raise MissingConfigError("config.tts.min_duration, max_duration, and words_per_second are all required")
+        tts_text = expand_script(tts_text, min_duration=min_dur, max_duration=max_dur, words_per_second=wps)
 
         # 2. TTS
         audio_output = scene_output / f"audio_tts_{self.timestamp}.mp3"
@@ -340,16 +347,21 @@ class MultiCharSceneProcessor(SceneProcessor):
             if not char1_tts:
                 char1_tts = right_words
 
-        char0_tts = expand_script(char0_tts,
-                                  min_duration=self.get_tts_config().get("min_duration", 5.0),
-                                  max_duration=self.get_tts_config().get("max_duration", 15.0),
-                                  words_per_second=self.get_tts_config().get("words_per_second", 2.5))
-        char1_tts = expand_script(char1_tts,
-                                   min_duration=self.get_tts_config().get("min_duration", 5.0),
-                                   max_duration=self.get_tts_config().get("max_duration", 15.0),
-                                   words_per_second=self.get_tts_config().get("words_per_second", 2.5))
+        tts_cfg = self.get_tts_config()
+        min_dur = tts_cfg.get("min_duration")
+        max_dur = tts_cfg.get("max_duration")
+        wps = tts_cfg.get("words_per_second")
+        if min_dur is None or max_dur is None or wps is None:
+            raise MissingConfigError("config.tts.min_duration, max_duration, and words_per_second are all required")
 
-        max_tts = self.get_tts_config().get("max_duration", 15.0)
+        char0_tts = expand_script(char0_tts,
+                                  min_duration=min_dur,
+                                  max_duration=max_dur,
+                                  words_per_second=wps)
+        char1_tts = expand_script(char1_tts,
+                                   min_duration=min_dur,
+                                   max_duration=max_dur,
+                                   words_per_second=wps)
 
         # Left TTS
         audio_left_output = scene_output / f"audio_left_{self.timestamp}.mp3"
@@ -362,8 +374,8 @@ class MultiCharSceneProcessor(SceneProcessor):
         log(f"  ✅ TTS done: {Path(audio_left).stat().st_size/1024:.1f}KB")
 
         left_duration = get_audio_duration(str(audio_left))
-        if left_duration > max_tts:
-            log(f"  ❌ Left TTS {left_duration:.1f}s > {max_tts}s limit!")
+        if left_duration > max_dur:
+            log(f"  ❌ Left TTS {left_duration:.1f}s > {max_dur}s limit!")
             return None, []
 
         # Right TTS
@@ -377,8 +389,8 @@ class MultiCharSceneProcessor(SceneProcessor):
         log(f"  ✅ TTS done: {Path(audio_right).stat().st_size/1024:.1f}KB")
 
         right_duration = get_audio_duration(str(audio_right))
-        if right_duration > max_tts:
-            log(f"  ❌ Right TTS {right_duration:.1f}s > {max_tts}s limit!")
+        if right_duration > max_dur:
+            log(f"  ❌ Right TTS {right_duration:.1f}s > {max_dur}s limit!")
             return None, []
 
         # Shared image

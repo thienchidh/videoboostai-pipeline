@@ -210,11 +210,18 @@ class VideoPipelineRunner:
         lipsync_prefix = f"lipsync/{self.config.timestamp}/scene_{scene_id}"
         self.lipsync_provider.upload_func = lambda fp: s3_upload_file(fp, lipsync_prefix)
 
-        # Build config with prompt and resolution from config
-        lipsync_cfg = self.config.get('lipsync', {})
+        lipsync_cfg = self.config.get('lipsync')
+        if not lipsync_cfg:
+            raise MissingConfigError("config.lipsync is required")
+        prompt_val = lipsync_cfg.get('prompt')
+        if not prompt_val:
+            raise MissingConfigError("config.lipsync.prompt is required")
+        resolution_val = lipsync_cfg.get('resolution')
+        if not resolution_val:
+            raise MissingConfigError("config.lipsync.resolution is required")
         config = {
-            'prompt': prompt or lipsync_cfg.get('prompt', 'A person talking'),
-            'resolution': lipsync_cfg.get('resolution', '480p'),
+            'prompt': prompt_val,
+            'resolution': resolution_val,
             'max_wait': lipsync_cfg.get('max_wait', 300),
         }
 
@@ -248,7 +255,11 @@ class VideoPipelineRunner:
             log(f"⏭️  STOP_BEFORE_LIPSYNC mode: will stop after TTS+Image")
         log(f"{'='*60}")
 
-        scenes = self.config.get("scenes", [])
+        scenes = self.config.get("scenes")
+        if scenes is None:
+            raise MissingConfigError("config.scenes is required")
+        if not scenes:
+            raise MissingConfigError("config.scenes is empty — at least one scene is required")
         log(f"📋 {len(scenes)} scenes loaded")
 
         if FORCE_START:
@@ -397,21 +408,29 @@ class VideoPipelineRunner:
         if not wm_cfg.get("enable", False):
             return video_path
 
-        text = wm_cfg.get("text", "@NangSuatThongMinh")
-        font_size = wm_cfg.get("font_size", 60)
-        opacity = wm_cfg.get("opacity", 0.15)
+        text = wm_cfg.get("text")
+        if not text:
+            raise MissingConfigError("config.watermark.text is required when watermark is enabled")
+        font_size = wm_cfg.get("font_size")
+        if not font_size:
+            raise MissingConfigError("config.watermark.font_size is required when watermark is enabled")
+        opacity = wm_cfg.get("opacity")
+        if not (isinstance(opacity, (int, float)) and opacity >= 0):
+            raise MissingConfigError("config.watermark.opacity is required when watermark is enabled")
         motion = wm_cfg.get("motion", "bounce")
 
         log(f"  💧 Adding watermark: '{text}' (motion={motion})")
 
         if motion == "bounce":
             from scripts.bounce_watermark import add_bounce_watermark
-            font_path = self.config.get("fonts", {}).get("watermark") or ""
+            font_path = self.config.get("fonts", {}).get("watermark")
+            if not font_path:
+                raise MissingConfigError("config.fonts.watermark is required for bounce watermark")
             success = add_bounce_watermark(
                 str(video_path),
                 str(output_path),
                 text=text,
-                font=font_path or None,
+                font=font_path,
                 font_size=font_size,
                 opacity=opacity,
                 speed=wm_cfg.get("bounce_speed", 120),

@@ -74,6 +74,13 @@ class ContentPipeline:
         self.cadence = content_cfg.get("cadence", {"facebook": "daily", "tiktok": "daily"})
         self.auto_schedule = content_cfg.get("auto_schedule", True)
 
+        # Load channel config for content generation context
+        channel_cfg = {}
+        channel_cfg_path = self.project_root / "configs" / "channels" / self.channel_id / "config.yaml"
+        if channel_cfg_path.exists():
+            with open(channel_cfg_path, encoding="utf-8") as f:
+                channel_cfg = yaml.safe_load(f) or {}
+
         # Initialize components
         self.researcher = TopicResearcher(
             niche_keywords=self.niche_keywords,
@@ -82,7 +89,8 @@ class ContentPipeline:
         self.idea_gen = ContentIdeaGenerator(
             project_id=project_id,
             content_angle="tips",
-            niche_keywords=self.niche_keywords
+            niche_keywords=self.niche_keywords,
+            channel_config=channel_cfg,
         )
         self.calendar = ContentCalendar(project_id=project_id)
 

@@ -151,9 +151,15 @@ class BasePipeline(ABC):
             log(f"  ℹ️ Watermark disabled")
             return video_path
 
-        text = wm_cfg.get("text", "@NangSuatThongMinh")
-        font_size = wm_cfg.get("font_size", 36)
-        opacity = wm_cfg.get("opacity", 0.35)
+        text = wm_cfg.get("text")
+        if not text:
+            raise ValueError("config.watermark.text is required when watermark is enabled")
+        font_size = wm_cfg.get("font_size")
+        if not font_size:
+            raise ValueError("config.watermark.font_size is required when watermark is enabled")
+        opacity = wm_cfg.get("opacity")
+        if not (isinstance(opacity, (int, float)) and opacity >= 0):
+            raise ValueError("config.watermark.opacity is required when watermark is enabled")
         font_path = self.config.get("fonts", {}).get("watermark")
 
         log(f"  💧 Adding watermark: '{text}' (opacity={opacity})")

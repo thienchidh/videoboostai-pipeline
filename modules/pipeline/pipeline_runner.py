@@ -7,20 +7,23 @@ Orchestrates scene processing via SingleCharSceneProcessor / MultiCharSceneProce
 
 import json
 import shutil
-import subprocess
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import db
-from core.paths import PROJECT_ROOT, get_ffmpeg, get_ffprobe
+from core.paths import PROJECT_ROOT
 from core.video_utils import (
     log,
     concat_videos,
     add_subtitles,
     add_background_music,
+    add_static_watermark,
     get_video_duration,
     upload_file,
+    DRY_RUN,
+    DRY_RUN_TTS,
+    DRY_RUN_IMAGES,
 )
 from core.plugins import get_provider, register_provider
 from modules.pipeline.config_loader import PipelineConfig, ConfigLoader
@@ -33,10 +36,7 @@ from modules.media.lipsync import WaveSpeedLipsyncProvider, KieAIInfinitalkProvi
 from modules.llm.minimax import MiniMaxLLMProvider  # noqa: F401
 
 
-# Global flags (mirrored from video_pipeline_v3.py for CLI compatibility)
-DRY_RUN = False
-DRY_RUN_TTS = False
-DRY_RUN_IMAGES = False
+# CLI flags (not in video_utils since they're runner-specific)
 FORCE_START = False
 UPLOAD_TO_SOCIALS = False
 
@@ -329,54 +329,12 @@ class VideoPipelineRunner:
                 log(f"  ⚠️ Bounce watermark failed")
 
         # Static fallback
-        return self._add_static_watermark(video_path, output_path, text, font_size, opacity)
-
-    def _add_static_watermark(self, video_path, output_path, text, font_size, opacity):
-        """Add static watermark using PIL + FFmpeg."""
-        from core.paths import get_font_path
-        from PIL import Image as PILImage, ImageFont, ImageDraw
-
-        result = subprocess.run(
-            [str(get_ffprobe()), "-v", "quiet", "-select_streams", "v:0",
-             "-show_entries", "stream=width,height", "-of", "json", str(video_path)],
-            capture_output=True, text=True
+        font_path = self.config.get("fonts", {}).get("watermark")
+        result = add_static_watermark(
+            video_path, output_path,
+            text=text, font_size=font_size, opacity=opacity,
+            font_path=font_path, run_dir=self.run_dir
         )
-        info = json.loads(result.stdout)
-        vw = int(info['streams'][0]['width'])
-        vh = int(info['streams'][0]['height'])
-
-        scale = vh / 1920
-        scaled_font_size = int(font_size * scale)
-
-        try:
-            font_path = self.config.get("fonts", {}).get("watermark") or get_font_path()
-            fnt = ImageFont.truetype(font_path, scaled_font_size)
-        except Exception:
-            fnt = ImageFont.load_default()
-
-        overlay = PILImage.new('RGBA', (vw, vh), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
-
-        x = vw - int(280 * scale)
-        y = vh - int(70 * scale)
-        alpha = int(255 * opacity)
-        draw.text((x, y), text, font=fnt, fill=(0, 0, 0, int(alpha * 0.8)))
-        draw.text((x, y), text, font=fnt, fill=(255, 255, 255, alpha))
-
-        overlay_path = self.run_dir / "watermark_overlay.png"
-        overlay.save(str(overlay_path))
-
-        tmp_wm = self.run_dir / "watermark_tmp.mp4"
-        cmd = [
-            str(get_ffmpeg()), "-y", "-i", str(video_path), "-i", str(overlay_path),
-            "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
-            "-map", "[out]", "-map", "0:a?", "-c:v", "libx264", "-preset", "fast", "-crf", "22",
-            "-c:a", "copy",
-            str(tmp_wm)
-        ]
-        result = subprocess.run(cmd, capture_output=True, timeout=300)
-        if result.returncode == 0 and tmp_wm.exists():
-            shutil.copy(tmp_wm, output_path)
+        if result != video_path:
             log(f"  ✅ Watermark added (static)")
-            return output_path
-        return video_path
+        return result

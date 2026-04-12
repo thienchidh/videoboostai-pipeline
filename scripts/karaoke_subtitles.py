@@ -25,6 +25,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from core.paths import get_ffmpeg, get_ffprobe, get_font_path
+from core.video_utils import get_video_info
 
 FONT_PATH = get_font_path()
 FONT_SIZE = 60
@@ -32,24 +33,6 @@ PILL_COLOR = (0, 0, 0, 200)
 TEXT_COLOR = (255, 255, 0)
 TEXT_DIM = (128, 128, 128)
 COLOR_FADE = 0.15
-
-
-def get_video_info(path):
-    """Get video dimensions, fps, and duration using ffprobe."""
-    result = subprocess.run(
-        [str(get_ffprobe()), "-v", "quiet", "-show_entries",
-         "stream=width,height,r_frame_rate:format=duration",
-         "-of", "json", path],
-        capture_output=True, text=True
-    )
-    info = json.loads(result.stdout)
-    video = info["streams"][0]
-    fps_parts = video["r_frame_rate"].split("/")
-    fps = float(fps_parts[0]) / float(fps_parts[1]) if len(fps_parts) > 1 else float(fps_parts[0])
-    w = int(video.get("width", 1080))
-    h = int(video.get("height", 1920))
-    duration = float(info["format"]["duration"])
-    return w, h, fps, duration
 
 
 def get_word_color_state(t, w_start, w_end, fade=0.15):

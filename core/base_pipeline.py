@@ -12,13 +12,12 @@ core/video_utils.py. This module re-exports them for backward compatibility.
 import os
 import sys
 import time
-import shutil
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.paths import PROJECT_ROOT, get_karaoke_python as _resolve_karaoke_python, get_font_path, get_ffmpeg, get_ffprobe
+from core.paths import PROJECT_ROOT, get_karaoke_python as _resolve_karaoke_python
 from core.video_utils import (
     log,
     deep_merge,
@@ -26,25 +25,22 @@ from core.video_utils import (
     concat_videos,
     add_subtitles,
     add_background_music,
+    add_static_watermark,
     expand_script,
     get_video_duration,
     get_audio_duration,
+    get_video_info,
     upload_file,
     wait_for_job,
     mock_generate_tts,
     mock_generate_image,
     mock_lipsync_video,
-    DRY_RUN as _DRY_RUN,
-    DRY_RUN_TTS as _DRY_RUN_TTS,
-    DRY_RUN_IMAGES as _DRY_RUN_IMAGES,
+    DRY_RUN,
+    DRY_RUN_TTS,
+    DRY_RUN_IMAGES,
 )
 
 logger = logging.getLogger(__name__)
-
-# ==================== DRY RUN FLAGS (shared global) ====================
-DRY_RUN: bool = False
-DRY_RUN_TTS: bool = False
-DRY_RUN_IMAGES: bool = False
 
 
 def get_karaoke_python() -> str:
@@ -158,56 +154,11 @@ class BasePipeline(ABC):
         text = wm_cfg.get("text", "@NangSuatThongMinh")
         font_size = wm_cfg.get("font_size", 36)
         opacity = wm_cfg.get("opacity", 0.35)
+        font_path = self.config.get("fonts", {}).get("watermark")
 
         log(f"  💧 Adding watermark: '{text}' (opacity={opacity})")
-
-        try:
-            result = subprocess.run(
-                [str(get_ffprobe()), "-v", "quiet", "-select_streams", "v:0",
-                 "-show_entries", "stream=width,height", "-of", "json", str(video_path)],
-                capture_output=True, text=True
-            )
-            info = json.loads(result.stdout)
-            vw = int(info['streams'][0]['width'])
-            vh = int(info['streams'][0]['height'])
-
-            scale = vh / 1920
-            scaled_font_size = int(font_size * scale)
-
-            from PIL import Image, ImageDraw, ImageFont
-            overlay = Image.new('RGBA', (vw, vh), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(overlay)
-
-            try:
-                font_path = self.config.get("fonts", {}).get("watermark") or get_font_path()
-                fnt = ImageFont.truetype(font_path, scaled_font_size)
-            except Exception:
-                fnt = ImageFont.load_default()
-
-            x = vw - int(280 * scale)
-            y = vh - int(70 * scale)
-            alpha = int(255 * opacity)
-            draw.text((x, y), text, font=fnt, fill=(0, 0, 0, int(alpha * 0.8)))
-            draw.text((x, y), text, font=fnt, fill=(255, 255, 255, alpha))
-
-            overlay_path = self.run_dir / "watermark_overlay.png"
-            overlay.save(str(overlay_path))
-
-            tmp_wm = self.run_dir / "watermark_tmp.mp4"
-            cmd = [
-                str(get_ffmpeg()), "-y", "-i", str(video_path), "-i", str(overlay_path),
-                "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
-                "-map", "[out]", "-c:v", "libx264", "-preset", "fast", "-crf", "22",
-                "-c:a", "copy",
-                str(tmp_wm)
-            ]
-            result2 = subprocess.run(cmd, capture_output=True, timeout=300)
-            if result2.returncode == 0 and tmp_wm.exists():
-                shutil.copy(tmp_wm, output_path)
-                log(f"  ✅ Watermark added")
-                return output_path
-            else:
-                log(f"  ⚠️ Watermark failed: {result2.stderr[:200] if result2.stderr else 'unknown'}")
-        except Exception as e:
-            log(f"  ⚠️ Watermark error: {e}")
-        return video_path
+        return add_static_watermark(
+            video_path, output_path,
+            text=text, font_size=font_size, opacity=opacity,
+            font_path=font_path, run_dir=self.run_dir
+        )

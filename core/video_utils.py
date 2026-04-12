@@ -43,6 +43,30 @@ def deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
+# ==================== VIDEO INFO ====================
+
+def get_video_info(video_path: str) -> tuple:
+    """Get video dimensions, fps, and duration using ffprobe.
+
+    Returns:
+        tuple: (width, height, fps, duration)
+    """
+    result = subprocess.run(
+        [str(get_ffprobe()), "-v", "quiet", "-show_entries",
+         "stream=width,height,r_frame_rate:format=duration",
+         "-of", "json", video_path],
+        capture_output=True, text=True
+    )
+    info = json.loads(result.stdout)
+    video = info["streams"][0]
+    fps_parts = video["r_frame_rate"].split("/")
+    fps = float(fps_parts[0]) / float(fps_parts[1]) if len(fps_parts) > 1 else float(fps_parts[0])
+    w = int(video.get("width", 1080))
+    h = int(video.get("height", 1920))
+    duration = float(info["format"]["duration"])
+    return w, h, fps, duration
+
+
 # ==================== DURATION HELPERS ====================
 
 def get_video_duration(video_path: str) -> float:
@@ -360,6 +384,71 @@ def add_background_music(video_path: str,
             log(f"  ⚠️ FFmpeg error: {result2.stderr[:200] if result2.stderr else 'unknown'}")
     except Exception as e:
         log(f"  ⚠️ Music mix error: {e}")
+    return video_path
+
+
+# ==================== STATIC WATERMARK ====================
+
+def add_static_watermark(video_path: str, output_path: str,
+                        text: str, font_size: int = 36,
+                        opacity: float = 0.35,
+                        font_path: Optional[str] = None,
+                        run_dir: Optional[Path] = None) -> str:
+    """Add static watermark overlay to video using PIL + FFmpeg.
+
+    Args:
+        video_path: Input video path
+        output_path: Output video path
+        text: Watermark text
+        font_size: Font size (default 36)
+        opacity: Opacity 0.0-1.0 (default 0.35)
+        font_path: Optional font path; uses system default if None
+        run_dir: Working directory for temp files
+
+    Returns:
+        Path to watermarked video, or original if failed
+    """
+    from PIL import Image as PILImage, ImageFont, ImageDraw
+
+    if run_dir is None:
+        run_dir = Path(output_path).parent
+
+    w, h, fps, duration = get_video_info(video_path)
+    scale = h / 1920
+    scaled_font_size = int(font_size * scale)
+
+    try:
+        fnt = ImageFont.truetype(font_path or get_font_path(), scaled_font_size)
+    except Exception:
+        fnt = ImageFont.load_default()
+
+    overlay = PILImage.new('RGBA', (w, h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    x = w - int(280 * scale)
+    y = h - int(70 * scale)
+    alpha = int(255 * opacity)
+    draw.text((x, y), text, font=fnt, fill=(0, 0, 0, int(alpha * 0.8)))
+    draw.text((x, y), text, font=fnt, fill=(255, 255, 255, alpha))
+
+    overlay_path = run_dir / "watermark_overlay.png"
+    overlay.save(str(overlay_path))
+
+    tmp_wm = run_dir / "watermark_tmp.mp4"
+    cmd = [
+        str(get_ffmpeg()), "-y", "-i", str(video_path), "-i", str(overlay_path),
+        "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
+        "-map", "[out]", "-map", "0:a?",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+        "-c:a", "copy",
+        str(tmp_wm)
+    ]
+    result = subprocess.run(cmd, capture_output=True, timeout=300)
+    if result.returncode == 0 and tmp_wm.exists():
+        shutil.copy(tmp_wm, output_path)
+        log(f"  ✅ Static watermark added")
+        return output_path
+    log(f"  ⚠️ Static watermark failed: {result.stderr[:200] if result.stderr else 'unknown'}")
     return video_path
 
 

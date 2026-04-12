@@ -17,7 +17,6 @@ import tempfile
 import shutil
 import math
 import sys
-import json
 
 # Add project root to path for imports (only needed when running as script)
 _SCRIPT_DIR = Path(__file__).parent.resolve()
@@ -26,26 +25,9 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from core.paths import get_font_path, get_ffmpeg, get_ffprobe
+from core.video_utils import get_video_info
 
 FONT_PATH = get_font_path()
-
-
-def get_video_info(path):
-    """Get video dimensions, fps, and duration using ffprobe."""
-    result = subprocess.run(
-        [str(get_ffprobe()), "-v", "quiet", "-show_entries",
-         "stream=width,height,r_frame_rate:format=duration",
-         "-of", "json", path],
-        capture_output=True, text=True
-    )
-    data = json.loads(result.stdout)
-    v = data["streams"][0]
-    fps_parts = v["r_frame_rate"].split("/")
-    fps = float(fps_parts[0]) / float(fps_parts[1]) if len(fps_parts) > 1 else float(fps_parts[0])
-    w = int(v.get("width", 1080))
-    h = int(v.get("height", 1920))
-    dur = float(data["format"]["duration"])
-    return w, h, fps, dur
 
 
 def add_bounce_watermark(

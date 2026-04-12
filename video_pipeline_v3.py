@@ -20,7 +20,7 @@ import shutil
 from pathlib import Path
 import db
 
-from core.paths import PROJECT_ROOT, get_karaoke_python
+from core.paths import PROJECT_ROOT, get_karaoke_python, get_font_path, get_ffmpeg, get_ffprobe, get_edge_tts, get_whisper, get_config_path
 from modules.media.lipsync import KieAIInfinitalkProvider
 
 
@@ -55,7 +55,7 @@ def mock_generate_tts(text, voice="female_voice", speed=1.0, output_path=None):
     estimated_duration = max(2.0, len(text) / 3.0)
 
     cmd = [
-        "ffmpeg", "-y",
+        str(get_ffmpeg()), "-y",
         "-f", "lavfi", "-i", f"sine=frequency=440:duration={estimated_duration}",
         "-af", f"atempo={speed}",
         "-ar", "32000", "-ac", "1", "-ab", "128k",
@@ -89,7 +89,7 @@ def mock_generate_image(prompt, output_path):
 
     # Fallback: use ffmpeg to generate a solid color image
     cmd = [
-        "ffmpeg", "-y",
+        str(get_ffmpeg()), "-y",
         "-f", "lavfi", "-i", "color=c=0x6496C8:s=1080x1920:d=1",
         "-frames:v", "1",
         output_path
@@ -110,7 +110,7 @@ def mock_lipsync_video(image_path, audio_path, output_path):
 
     # Get audio duration
     result = subprocess.run(
-        ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+        [str(get_ffprobe()), "-v", "quiet", "-show_entries", "format=duration",
          "-of", "csv=p=0", audio_path],
         capture_output=True, text=True
     )
@@ -118,7 +118,7 @@ def mock_lipsync_video(image_path, audio_path, output_path):
 
     # Create video from image + audio using ffmpeg
     cmd = [
-        "ffmpeg", "-y",
+        str(get_ffmpeg()), "-y",
         "-loop", "1", "-i", image_path,
         "-i", audio_path,
         "-c:v", "libx264", "-preset", "fast", "-crf", "23",
@@ -290,7 +290,7 @@ class VideoPipelineV3:
 
     def _get_wavespeed_key(self):
         """Get WaveSpeed key from TOOLS.md"""
-        tools_file = Path.home() / ".openclaw/workspace/TOOLS.md"
+        tools_file = get_config_path("workspace/TOOLS.md")
         if tools_file.exists():
             content = tools_file.read_text()
             import re
@@ -348,7 +348,7 @@ class VideoPipelineV3:
         log(f"{'='*60}\n")
 
     def _load_minimax_key(self):
-        auth_file = Path.home() / ".openclaw/agents/main/agent/auth-profiles.json"
+        auth_file = get_config_path("agents/main/agent/auth-profiles.json")
         if auth_file.exists():
             with open(auth_file) as f:
                 data = json.load(f)
@@ -450,7 +450,7 @@ class VideoPipelineV3:
         edge_map = {"female_voice": "vi-VN-HoaiMyNeural", "male-qn-qingse": "vi-VN-NamMinhNeural",
                    "female": "vi-VN-HoaiMyNeural", "male": "vi-VN-NamMinhNeural"}
         edge_voice = edge_map.get(voice, "vi-VN-HoaiMyNeural")
-        cmd = ["edge-tts", "--voice", edge_voice, "--rate", f"{'+' if speed >= 1 else '-'}{int(abs(speed - 1) * 100)}%",
+        cmd = [str(get_edge_tts()), "--voice", edge_voice, "--rate", f"{'+' if speed >= 1 else '-'}{int(abs(speed - 1) * 100)}%",
                "--text", text, "--write-media", wav_path]
         try:
             subprocess.run(cmd, capture_output=True, timeout=30)
@@ -516,7 +516,7 @@ class VideoPipelineV3:
         try:
             # Run whisper with word timestamps
             result = subprocess.run(
-                ["whisper", audio_path, "--model", "small", "--word_timestamps", "True",
+                [str(get_whisper()), audio_path, "--model", "small", "--word_timestamps", "True",
                  "--output_format", "json", "--output_dir", output_dir],
                 capture_output=True, text=True, timeout=120
             )
@@ -916,7 +916,7 @@ class VideoPipelineV3:
     def _get_audio_duration(self, audio_path):
         """Get audio duration in seconds using ffprobe."""
         result = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+            [str(get_ffprobe()), "-v", "quiet", "-show_entries", "format=duration",
              "-of", "csv=p=0", str(audio_path)],
             capture_output=True, text=True
         )
@@ -937,7 +937,7 @@ class VideoPipelineV3:
         
         # First, get input video dimensions
         result = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-select_streams", "v:0",
+            [str(get_ffprobe()), "-v", "quiet", "-select_streams", "v:0",
              "-show_entries", "stream=width,height", "-of", "csv=p=0", input_video],
             capture_output=True, text=True
         )
@@ -967,7 +967,7 @@ class VideoPipelineV3:
                     # Already correct ratio
                     crop_filter = "scale=1080:1920"
                 
-                cmd = ["ffmpeg", "-i", input_video,
+                cmd = [str(get_ffmpeg()), "-i", input_video,
                       "-vf", crop_filter,
                       "-c:v", "libx264", "-preset", "fast", "-crf", "23",
                       "-c:a", "aac", "-y", output_video]
@@ -1047,7 +1047,7 @@ class VideoPipelineV3:
         input_args = []
         for path in video_paths:
             input_args += ["-i", path]
-        cmd = ["ffmpeg", "-y"] + input_args + [
+        cmd = [str(get_ffmpeg()), "-y"] + input_args + [
             "-filter_complex", filtergraph,
             "-map", "[outv]", "-map", "[outa]",
             "-c:v", "libx264", "-preset", "fast", "-crf", "23",
@@ -1061,7 +1061,7 @@ class VideoPipelineV3:
                 # Fallback: simple concat with stream copy
                 log(f"  🔄 Fallback: concat with stream copy...")
                 cmd_simple = [
-                    "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(list_file),
+                    str(get_ffmpeg()), "-y", "-f", "concat", "-safe", "0", "-i", str(list_file),
                     "-c", "copy", "-bsf:a", "aac_adtstoasc", output_path
                 ]
                 subprocess.run(cmd_simple, capture_output=True, timeout=600)
@@ -1185,7 +1185,7 @@ class VideoPipelineV3:
         
         # Get video duration
         result = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+            [str(get_ffprobe()), "-v", "quiet", "-show_entries", "format=duration",
              "-of", "csv=p=0", video_path],
             capture_output=True, text=True
         )
@@ -1193,7 +1193,7 @@ class VideoPipelineV3:
         
         # Get music duration
         result = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+            [str(get_ffprobe()), "-v", "quiet", "-show_entries", "format=duration",
              "-of", "csv=p=0", music_file],
             capture_output=True, text=True
         )
@@ -1220,7 +1220,7 @@ class VideoPipelineV3:
             )
             
             cmd = [
-                "ffmpeg", "-y", "-i", video_path, "-i", music_file,
+                str(get_ffmpeg()), "-y", "-i", video_path, "-i", music_file,
                 "-filter_complex", filter_str,
                 "-map", "0:v", "-map", "[a]",
                 "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
@@ -1274,8 +1274,7 @@ class VideoPipelineV3:
                         python, str(bounce_script),
                         str(video_path), str(output_path),
                         "--text", text,
-                        "--font", self.config.get("fonts", {}).get("watermark",
-                            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
+                        "--font", self.config.get("fonts", {}).get("watermark") or get_font_path(),
                         "--font-size", str(font_size),
                         "--opacity", str(opacity),
                         "--speed", str(wm_cfg.get("bounce_speed", 120)),
@@ -1293,7 +1292,7 @@ class VideoPipelineV3:
             # --- STATIC MODE (fallback or when motion=static) ---
             # Get video dimensions
             result = subprocess.run(
-                ["ffprobe", "-v", "quiet", "-select_streams", "v:0",
+                [str(get_ffprobe()), "-v", "quiet", "-select_streams", "v:0",
                  "-show_entries", "stream=width,height", "-of", "json", str(video_path)],
                 capture_output=True, text=True
             )
@@ -1307,8 +1306,7 @@ class VideoPipelineV3:
             
             from PIL import Image as PILImage, ImageFont, ImageDraw
             try:
-                font_path = self.config.get("fonts", {}).get("watermark",
-                    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")
+                font_path = self.config.get("fonts", {}).get("watermark") or get_font_path()
                 fnt = ImageFont.truetype(font_path, scaled_font_size)
             except Exception:
                 fnt = ImageFont.load_default()
@@ -1332,7 +1330,7 @@ class VideoPipelineV3:
             
             # Apply overlay: video (0) is base, overlay (1) on top
             cmd = [
-                "ffmpeg", "-y", "-i", str(video_path), "-i", str(overlay_path),
+                str(get_ffmpeg()), "-y", "-i", str(video_path), "-i", str(overlay_path),
                 "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
                 "-map", "[out]", "-map", "0:a?", "-c:v", "libx264", "-preset", "fast", "-crf", "22",
                 "-c:a", "copy",
@@ -1762,7 +1760,7 @@ class VideoPipelineV3:
                     log(f"  📝 Loaded {len(timestamps)} timestamps from scene {scene_id}")
                 # Update offset with video duration
                 vpath = scene_videos[i]
-                r = subprocess.run(["ffprobe", "-v", "quiet", "-select_streams", "v:0", 
+                r = subprocess.run([str(get_ffprobe()), "-v", "quiet", "-select_streams", "v:0", 
                                    "-show_entries", "stream=duration", "-of", "json", vpath],
                                   capture_output=True, text=True)
                 if r.returncode == 0:

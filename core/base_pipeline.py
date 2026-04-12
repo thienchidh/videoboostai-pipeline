@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import json
-from core.paths import PROJECT_ROOT, get_karaoke_python as _get_karaoke_python
+from core.paths import PROJECT_ROOT, get_karaoke_python as _resolve_karaoke_python, get_font_path, get_ffmpeg, get_ffprobe
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ DRY_RUN_IMAGES: bool = False
 
 def get_karaoke_python() -> str:
     """Return python with moviepy installed (wrapper for core.paths)."""
-    return str(_get_karaoke_python())
+    return str(_resolve_karaoke_python())
 
 
 def log(msg: str) -> None:
@@ -47,7 +47,7 @@ def mock_generate_tts(text: str, voice: str = "female_voice",
 
     estimated_duration = max(2.0, len(text) / 3.0)
     cmd = [
-        "ffmpeg", "-y",
+        str(get_ffmpeg()), "-y",
         "-f", "lavfi", "-i", f"sine=frequency=440:duration={estimated_duration}",
         "-af", f"atempo={speed}",
         "-ar", "32000", "-ac", "1", "-ab", "128k",
@@ -78,7 +78,7 @@ def mock_generate_image(prompt: str, output_path: str) -> Optional[str]:
         log(f"  🔴 DRY RUN: PIL not available ({e}), trying ffmpeg...")
 
     cmd = [
-        "ffmpeg", "-y",
+        str(get_ffmpeg()), "-y",
         "-f", "lavfi", "-i", "color=c=0x6496C8:s=1080x1920:d=1",
         "-frames:v", "1",
         output_path
@@ -98,14 +98,14 @@ def mock_lipsync_video(image_path: str, audio_path: str, output_path: str) -> Op
     log(f"  🔴 DRY RUN: mock_lipsync_video - using placeholder video")
 
     result = subprocess.run(
-        ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+        [str(get_ffprobe()), "-v", "quiet", "-show_entries", "format=duration",
          "-of", "csv=p=0", audio_path],
         capture_output=True, text=True
     )
     duration = float(result.stdout.strip() or 5.0)
 
     cmd = [
-        "ffmpeg", "-y",
+        str(get_ffmpeg()), "-y",
         "-loop", "1", "-i", image_path,
         "-i", audio_path,
         "-c:v", "libx264", "-preset", "fast", "-crf", "23",
@@ -217,7 +217,7 @@ class BasePipeline(ABC):
         for path in video_paths:
             input_args += ["-i", path]
 
-        cmd = ["ffmpeg", "-y"] + input_args + [
+        cmd = [str(get_ffmpeg()), "-y"] + input_args + [
             "-filter_complex", filtergraph,
             "-map", "[outv]", "-map", "[outa]",
             "-c:v", "libx264", "-preset", "fast", "-crf", "23",
@@ -230,7 +230,7 @@ class BasePipeline(ABC):
                 log(f"  ❌ Concat error: {result.stderr[:300]}")
                 # Fallback: stream copy
                 cmd_simple = [
-                    "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(list_file),
+                    str(get_ffmpeg()), "-y", "-f", "concat", "-safe", "0", "-i", str(list_file),
                     "-c", "copy", "-bsf:a", "aac_adtstoasc", output_path
                 ]
                 subprocess.run(cmd_simple, capture_output=True, timeout=600)
@@ -257,7 +257,7 @@ class BasePipeline(ABC):
 
         try:
             result = subprocess.run(
-                ["ffprobe", "-v", "quiet", "-select_streams", "v:0",
+                [str(get_ffprobe()), "-v", "quiet", "-select_streams", "v:0",
                  "-show_entries", "stream=width,height", "-of", "json", str(video_path)],
                 capture_output=True, text=True
             )
@@ -273,8 +273,7 @@ class BasePipeline(ABC):
             draw = ImageDraw.Draw(overlay)
 
             try:
-                font_path = self.config.get("fonts", {}).get("watermark",
-                    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")
+                font_path = self.config.get("fonts", {}).get("watermark") or get_font_path()
                 fnt = ImageFont.truetype(font_path, scaled_font_size)
             except Exception:
                 fnt = ImageFont.load_default()
@@ -290,7 +289,7 @@ class BasePipeline(ABC):
 
             tmp_wm = self.run_dir / "watermark_tmp.mp4"
             cmd = [
-                "ffmpeg", "-y", "-i", str(video_path), "-i", str(overlay_path),
+                str(get_ffmpeg()), "-y", "-i", str(video_path), "-i", str(overlay_path),
                 "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
                 "-map", "[out]", "-c:v", "libx264", "-preset", "fast", "-crf", "22",
                 "-c:a", "copy",
@@ -357,7 +356,7 @@ class BasePipeline(ABC):
         log(f"  📐 Crop to 9:16...")
 
         result = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-select_streams", "v:0",
+            [str(get_ffprobe()), "-v", "quiet", "-select_streams", "v:0",
              "-show_entries", "stream=width,height", "-of", "csv=p=0", input_video],
             capture_output=True, text=True
         )
@@ -379,7 +378,7 @@ class BasePipeline(ABC):
                 else:
                     crop_filter = "scale=1080:1920"
 
-                cmd = ["ffmpeg", "-i", input_video,
+                cmd = [str(get_ffmpeg()), "-i", input_video,
                        "-vf", crop_filter,
                        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
                        "-c:a", "aac", "-y", output_video]
@@ -394,7 +393,7 @@ class BasePipeline(ABC):
     def get_video_duration(self, video_path: str) -> float:
         """Get video duration in seconds using ffprobe."""
         result = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+            [str(get_ffprobe()), "-v", "quiet", "-show_entries", "format=duration",
              "-of", "csv=p=0", video_path],
             capture_output=True, text=True
         )

@@ -19,7 +19,7 @@ import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.paths import PROJECT_ROOT, get_karaoke_python
+from core.paths import PROJECT_ROOT, get_karaoke_python, get_ffmpeg, get_ffprobe, get_font_path
 from core.base_pipeline import log as base_log
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ def concat_videos(video_paths: List[str], output_path: str,
         for path in video_paths:
             input_args += ["-i", path]
 
-        cmd = ["ffmpeg", "-y"] + input_args + [
+        cmd = [str(get_ffmpeg()), "-y"] + input_args + [
             "-filter_complex", filtergraph,
             "-map", "[outv]", "-map", "[outa]",
             "-c:v", "libx264", "-preset", "fast", "-crf", "23",
@@ -85,7 +85,7 @@ def concat_videos(video_paths: List[str], output_path: str,
 
     # Fallback: stream copy
     cmd_simple = [
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(list_file),
+        str(get_ffmpeg()), "-y", "-f", "concat", "-safe", "0", "-i", str(list_file),
         "-c", "copy", "-bsf:a", "aac_adtstoasc", output_path
     ]
     try:
@@ -102,7 +102,7 @@ def concat_videos(video_paths: List[str], output_path: str,
 def crop_to_9x16(input_video: str, output_video: str) -> Optional[str]:
     """Crop/convert any video to 9:16 vertical using center crop."""
     result = subprocess.run(
-        ["ffprobe", "-v", "quiet", "-select_streams", "v:0",
+        [str(get_ffprobe()), "-v", "quiet", "-select_streams", "v:0",
          "-show_entries", "stream=width,height", "-of", "csv=p=0", input_video],
         capture_output=True, text=True
     )
@@ -124,7 +124,7 @@ def crop_to_9x16(input_video: str, output_video: str) -> Optional[str]:
             else:
                 crop_filter = "scale=1080:1920"
 
-            cmd = ["ffmpeg", "-i", input_video,
+            cmd = [str(get_ffmpeg()), "-i", input_video,
                    "-vf", crop_filter,
                    "-c:v", "libx264", "-preset", "fast", "-crf", "23",
                    "-c:a", "aac", "-y", output_video]
@@ -284,7 +284,7 @@ def add_background_music(video_path: str,
 
     # Get video duration
     result = subprocess.run(
-        ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+        [str(get_ffprobe()), "-v", "quiet", "-show_entries", "format=duration",
          "-of", "csv=p=0", video_path],
         capture_output=True, text=True
     )
@@ -292,7 +292,7 @@ def add_background_music(video_path: str,
 
     # Get music duration
     result = subprocess.run(
-        ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+        [str(get_ffprobe()), "-v", "quiet", "-show_entries", "format=duration",
          "-of", "csv=p=0", music_file],
         capture_output=True, text=True
     )
@@ -313,7 +313,7 @@ def add_background_music(video_path: str,
     )
 
     cmd = [
-        "ffmpeg", "-y", "-i", video_path, "-i", music_file,
+        str(get_ffmpeg()), "-y", "-i", video_path, "-i", music_file,
         "-filter_complex", filter_str,
         "-map", "0:v", "-map", "[a]",
         "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",

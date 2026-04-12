@@ -23,7 +23,6 @@
   },
   "subtitle": {
     "enable": true,
-    "font": "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
     "font_size": 60,
     "color": "yellow",
     "language": "vi"

@@ -11,9 +11,14 @@ import os
 import base64
 from pathlib import Path
 
+# Add project root for core.paths import
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).parent))
+from core.paths import get_config_path
+
 # Load API key from auth-profiles.json
 def get_api_key():
-    auth_file = Path.home() / ".openclaw/agents/main/agent/auth-profiles.json"
+    auth_file = get_config_path("agents/main/agent/auth-profiles.json")
     if auth_file.exists():
         with open(auth_file) as f:
             data = json.load(f)

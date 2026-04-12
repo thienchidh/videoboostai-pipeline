@@ -11,6 +11,8 @@ import time
 import logging
 import threading
 from pathlib import Path
+
+from core.paths import get_config_path
 from typing import Callable, Optional
 
 try:
@@ -22,7 +24,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-JOBS_FILE = Path.home() / ".openclaw/workspace-videopipeline/.cron_jobs.json"
+JOBS_FILE = get_config_path("workspace-videopipeline/.cron_jobs.json")
 
 
 class CronManager:

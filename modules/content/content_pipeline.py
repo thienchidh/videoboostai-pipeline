@@ -13,7 +13,7 @@ from typing import List, Dict, Optional, Any
 
 logger = logging.getLogger(__name__)
 
-from core.paths import PROJECT_ROOT
+from core.paths import PROJECT_ROOT, get_font_path
 
 from modules.content.topic_researcher import TopicResearcher
 from modules.content.content_idea_generator import ContentIdeaGenerator
@@ -161,7 +161,7 @@ class ContentPipeline:
             },
             "subtitle": {
                 "enable": True,
-                "font": "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                "font": str(get_font_path()),
                 "font_size": 60,
                 "color": "yellow",
                 "language": "vi"

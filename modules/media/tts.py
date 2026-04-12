@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 from core.base_pipeline import (
     DRY_RUN, DRY_RUN_TTS, log, mock_generate_tts
 )
+from core.paths import get_edge_tts, get_whisper
 from core.plugins import TTSProvider, register_provider
 
 
@@ -138,7 +139,7 @@ class EdgeTTSProvider(TTSProvider):
         rate_str = f"{'+' if speed >= 1 else '-'}{int(abs(speed - 1) * 100)}%"
 
         cmd = [
-            "edge-tts", "--voice", edge_voice,
+            str(get_edge_tts()), "--voice", edge_voice,
             "--rate", rate_str,
             "--text", text,
             "--write-media", wav_path
@@ -177,7 +178,7 @@ def get_whisper_timestamps(audio_path: str, output_dir: Optional[str] = None) ->
     logger.debug(f"Running Whisper for word timestamps...")
     try:
         result = subprocess.run(
-            ["whisper", audio_path, "--model", "small", "--word_timestamps", "True",
+            [str(get_whisper()), audio_path, "--model", "small", "--word_timestamps", "True",
              "--output_format", "json", "--output_dir", output_dir],
             capture_output=True, text=True, timeout=120
         )

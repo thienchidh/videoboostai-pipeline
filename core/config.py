@@ -9,6 +9,8 @@ import json
 import logging
 import yaml
 from pathlib import Path
+
+from core.paths import get_config_path
 from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
@@ -80,7 +82,7 @@ class ConfigLoader:
         if key and key != "REPLACE_WITH_YOUR_WAVESPEED_KEY":
             return key
         # Fallback: scan TOOLS.md
-        tools_file = Path.home() / ".openclaw/workspace/TOOLS.md"
+        tools_file = get_config_path("workspace/TOOLS.md")
         if tools_file.exists():
             content = tools_file.read_text()
             import re
@@ -91,7 +93,7 @@ class ConfigLoader:
 
     def get_minimax_key(self) -> str:
         """Get MiniMax key from auth-profiles.json or config."""
-        auth_file = Path.home() / ".openclaw/agents/main/agent/auth-profiles.json"
+        auth_file = get_config_path("agents/main/agent/auth-profiles.json")
         if auth_file.exists():
             with open(auth_file, encoding="utf-8") as f:
                 data = json.load(f)

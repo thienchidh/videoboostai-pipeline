@@ -13,16 +13,20 @@ import shutil
 import math
 import sys
 
-FONT_PATH = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+# Add project root to path so we can import core.paths
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from core.paths import get_font_path, get_ffmpeg, get_ffprobe
+
+FONT_PATH = get_font_path()
 
 def get_video_info(path):
     result = subprocess.run(
-        ["ffprobe", "-v", "quiet", "-show_entries", 
+        [str(get_ffprobe()), "-v", "quiet", "-show_entries", 
          "stream=width,height,r_frame_rate:format=duration",
          "-of", "json", path],
         capture_output=True, text=True
     )
-    info = subprocess.run(["ffprobe", "-v", "quiet", "-show_entries", 
+    info = subprocess.run([str(get_ffprobe()), "-v", "quiet", "-show_entries", 
                           "stream=width,height,r_frame_rate:format=duration",
                           "-of", "json", path], capture_output=True, text=True)
     import json
@@ -138,7 +142,7 @@ def main():
 
         # Build video: video as base (0), watermark frames overlaid on top (1)
         result = subprocess.run([
-            "ffmpeg", "-y",
+            str(get_ffmpeg()), "-y",
             "-i", args.input_video,
             "-framerate", str(fps),
             "-i", str(tmpdir / "frame_%06d.png"),

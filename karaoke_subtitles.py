@@ -15,9 +15,9 @@ import sys
 
 # Add project root to path so we can import core.paths
 sys.path.insert(0, str(Path(__file__).parent))
-from core.paths import get_karaoke_python
+from core.paths import get_karaoke_python, get_font_path, get_ffmpeg, get_ffprobe
 
-FONT_PATH = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+FONT_PATH = get_font_path()
 FONT_SIZE = 60
 PILL_COLOR = (0, 0, 0, 200)   # Black with alpha
 TEXT_COLOR = (255, 255, 0)     # Yellow
@@ -26,7 +26,7 @@ COLOR_FADE = 0.15              # Fade duration
 
 def get_video_info(path):
     result = subprocess.run(
-        ["ffprobe", "-v", "quiet", "-show_entries", 
+        [str(get_ffprobe()), "-v", "quiet", "-show_entries", 
          "stream=width,height,r_frame_rate:format=duration",
          "-of", "json", path],
         capture_output=True, text=True
@@ -172,7 +172,7 @@ def main():
         # Build video: video as base, karaoke frames overlaid on top
         print(f"[karaoke] Building video...")
         result = subprocess.run([
-            "ffmpeg", "-y",
+            str(get_ffmpeg()), "-y",
             "-i", args.input_video,
             "-framerate", str(fps),
             "-i", str(tmpdir / "frame_%06d.png"),

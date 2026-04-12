@@ -26,6 +26,12 @@ from core.plugins import get_provider, register_provider
 from modules.pipeline.config_loader import PipelineConfig, ConfigLoader
 from modules.pipeline.scene_processor import SingleCharSceneProcessor, MultiCharSceneProcessor
 
+# Import providers to trigger registration
+from modules.media.tts import MiniMaxTTSProvider, EdgeTTSProvider  # noqa: F401
+from modules.media.image_gen import MiniMaxImageProvider, WaveSpeedImageProvider  # noqa: F401
+from modules.media.lipsync import WaveSpeedLipsyncProvider, KieAIInfinitalkProvider  # noqa: F401
+from modules.llm.minimax import MiniMaxLLMProvider  # noqa: F401
+
 
 # Global flags (mirrored from video_pipeline_v3.py for CLI compatibility)
 DRY_RUN = False

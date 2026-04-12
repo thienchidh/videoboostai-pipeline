@@ -146,16 +146,17 @@ class BasePipeline(ABC):
         """
         self.config = config
         self.timestamp = int(time.time())
-        self.ws_dir = Path.home() / ".openclaw" / "workspace"
-        self.media_dir = Path.home() / ".openclaw" / "media"
+        self.project_root = Path(__file__).parent.parent  # project root (parent of core/)
+        date_str = time.strftime("%Y%m%d")  # YYYYMMDD format
 
         if run_dir:
             self.run_dir = Path(run_dir)
+            self.output_dir = self.run_dir.parent
         else:
-            self.output_dir = self.ws_dir / "video_v3_output"
+            self.output_dir = self.project_root / "output"
             self.output_dir.mkdir(parents=True, exist_ok=True)
-            self.run_dir = self.output_dir / f"run_{self.timestamp}"
-            self.run_dir.mkdir(exist_ok=True)
+            self.run_dir = self.output_dir / date_str / f"{self.timestamp}"
+            self.run_dir.mkdir(parents=True, exist_ok=True)
 
         log(f"🎬 BasePipeline initialized — output: {self.run_dir}")
 

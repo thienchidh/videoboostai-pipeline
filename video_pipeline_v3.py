@@ -23,6 +23,12 @@ import db
 from modules.media.lipsync import KieAIInfinitalkProvider
 
 
+# ==================== CUSTOM EXCEPTIONS ====================
+class PipelineTTSDurationError(Exception):
+    """Raised when TTS audio exceeds max_duration limit (kie.ai requires < 15s per scene)."""
+    pass
+
+
 # ==================== DRY RUN FLAGS ====================
 DRY_RUN = False          # Full dry-run: mock ALL API calls
 DRY_RUN_TTS = False       # Mock only TTS
@@ -233,40 +239,52 @@ class VideoPipelineV3:
 
         self.minimax_key = self._load_minimax_key()
         
-        self.ws_dir = Path.home() / ".openclaw" / "workspace"
-        self.avatars_dir = self.ws_dir / "avatars"
-        self.output_dir = self.ws_dir / "video_v3_output"
-        self.media_dir = Path.home() / ".openclaw" / "media"
-        
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.avatars_dir.mkdir(parents=True, exist_ok=True)
-
+        # Project-local output directory: output/{YYYYMMDD}/{timestamp}_{run_id}/
+        self.project_root = Path(__file__).parent
+        self.output_dir = self.project_root / "output"
         self.timestamp = int(time.time())
+        date_str = time.strftime("%Y%m%d")  # YYYYMMDD format
+
         import secrets
-        self.run_id = secrets.token_hex(4)  # 8-char hex unique ID
-        self.run_dir = self.output_dir / f"run_{self.timestamp}_{self.run_id}"
-        self.run_dir.mkdir(exist_ok=True)
+        self.run_id = secrets.token_hex(4)  # 8-char hex temp ID (overwritten by DB)
 
-        # If FORCE_START, clear previous scene cache from all run dirs
-        if FORCE_START:
-            log(f"🆕 Clearing previous scene cache...")
-            base = Path.home() / ".openclaw/workspace/video_v3_output"
-            for run_dir in base.glob("run_*"):
-                if run_dir == self.run_dir:
-                    continue
-                for scene_dir in run_dir.glob("scene_*"):
-                    for f in scene_dir.glob("*.mp4"):
-                        f.unlink(missing_ok=True)
-                        log(f"  🗑️ Deleted {f.name} from {scene_dir.name}")
-
-        # Initialize DB and create video_run record
+        # Initialize DB first to get real run_id
         db.init_db()
         project_name = self.config.get("video", {}).get("title", "default")
         project_id = db.get_or_create_project(project_name)
         config_name = str(config_path)
         self.run_id = db.start_video_run(project_id, config_name)
         log(f"📊 DB video_run started: id={self.run_id}")
-        
+
+        # Final run_dir: output/{YYYYMMDD}/{timestamp}_{run_id}/
+        self.run_dir = self.output_dir / date_str / f"{self.timestamp}_{self.run_id}"
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+
+        self.avatars_dir = self.project_root / "avatars"
+        self.avatars_dir.mkdir(parents=True, exist_ok=True)
+
+        # If FORCE_START, clear previous scene cache from all run dirs
+        if FORCE_START:
+            log(f"🆕 Clearing previous scene cache...")
+            for run_folder in self.output_dir.glob("*"):
+                if not run_folder.is_dir():
+                    continue
+                for run_dir in run_folder.glob("*"):
+                    if run_dir == self.run_dir:
+                        continue
+                    for scene_dir in run_dir.glob("scene_*"):
+                        for f in scene_dir.glob("*.mp4"):
+                            f.unlink(missing_ok=True)
+                            log(f"  🗑️ Deleted {f.name} from {scene_dir.name}")
+
+        # media_dir used for final video copies
+        self.media_dir = self.run_dir / "final"
+        self.media_dir.mkdir(parents=True, exist_ok=True)
+
+        # Re-create run_dir now that we have real run_id from DB
+        self.run_dir = self.output_dir / date_str / f"{self.timestamp}_{self.run_id}"
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+
         log(f"🎬 Video Pipeline v3 - {self.config.get('video', {}).get('title', 'Untitled')}")
         log(f"📁 Output: {self.run_dir}")
 
@@ -283,22 +301,23 @@ class VideoPipelineV3:
 
     def _find_previous_scene_output(self, scene_id):
         """Find a scene video from a previous run to reuse (avoids re-generating)."""
-        import glob
-        base = Path("/home/openclaw-personal/.openclaw/workspace/video_v3_output")
-        runs = sorted(base.glob("run_*"), key=lambda p: p.stat().st_mtime, reverse=True)
-        for run in runs:
-            if run == self.run_dir:
-                continue  # skip current run
-            # Check for scene video
-            candidates = [
-                run / f"scene_{scene_id}" / "video_9x16.mp4",
-                run / f"scene_{scene_id}" / "video_9x16_subtitled.mp4",
-            ]
-            for candidate in candidates:
-                if candidate.exists():
-                    age_min = (time.time() - candidate.stat().st_mtime) / 60
-                    log(f"  ♻️ Found previous scene_{scene_id}: {candidate} ({age_min:.0f}m old)")
-                    return candidate
+        # Search all previous run dirs in output/{YYYYMMDD}/*
+        for run_folder in self.output_dir.glob("*"):
+            if not run_folder.is_dir():
+                continue
+            for run in run_folder.glob("*"):
+                if run == self.run_dir:
+                    continue  # skip current run
+                # Check for scene video
+                candidates = [
+                    run / f"scene_{scene_id}" / "video_9x16.mp4",
+                    run / f"scene_{scene_id}" / "video_9x16_subtitled.mp4",
+                ]
+                for candidate in candidates:
+                    if candidate.exists():
+                        age_min = (time.time() - candidate.stat().st_mtime) / 60
+                        log(f"  ♻️ Found previous scene_{scene_id}: {candidate} ({age_min:.0f}m old)")
+                        return candidate
         return None
 
     def _reuse_or_generate_scene(self, scene_id, scene_output):
@@ -827,21 +846,45 @@ class VideoPipelineV3:
         return None
 
     # ==================== SCRIPT EXPANSION ====================
-    def expand_script(self, script, min_duration=5.0):
-        """Ensure script produces TTS audio of at least min_duration seconds
-        
-        Uses simple word-count based estimation: ~0.3s per word for Vietnamese
-        If estimated duration < min_duration, add natural filler phrases
+    def expand_script(self, script, min_duration=None, max_duration=None):
+        """Ensure script produces TTS audio between min and max duration seconds.
+
+        Uses word-count based estimation: ~0.4s per word for Vietnamese.
+        - If estimated < min_duration: add filler phrases
+        - If estimated > max_duration: truncate to fit
         """
-        # Rough estimate: 0.3s per word for Vietnamese TTS
+        tts_cfg = self._get_tts_config()
+        if min_duration is None:
+            min_duration = tts_cfg.get("min_duration", 5.0)
+        if max_duration is None:
+            max_duration = tts_cfg.get("max_duration", 15.0)
+        wps = tts_cfg.get("words_per_second", 2.5)  # words per second estimate
+
+        # Rough estimate: words / wps = seconds
         words = script.split()
-        estimated_duration = len(words) * 0.3
-        
-        if estimated_duration >= min_duration:
+        estimated_duration = len(words) / wps
+
+        if estimated_duration >= min_duration and estimated_duration <= max_duration:
             log(f"  📝 Script OK: {len(words)} words, ~{estimated_duration:.1f}s")
             return script
-        
-        log(f"  📝 Expanding script: {len(words)} words, ~{estimated_duration:.1f}s < {min_duration}s")
+
+        log(f"  📝 Script: {len(words)} words, ~{estimated_duration:.1f}s (min={min_duration}s, max={max_duration}s)")
+
+        # If too LONG, truncate to max_duration
+        if estimated_duration > max_duration:
+            max_words = int(max_duration * wps)
+            # Truncate to sentence boundary if possible
+            import re
+            truncated = ' '.join(words[:max_words])
+            # Try to end at sentence boundary
+            m = re.search(r'^(.*?)([.!?])\s*[.!?]?$', truncated.strip())
+            if m:
+                truncated = m.group(1) + m.group(2)
+            log(f"  📝 Truncated to {len(truncated.split())} words, ~{len(truncated.split())/wps:.1f}s")
+            return truncated
+
+        # If too SHORT, add filler phrases
+        log(f"  📝 Expanding script...")
         
         # Filler phrases to add natural pauses and expand duration
         fillers = [
@@ -885,11 +928,24 @@ class VideoPipelineV3:
                 current_script = f"{filler}... {current_script}"
             
             words = current_script.split()
-            estimated_duration = len(words) * 0.3
+            estimated_duration = len(words) / wps
             added_phrases.append(filler)
         
         log(f"  📝 Expanded: {len(words)} words, ~{estimated_duration:.1f}s (+{len(added_phrases)} phrases)")
         return current_script
+
+    def _get_audio_duration(self, audio_path):
+        """Get audio duration in seconds using ffprobe."""
+        result = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(audio_path)],
+            capture_output=True, text=True
+        )
+        return float(result.stdout.strip() or 0)
+
+    def _get_tts_config(self):
+        """Get TTS config with defaults."""
+        return self.config.get("tts", {})
 
     # ==================== UTILS ====================
     def crop_to_9x16(self, input_video, output_video):
@@ -1125,7 +1181,7 @@ class VideoPipelineV3:
         
         if not music_file or music_file == "random":
             # Randomly select from music pool
-            music_dir = Path.home() / ".openclaw/workspace/media/music/"
+            music_dir = self.project_root / "music"
             if music_dir.exists():
                 mp3_files = list(music_dir.glob("*.mp3")) + list(music_dir.glob("*.ogg"))
                 mp3_files = [f for f in mp3_files if f.stat().st_size > 500000]  # Filter small files
@@ -1331,20 +1387,21 @@ class VideoPipelineV3:
         
         scene_videos = []
         scene_scripts = []  # Track scripts for subtitle step
-        
+        scene_errors = []  # Track errors per scene
+
         for scene in scenes:
             scene_id = scene.get("id", 0)
             script = scene["script"]
             chars = scene.get("characters", [])
-            
+
             log(f"\n{'='*40}")
             log(f"🎬 SCENE {scene_id}: {script[:50]}...")
             log(f"   Characters: {chars}")
             log(f"{'='*40}")
-            
+
             scene_output = self.run_dir / f"scene_{scene_id}"
             scene_output.mkdir(exist_ok=True)
-            
+
             # Enhanced resume: check if scene already processed in current or previous run
             existing_cropped = scene_output / "video_9x16.mp4"
             if existing_cropped.exists():
@@ -1357,189 +1414,335 @@ class VideoPipelineV3:
                 scene_videos.append(str(scene_output / "video_9x16.mp4"))
                 scene_scripts.append(script)
                 continue
-            
+
             video_raw_exists = (scene_output / "video_raw.mp4").exists()
             video_9x16_exists = (scene_output / "video_9x16.mp4").exists()
-            
+
             if video_9x16_exists:
                 log(f"  ✅ video_9x16.mp4 already exists - will add subtitles only")
                 scene_videos.append(str(scene_output / "video_9x16.mp4"))
                 scene_scripts.append(script)
                 continue
-            
+
             prompt = self.build_scene_prompt(scene)
             log(f"  📝 Prompt: {prompt[:80]}...")
-            
-            if len(chars) == 1:
-                char_cfg = self.get_character(chars[0])
-                voice = char_cfg.get("tts_voice", "female_voice")
-                speed = char_cfg.get("tts_speed", 1.0)
-                
-                # Expand script to meet minimum duration
-                script = self.expand_script(script, min_duration=5.0)
-                
-                log(f"  🔊 Generating TTS...")
-                audio_result = self.generate_tts(script, voice, speed)
-                audio = audio_result[0] if isinstance(audio_result, tuple) else audio_result
-                word_timestamps = audio_result[1] if isinstance(audio_result, tuple) else None
-                if not audio:
-                    log(f"  ❌ TTS failed")
-                    continue
-                log(f"  ✅ TTS done: {Path(audio).stat().st_size/1024:.1f}KB")
-                
-                # Save TTS audio to scene directory for Whisper processing
-                audio_file = scene_output / "audio_tts.mp3"
-                shutil.copy(audio, str(audio_file))
-                
-                # Get word timestamps (from TTS or Whisper)
-                if not word_timestamps:
-                    # Run Whisper on TTS audio for accurate timestamps
-                    word_timestamps = self._get_whisper_timestamps(str(audio_file), str(scene_output))
-                
-                if word_timestamps:
-                    ts_file = scene_output / "words_timestamps.json"
-                    with open(ts_file, "w", encoding="utf-8") as f:
-                        json.dump(word_timestamps, f, ensure_ascii=False)
-                    log(f"  📝 Saved {len(word_timestamps)} word timestamps")
-                
-                scene_img = scene_output / "scene.png"
-                if scene_img.exists():
-                    log(f"  ✅ scene.png already exists - skipping image gen")
-                else:
-                    log(f"  🎨 Generating scene image...")
-                    if not self.generate_image(prompt, str(scene_img)):
-                        log(f"  ❌ Image gen failed")
+
+            # Wrap scene processing in retry loop for TTS duration errors
+            retry_count = 0
+            max_retries = 2
+            while True:
+                try:
+                    char_cfg = self.get_character(chars[0])
+                    voice = char_cfg.get("tts_voice", "female_voice")
+                    speed = char_cfg.get("tts_speed", 1.0)
+
+                    # Expand script to meet minimum duration
+                    script = self.expand_script(script)
+
+                    log(f"  🔊 Generating TTS...")
+                    audio_result = self.generate_tts(script, voice, speed)
+                    audio = audio_result[0] if isinstance(audio_result, tuple) else audio_result
+                    word_timestamps = audio_result[1] if isinstance(audio_result, tuple) else None
+                    if not audio:
+                        log(f"  ❌ TTS failed")
                         continue
-                    log(f"  ✅ Image done: {scene_img.stat().st_size/1024:.1f}KB")
-                
-                video_raw = scene_output / "video_raw.mp4"
-                if video_raw.exists():
-                    log(f"  ✅ video_raw.mp4 already exists - skipping lipsync")
-                else:
-                    log(f"  🎬 Generating lipsync video...")
-                    lipsync_result = self.generate_lipsync_video(str(scene_img), audio, str(video_raw), retries=2)
-                    if lipsync_result == "NSFW_RETRY_IMAGE":
-                        log(f"  ⚠️ NSFW detected - regenerating image with safer prompt...")
-                        scene_img.unlink(missing_ok=True)
-                        safe_prompt = prompt + ", modest clothing, professional pose, clean background"
-                        if not self.generate_image(safe_prompt, str(scene_img)):
-                            log(f"  ❌ Safe image gen failed")
+                    log(f"  ✅ TTS done: {Path(audio).stat().st_size/1024:.1f}KB")
+
+                    # Validate TTS duration against kie.ai limit
+                    max_tts = self._get_tts_config().get("max_duration", 15.0)
+                    actual_duration = self._get_audio_duration(str(audio))
+                    if actual_duration > max_tts:
+                        log(f"  ❌ TTS duration {actual_duration:.1f}s > {max_tts}s limit!")
+                        raise PipelineTTSDurationError(
+                            f"TTS {actual_duration:.1f}s exceeds {max_tts}s limit. "
+                            f"Script needs fewer words. Try regenerating with ~{int(max_tts * 2.5)} words or less."
+                        )
+
+                    # Save TTS audio to scene directory for Whisper processing
+                    audio_file = scene_output / "audio_tts.mp3"
+                    shutil.copy(audio, str(audio_file))
+
+                    # Get word timestamps (from TTS or Whisper)
+                    if not word_timestamps:
+                        word_timestamps = self._get_whisper_timestamps(str(audio_file), str(scene_output))
+
+                    if word_timestamps:
+                        ts_file = scene_output / "words_timestamps.json"
+                        with open(ts_file, "w", encoding="utf-8") as f:
+                            json.dump(word_timestamps, f, ensure_ascii=False)
+                        log(f"  📝 Saved {len(word_timestamps)} word timestamps")
+
+                    scene_img = scene_output / "scene.png"
+                    if scene_img.exists():
+                        log(f"  ✅ scene.png already exists - skipping image gen")
+                    else:
+                        log(f"  🎨 Generating scene image...")
+                        if not self.generate_image(prompt, str(scene_img)):
+                            log(f"  ❌ Image gen failed")
                             continue
-                        log(f"  ✅ Safe image done: {scene_img.stat().st_size/1024:.1f}KB")
+                        log(f"  ✅ Image done: {scene_img.stat().st_size/1024:.1f}KB")
+
+                    video_raw = scene_output / "video_raw.mp4"
+                    if video_raw.exists():
+                        log(f"  ✅ video_raw.mp4 already exists - skipping lipsync")
+                    else:
+                        log(f"  🎬 Generating lipsync video...")
                         lipsync_result = self.generate_lipsync_video(str(scene_img), audio, str(video_raw), retries=2)
-                        if not lipsync_result or lipsync_result == "NSFW_RETRY_IMAGE":
-                            log(f"  ❌ Lipsync failed even with safe image")
+                        if lipsync_result == "NSFW_RETRY_IMAGE":
+                            log(f"  ⚠️ NSFW detected - regenerating image with safer prompt...")
+                            scene_img.unlink(missing_ok=True)
+                            safe_prompt = prompt + ", modest clothing, professional pose, clean background"
+                            if not self.generate_image(safe_prompt, str(scene_img)):
+                                log(f"  ❌ Safe image gen failed")
+                                continue
+                            log(f"  ✅ Safe image done: {scene_img.stat().st_size/1024:.1f}KB")
+                            lipsync_result = self.generate_lipsync_video(str(scene_img), audio, str(video_raw), retries=2)
+                            if not lipsync_result or lipsync_result == "NSFW_RETRY_IMAGE":
+                                log(f"  ❌ Lipsync failed even with safe image")
+                                continue
+                        elif not lipsync_result:
+                            log(f"  ❌ Lipsync failed")
                             continue
-                    elif not lipsync_result:
-                        log(f"  ❌ Lipsync failed")
-                        continue
-                    log(f"  ✅ Lipsync done: {video_raw.stat().st_size/1024/1024:.1f}MB")
-                
-                video_9x16 = scene_output / "video_9x16.mp4"
-                if video_9x16.exists():
-                    log(f"  ✅ video_9x16.mp4 already exists - skipping crop")
-                else:
-                    log(f"  📐 Cropping to 9:16...")
-                    if not self.crop_to_9x16(str(video_raw), str(video_9x16)):
-                        continue
-                    log(f"  ✅ Crop done: {video_9x16.stat().st_size/1024/1024:.1f}MB")
-                
-                scene_videos.append(str(video_9x16))
-                scene_scripts.append(script)
-                
-            elif len(chars) == 2:
-                # Simpler approach: generate two separate lip-sync videos
-                # First character
-                char0 = self.get_character(chars[0])
-                voice0 = char0.get("tts_voice", "female_voice")
-                speed0 = char0.get("tts_speed", 1.0)
-                
-                # Split script ~60/40 for smoother pacing
-                words = script.split()
-                split_at = max(3, len(words) * 60 // 100)
-                left_script = " ".join(words[:split_at])
-                right_script = " ".join(words[split_at:])
-                
-                # Split and expand each script to meet minimum duration
-                left_script = self.expand_script(left_script, min_duration=5.0)
-                right_script = self.expand_script(right_script, min_duration=5.0)
-                
-                log(f"  🔊 TTS left ({chars[0]})...")
-                audio_left_result = self.generate_tts(left_script, voice0, speed0)
-                audio_left = audio_left_result[0] if isinstance(audio_left_result, tuple) else audio_left_result
-                if not audio_left:
-                    log(f"  ❌ Left TTS failed")
-                    continue
-                log(f"  ✅ TTS done: {Path(audio_left).stat().st_size/1024:.1f}KB")
-                
-                scene_img = scene_output / "scene_multi.png"
-                if scene_img.exists():
-                    log(f"  ✅ scene_multi.png already exists - skipping image gen")
-                else:
-                    multi_prompt = f"{prompt}, featuring two children characters together"
-                    log(f"  🎨 Generating multi scene image...")
-                    if not self.generate_image(multi_prompt, str(scene_img)):
-                        log(f"  ❌ Multi scene image failed")
-                        continue
-                    log(f"  ✅ Image done: {scene_img.stat().st_size/1024:.1f}KB")
-                
-                # Left video
-                video_left = scene_output / "video_left.mp4"
-                if video_left.exists():
-                    log(f"  ✅ video_left.mp4 already exists - skipping left lipsync")
-                else:
-                    log(f"  🎬 Generating left lipsync...")
-                    if not self.generate_lipsync_video(str(scene_img), audio_left, str(video_left), retries=2):
-                        log(f"  ❌ Left lipsync failed")
-                        continue
-                    log(f"  ✅ Left lipsync done: {video_left.stat().st_size/1024/1024:.1f}MB")
-                
-                # Right character
-                char1 = self.get_character(chars[1])
-                voice1 = char1.get("tts_voice", "male-qn-qingse")
-                speed1 = char1.get("tts_speed", 1.0)
-                
-                log(f"  🔊 TTS right ({chars[1]})...")
-                audio_right_result = self.generate_tts(right_script, voice1, speed1)
-                audio_right = audio_right_result[0] if isinstance(audio_right_result, tuple) else audio_right_result
-                if not audio_right:
-                    log(f"  ❌ Right TTS failed")
-                    continue
-                log(f"  ✅ TTS done: {Path(audio_right).stat().st_size/1024:.1f}KB")
-                
-                # Right video
-                video_right = scene_output / "video_right.mp4"
-                if video_right.exists():
-                    log(f"  ✅ video_right.mp4 already exists - skipping right lipsync")
-                else:
-                    log(f"  🎬 Generating right lipsync...")
-                    if not self.generate_lipsync_video(str(scene_img), audio_right, str(video_right), retries=2):
-                        log(f"  ❌ Right lipsync failed")
-                        continue
-                    log(f"  ✅ Right lipsync done: {video_right.stat().st_size/1024/1024:.1f}MB")
-                
-                # Crop both to 9:16 and concat
-                video_left_9x16 = scene_output / "video_left_9x16.mp4"
-                if video_left_9x16.exists():
-                    log(f"  ✅ video_left_9x16.mp4 exists")
-                else:
-                    log(f"  📐 Cropping left video...")
-                    if not self.crop_to_9x16(str(video_left), str(video_left_9x16)):
-                        continue
-                
-                video_right_9x16 = scene_output / "video_right_9x16.mp4"
-                if video_right_9x16.exists():
-                    log(f"  ✅ video_right_9x16.mp4 exists")
-                else:
-                    log(f"  📐 Cropping right video...")
-                    if not self.crop_to_9x16(str(video_right), str(video_right_9x16)):
-                        continue
-                
-                log(f"  🔗 Concatenating left + right...")
-                video_9x16 = scene_output / "video_9x16.mp4"
-                if self.concat_videos([str(video_left_9x16), str(video_right_9x16)], str(video_9x16)):
+                        log(f"  ✅ Lipsync done: {video_raw.stat().st_size/1024/1024:.1f}MB")
+
+                    video_9x16 = scene_output / "video_9x16.mp4"
+                    if video_9x16.exists():
+                        log(f"  ✅ video_9x16.mp4 already exists - skipping crop")
+                    else:
+                        log(f"  📐 Cropping to 9:16...")
+                        if not self.crop_to_9x16(str(video_raw), str(video_9x16)):
+                            continue
+                        log(f"  ✅ Crop done: {video_9x16.stat().st_size/1024/1024:.1f}MB")
+
                     scene_videos.append(str(video_9x16))
                     scene_scripts.append(script)
+
+                except PipelineTTSDurationError as e:
+                    retry_count += 1
+                    if retry_count > max_retries:
+                        log(f"  ❌ Scene failed after {max_retries} retries: {e}")
+                        scene_errors.append({"scene_id": scene_id, "error": str(e)})
+                        break
+                    log(f"  🔄 Retrying scene {scene_id} (attempt {retry_count}/{max_retries})...")
+                    # Clear any partial outputs so retry starts fresh
+                    for f in scene_output.glob("*"):
+                        if f.suffix in (".mp4", ".mp3", ".png"):
+                            f.unlink(missing_ok=True)
+                    continue
+
+                except Exception as e:
+                    log(f"  ❌ Scene {scene_id} error: {e}")
+                    scene_errors.append({"scene_id": scene_id, "error": str(e)})
+                    break
+
+                # If we get here with videos appended, break out of retry loop (success)
+                if scene_videos and str(scene_output / "video_9x16.mp4") in scene_videos:
+                    break
+
+                if len(chars) == 1:
+                    char_cfg = self.get_character(chars[0])
+                    if not char_cfg:
+                        log(f"  ❌ Character '{chars[0]}' not found in config")
+                        scene_errors.append({"scene_id": scene_id, "error": f"Character {chars[0]} not found"})
+                        break
+                    voice = char_cfg.get("tts_voice", "female_voice")
+                    speed = char_cfg.get("tts_speed", 1.0)
+
+                    # Expand script to meet minimum duration
+                    script = self.expand_script(script)
+
+                    log(f"  🔊 Generating TTS...")
+                    audio_result = self.generate_tts(script, voice, speed)
+                    audio = audio_result[0] if isinstance(audio_result, tuple) else audio_result
+                    word_timestamps = audio_result[1] if isinstance(audio_result, tuple) else None
+                    if not audio:
+                        log(f"  ❌ TTS failed")
+                        continue
+                    log(f"  ✅ TTS done: {Path(audio).stat().st_size/1024:.1f}KB")
+
+                    # Validate TTS duration against kie.ai limit
+                    max_tts = self._get_tts_config().get("max_duration", 15.0)
+                    actual_duration = self._get_audio_duration(str(audio))
+                    if actual_duration > max_tts:
+                        log(f"  ❌ TTS duration {actual_duration:.1f}s > {max_tts}s limit!")
+                        raise PipelineTTSDurationError(
+                            f"TTS {actual_duration:.1f}s exceeds {max_tts}s limit. "
+                            f"Script needs fewer words. Try regenerating with ~{int(max_tts * 2.5)} words or less."
+                        )
+
+                    # Save TTS audio to scene directory for Whisper processing
+                    audio_file = scene_output / "audio_tts.mp3"
+                    shutil.copy(audio, str(audio_file))
+
+                    # Get word timestamps (from TTS or Whisper)
+                    if not word_timestamps:
+                        word_timestamps = self._get_whisper_timestamps(str(audio_file), str(scene_output))
+
+                    if word_timestamps:
+                        ts_file = scene_output / "words_timestamps.json"
+                        with open(ts_file, "w", encoding="utf-8") as f:
+                            json.dump(word_timestamps, f, ensure_ascii=False)
+                        log(f"  📝 Saved {len(word_timestamps)} word timestamps")
+
+                    scene_img = scene_output / "scene.png"
+                    if scene_img.exists():
+                        log(f"  ✅ scene.png already exists - skipping image gen")
+                    else:
+                        log(f"  🎨 Generating scene image...")
+                        if not self.generate_image(prompt, str(scene_img)):
+                            log(f"  ❌ Image gen failed")
+                            continue
+                        log(f"  ✅ Image done: {scene_img.stat().st_size/1024:.1f}KB")
+
+                    video_raw = scene_output / "video_raw.mp4"
+                    if video_raw.exists():
+                        log(f"  ✅ video_raw.mp4 already exists - skipping lipsync")
+                    else:
+                        log(f"  🎬 Generating lipsync video...")
+                        lipsync_result = self.generate_lipsync_video(str(scene_img), audio, str(video_raw), retries=2)
+                        if lipsync_result == "NSFW_RETRY_IMAGE":
+                            log(f"  ⚠️ NSFW detected - regenerating image with safer prompt...")
+                            scene_img.unlink(missing_ok=True)
+                            safe_prompt = prompt + ", modest clothing, professional pose, clean background"
+                            if not self.generate_image(safe_prompt, str(scene_img)):
+                                log(f"  ❌ Safe image gen failed")
+                                continue
+                            log(f"  ✅ Safe image done: {scene_img.stat().st_size/1024:.1f}KB")
+                            lipsync_result = self.generate_lipsync_video(str(scene_img), audio, str(video_raw), retries=2)
+                            if not lipsync_result or lipsync_result == "NSFW_RETRY_IMAGE":
+                                log(f"  ❌ Lipsync failed even with safe image")
+                                continue
+                        elif not lipsync_result:
+                            log(f"  ❌ Lipsync failed")
+                            continue
+                        log(f"  ✅ Lipsync done: {video_raw.stat().st_size/1024/1024:.1f}MB")
+
+                    video_9x16 = scene_output / "video_9x16.mp4"
+                    if video_9x16.exists():
+                        log(f"  ✅ video_9x16.mp4 already exists - skipping crop")
+                    else:
+                        log(f"  📐 Cropping to 9:16...")
+                        if not self.crop_to_9x16(str(video_raw), str(video_9x16)):
+                            continue
+                        log(f"  ✅ Crop done: {video_9x16.stat().st_size/1024/1024:.1f}MB")
+
+                    scene_videos.append(str(video_9x16))
+                    scene_scripts.append(script)
+
+                elif len(chars) == 2:
+                    # Simpler approach: generate two separate lip-sync videos
+                    # First character
+                    char0 = self.get_character(chars[0])
+                    if not char0:
+                        log(f"  ❌ Character '{chars[0]}' not found")
+                        scene_errors.append({"scene_id": scene_id, "error": f"Character {chars[0]} not found"})
+                        break
+                    voice0 = char0.get("tts_voice", "female_voice")
+                    speed0 = char0.get("tts_speed", 1.0)
+
+                    # Split script ~60/40 for smoother pacing
+                    words = script.split()
+                    split_at = max(3, len(words) * 60 // 100)
+                    left_script = " ".join(words[:split_at])
+                    right_script = " ".join(words[split_at:])
+
+                    # Split and expand each script to meet minimum duration
+                    left_script = self.expand_script(left_script)
+                    right_script = self.expand_script(right_script)
+
+                    log(f"  🔊 TTS left ({chars[0]})...")
+                    audio_left_result = self.generate_tts(left_script, voice0, speed0)
+                    audio_left = audio_left_result[0] if isinstance(audio_left_result, tuple) else audio_left_result
+                    if not audio_left:
+                        log(f"  ❌ Left TTS failed")
+                        continue
+                    log(f"  ✅ TTS done: {Path(audio_left).stat().st_size/1024:.1f}KB")
+
+                    # Validate left TTS duration
+                    max_tts = self._get_tts_config().get("max_duration", 15.0)
+                    left_duration = self._get_audio_duration(str(audio_left))
+                    if left_duration > max_tts:
+                        log(f"  ❌ Left TTS duration {left_duration:.1f}s > {max_tts}s limit!")
+                        raise PipelineTTSDurationError(f"Left TTS {left_duration:.1f}s > {max_tts}s limit")
+
+                    scene_img = scene_output / "scene_multi.png"
+                    if scene_img.exists():
+                        log(f"  ✅ scene_multi.png already exists - skipping image gen")
+                    else:
+                        multi_prompt = f"{prompt}, featuring two children characters together"
+                        log(f"  🎨 Generating multi scene image...")
+                        if not self.generate_image(multi_prompt, str(scene_img)):
+                            log(f"  ❌ Multi scene image failed")
+                            continue
+                        log(f"  ✅ Image done: {scene_img.stat().st_size/1024:.1f}KB")
+
+                    # Left video
+                    video_left = scene_output / "video_left.mp4"
+                    if video_left.exists():
+                        log(f"  ✅ video_left.mp4 already exists - skipping left lipsync")
+                    else:
+                        log(f"  🎬 Generating left lipsync...")
+                        if not self.generate_lipsync_video(str(scene_img), audio_left, str(video_left), retries=2):
+                            log(f"  ❌ Left lipsync failed")
+                            continue
+                        log(f"  ✅ Left lipsync done: {video_left.stat().st_size/1024/1024:.1f}MB")
+
+                    # Right character
+                    char1 = self.get_character(chars[1])
+                    if not char1:
+                        log(f"  ❌ Character '{chars[1]}' not found")
+                        scene_errors.append({"scene_id": scene_id, "error": f"Character {chars[1]} not found"})
+                        break
+                    voice1 = char1.get("tts_voice", "male-qn-qingse")
+                    speed1 = char1.get("tts_speed", 1.0)
+
+                    log(f"  🔊 TTS right ({chars[1]})...")
+                    audio_right_result = self.generate_tts(right_script, voice1, speed1)
+                    audio_right = audio_right_result[0] if isinstance(audio_right_result, tuple) else audio_right_result
+                    if not audio_right:
+                        log(f"  ❌ Right TTS failed")
+                        continue
+                    log(f"  ✅ TTS done: {Path(audio_right).stat().st_size/1024:.1f}KB")
+
+                    # Validate right TTS duration
+                    right_duration = self._get_audio_duration(str(audio_right))
+                    if right_duration > max_tts:
+                        log(f"  ❌ Right TTS duration {right_duration:.1f}s > {max_tts}s limit!")
+                        raise PipelineTTSDurationError(f"Right TTS {right_duration:.1f}s > {max_tts}s limit")
+
+                    # Right video
+                    video_right = scene_output / "video_right.mp4"
+                    if video_right.exists():
+                        log(f"  ✅ video_right.mp4 already exists - skipping right lipsync")
+                    else:
+                        log(f"  🎬 Generating right lipsync...")
+                        if not self.generate_lipsync_video(str(scene_img), audio_right, str(video_right), retries=2):
+                            log(f"  ❌ Right lipsync failed")
+                            continue
+                        log(f"  ✅ Right lipsync done: {video_right.stat().st_size/1024/1024:.1f}MB")
+
+                    # Crop both to 9:16 and concat
+                    video_left_9x16 = scene_output / "video_left_9x16.mp4"
+                    if video_left_9x16.exists():
+                        log(f"  ✅ video_left_9x16.mp4 exists")
+                    else:
+                        log(f"  📐 Cropping left video...")
+                        if not self.crop_to_9x16(str(video_left), str(video_left_9x16)):
+                            continue
+
+                    video_right_9x16 = scene_output / "video_right_9x16.mp4"
+                    if video_right_9x16.exists():
+                        log(f"  ✅ video_right_9x16.mp4 exists")
+                    else:
+                        log(f"  📐 Cropping right video...")
+                        if not self.crop_to_9x16(str(video_right), str(video_right_9x16)):
+                            continue
+
+                    log(f"  🔗 Concatenating left + right...")
+                    video_9x16 = scene_output / "video_9x16.mp4"
+                    if self.concat_videos([str(video_left_9x16), str(video_right_9x16)], str(video_9x16)):
+                        scene_videos.append(str(video_9x16))
+                        scene_scripts.append(script)
         
         if not scene_videos:
             log(f"\n❌ No scene videos generated")
@@ -1670,14 +1873,14 @@ if __name__ == "__main__":
             FORCE_START = True
             log("🆕 FRESH START MODE: Previous scene cache will be cleared")
         elif arg in ["--resume", "-r"]:
-            # Find most recent run with videos
-            base = Path.home() / ".openclaw/workspace/video_v3_output"
-            run_dirs = sorted(base.glob("run_*"), key=lambda p: p.stat().st_mtime, reverse=True)
-            for rd in run_dirs:
-                scene_videos = list(rd.glob("scene_*/video_9x16.mp4"))
-                if scene_videos:
-                    resume_run_dir = rd
-                    break
+            # Find most recent run with videos in output/{YYYYMMDD}/*
+            output_base = Path(__file__).parent / "output"
+            for run_folder in sorted(output_base.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True):
+                for rd in sorted(run_folder.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True):
+                    scene_videos = list(rd.glob("scene_*/video_9x16.mp4"))
+                    if scene_videos:
+                        resume_run_dir = rd
+                        break
         else:
             config_files.append(arg)
 

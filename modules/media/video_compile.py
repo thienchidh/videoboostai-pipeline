@@ -263,7 +263,9 @@ def add_background_music(video_path: str,
     """
     if not music_file or music_file == "random":
         if music_dir is None:
-            music_dir = str(Path.home() / ".openclaw/workspace/media/music/")
+            # Default: project-root/music directory
+            project_root = Path(__file__).parent.parent.parent
+            music_dir = str(project_root / "music")
         music_path = Path(music_dir)
         if music_path.exists():
             mp3_files = [f for f in music_path.glob("*.mp3") + music_path.glob("*.ogg")

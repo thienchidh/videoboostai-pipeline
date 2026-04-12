@@ -1,4 +1,3 @@
-#!/home/openclaw-personal/.openclaw/workspace-videopipeline/venv/bin/python3
 """
 karaoke_subtitles.py — Simple word-by-word karaoke subtitle burner.
 Each word appears one at a time in a rounded pill at 85% from top.

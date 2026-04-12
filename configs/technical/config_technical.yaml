@@ -40,6 +40,17 @@ image:
   timeout: 120          # giây
 
 # ================================================
+# TTS SETTINGS
+# ================================================
+# Kie.ai giới hạn mỗi video scene < 15 giây
+# ================================================
+
+tts:
+  max_duration: 15.0    # seconds - kie.ai hard limit per scene
+  min_duration: 5.0     # seconds - minimum to avoid too-short clips
+  words_per_second: 2.5  # estimated for Vietnamese TTS
+
+# ================================================
 # LIPSYNC - Tạo video nói từ ảnh + audio
 # ================================================
 

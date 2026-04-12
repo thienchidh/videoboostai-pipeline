@@ -51,7 +51,8 @@ class ContentPipeline:
         """
         self.project_id = project_id
         self.dry_run = dry_run
-        self.output_dir = Path(output_dir or "/home/openclaw-personal/.openclaw/workspace/video_v3_output/content_pipeline")
+        self.project_root = Path(__file__).parent.parent.parent  # project root
+        self.output_dir = Path(output_dir or self.project_root / "output" / "content_pipeline")
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Load config
@@ -249,12 +250,19 @@ class ContentPipeline:
         os.makedirs(run_output_dir, exist_ok=True)
 
         try:
+            project_root = Path(__file__).parent.parent.parent
+            pipeline_path = project_root / "video_pipeline_v3.py"
+            secrets_path = project_root / "configs" / "business" / "secrets.json"
+            if not pipeline_path.exists():
+                pipeline_path = project_root / "video_config_secrets.json"
+            if not secrets_path.exists():
+                secrets_path = project_root / "video_config_secrets.json"
             result = subprocess.run(
                 [
                     sys.executable,
-                    "/home/openclaw-personal/.openclaw/workspace-videopipeline/video_pipeline_v3.py",
+                    str(pipeline_path),
                     str(config_path),
-                    "/home/openclaw-personal/.openclaw/workspace-videopipeline/video_config_secrets.json",
+                    str(secrets_path),
                     "--output-dir", run_output_dir
                 ],
                 capture_output=True,
@@ -399,8 +407,9 @@ class ContentPipeline:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    # Load config
-    config_path = "/home/openclaw-personal/.openclaw/workspace-videopipeline/video_config_content.json"
+    # Load config from project root
+    project_root = Path(__file__).parent.parent.parent
+    config_path = project_root / "video_config_content.json"
     if os.path.exists(config_path):
         with open(config_path) as f:
             config = json.load(f)

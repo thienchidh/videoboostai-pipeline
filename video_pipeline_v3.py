@@ -215,7 +215,7 @@ class VideoPipelineV3:
             self.wsp_key = self._get_wavespeed_key()
         else:
             self.wsp_key = self.config.get("api", {}).get("wavespeed_key", "")
-        self.wsp_base = "https://api.wavespeed.ai"
+        self.wsp_base = self.config.get("api_urls", {}).get("wavespeed", "https://api.wavespeed.ai")
 
         # Handle Kie.ai key
         self.kieai_key = self.config.get("api", {}).get("kie_ai_key", "")
@@ -389,7 +389,7 @@ class VideoPipelineV3:
         if emotion:
             voice_setting["emotion"] = emotion
 
-        url = "https://api.minimax.io/v1/t2a_v2"
+        minimax_tts_url = self.config.get("api_urls", {}).get("minimax_tts", "https://api.minimax.io/v1/t2a_v2")
         headers = {"Authorization": f"Bearer {self.minimax_key}", "Content-Type": "application/json"}
         payload = {
             "model": "speech-2.8-hd", "text": text, "stream": False, "output_format": "hex",
@@ -398,7 +398,7 @@ class VideoPipelineV3:
             "language_boost": "Vietnamese"
         }
         try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=60)
+            resp = requests.post(minimax_tts_url, headers=headers, json=payload, timeout=60)
             data = resp.json()
             if data.get("base_resp", {}).get("status_code", 0) != 0:
                 log(f"  ❌ MiniMax TTS error: {data.get('base_resp', {}).get('status_msg', 'unknown')}")
@@ -480,7 +480,7 @@ class VideoPipelineV3:
                     "female": "female_voice", "male": "male-qn-qingse"}
         voice_id = voice_map.get(voice, "female_voice")
         
-        url = "https://api.minimax.io/v1/t2a_v2"
+        minimax_tts_url = self.config.get("api_urls", {}).get("minimax_tts", "https://api.minimax.io/v1/t2a_v2")
         headers = {"Authorization": f"Bearer {self.minimax_key}", "Content-Type": "application/json"}
         payload = {
             "model": "speech-2.8-hd", "text": text, "stream": False, "output_format": "hex",
@@ -489,7 +489,7 @@ class VideoPipelineV3:
             "language_boost": "Vietnamese"
         }
         try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=60)
+            resp = requests.post(minimax_tts_url, headers=headers, json=payload, timeout=60)
             data = resp.json()
             words_data = data.get("data", {}).get("words", [])
             if words_data:
@@ -612,11 +612,11 @@ class VideoPipelineV3:
         if DRY_RUN or DRY_RUN_IMAGES:
             return mock_generate_image(prompt, output_path)
         log(f"  🎨 Image Gen: {prompt[:50]}...")
-        url = "https://api.minimax.io/v1/image_generation"
+        minimax_img_url = self.config.get("api_urls", {}).get("minimax_image", "https://api.minimax.io/v1/image_generation")
         headers = {"Authorization": f"Bearer {self.minimax_key}", "Content-Type": "application/json"}
         payload = {"model": "image-01", "prompt": prompt, "aspect_ratio": "9:16", "num_images": 1}
         try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=180)
+            resp = requests.post(minimax_img_url, headers=headers, json=payload, timeout=180)
             data = resp.json()
             img_url = None
             if isinstance(data.get("data"), dict):

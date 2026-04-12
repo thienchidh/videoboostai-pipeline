@@ -159,8 +159,8 @@ class VideoPipelineV3:
         # Business config path relative to configs/business/ or absolute
         config_path = Path(config_path)
         
-        # Find technical config
-        tech_config_path = Path(__file__).parent / "configs" / "technical" / "config_technical.json"
+        # Find technical config (YAML priority, JSON fallback)
+        tech_config_path = Path(__file__).parent / "configs" / "technical" / "config_technical.yaml"
         if not tech_config_path.exists():
             tech_config_path = Path(__file__).parent / "configs" / "technical" / "config_technical.json"
         
@@ -168,8 +168,12 @@ class VideoPipelineV3:
             log(f"❌ Technical config not found: {tech_config_path}")
             raise FileNotFoundError(f"Technical config not found at {tech_config_path}")
         
+        import yaml
         with open(tech_config_path) as f:
-            self.config = json.load(f)
+            if tech_config_path.suffix in (".yaml", ".yml"):
+                self.config = yaml.safe_load(f)
+            else:
+                self.config = json.load(f)
         log(f"📋 Technical base config: {tech_config_path}")
         
         # Load and merge business config

@@ -1,0 +1,58 @@
+# ================================================
+# TECHNICAL CONFIG - Video Pipeline
+# ================================================
+# API Keys (bắt buộc để chạy pipeline)
+# Lấy keys từ: Wavespeed.ai, MiniMax, Kie.ai
+# ================================================
+
+api:
+  # WaveSpeed AI - lipsync video generation
+  wavespeed_key: "8075a41103d01a02578a1798230f1d6062c60cebb35625e5ee373c7e5dbce523"
+
+  # MiniMax - image generation & TTS
+  minimax_key: "sk-cp-vTtVLjCDfMCyf6P6dJKmVkg8Hwx-UxF0E0nK1-0AEVKH4G8SkzJEauMWKq8JQ5snXc3Wo1KosS_ng_7e4zjwtxWe2Uud0AOSw_XMwSLLT2yhfqk-9fL7aeQ"
+
+  # Kie.ai - lipsync alternative (đang dùng)
+  kie_ai_key: "f5116468a49733bd607ffc05e606e3d3"
+  kie_ai_webhook_key: "3cd3833cc8ab5521ff87418b605c195bd6e571a098d3916ae93911e47cf71245"
+
+# ================================================
+# MODELS - Chọn provider cho từng bộ phận
+# ================================================
+# TTS: edge (free, ko tốn quota) | minimax (paid)
+# Image: minimax (ảnh đẹp) | dalle (placeholder)
+# Video: kieai (lipsync) | wavespeed (lipsync)
+# ================================================
+
+models:
+  tts: "edge"      # Edge TTS - free, Vietnamese tốt
+  image: "minimax" # MiniMax Image - chất lượng cao
+  video: "kieai"   # Kie.ai Infinitalk - lipsync
+
+# ================================================
+# IMAGE GENERATION
+# ================================================
+
+image:
+  provider: "minimax"
+  fallback_providers: []
+  aspect_ratio: "9:16"  # TikTok/Reels format
+  timeout: 120          # giây
+
+# ================================================
+# LIPSYNC - Tạo video nói từ ảnh + audio
+# ================================================
+
+lipsync:
+  provider: "kieai"
+  prompt: "A person talking"  # mô tả cho lipsync model
+  resolution: "480p"           # 480p | 720p | 1080p
+  max_wait: 300                # giây chờ job hoàn thành
+
+# ================================================
+# SEEDS - Reproducible generation
+# ================================================
+
+seeds:
+  image: 42      # seed cho image generation
+  video: 12345    # seed cho video generation

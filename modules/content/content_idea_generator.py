@@ -144,17 +144,12 @@ class ContentIdeaGenerator:
         kw_list_str = ", ".join(keywords) if keywords else ""
         kw_line = f"Từ khóa: {kw_list_str}\n" if kw_list_str else ""
         all_char_names = [c.get("name") for c in cfg.characters if c.get("name")]
-        char_list_str = ", ".join(f'"{n}"' for n in all_char_names) if all_char_names else '"Mentor"'
+        char_list_str = ", ".join(f'"{n}"' for n in all_char_names)
 
         tts = cfg.tts
         tts_context = f"\nRàng buộc TTS: tối đa {tts.max_duration}s, tối thiểu {tts.min_duration}s, ~{tts.words_per_second} từ/giây"
 
-        # Platform context
-        platform = cfg.research.target_platform if hasattr(cfg, 'research') and cfg.research else self.target_platform
-        platform_map = {"facebook": "Facebook", "tiktok": "TikTok", "both": "Facebook và TikTok"}
-        platform_str = platform_map.get(platform, platform)
-
-        return f"""Bạn là một chuyên gia sản xuất video {platform_str} cho kênh "{cfg.name}".
+        return f"""Bạn là một chuyên gia sản xuất video cho kênh "{cfg.name}".
 Hãy tạo {num_scenes} kịch bản scene cho video với chủ đề:
 
 Tiêu đề: {title}

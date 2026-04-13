@@ -150,16 +150,34 @@ class ContentIdeaGenerator:
         tts = cfg.tts
         tts_context = f"\nGiới hạn thời lượng: tối đa {tts.max_duration}s, tối thiểu {tts.min_duration}s"
 
+        # Build image style string from channel config for consistent art generation
+        img_style = cfg.image_style
+        if img_style:
+            style_parts = [
+                img_style.art_style or "",
+                img_style.lighting or "",
+                img_style.camera or "",
+                img_style.environment or "",
+                img_style.composition or "",
+            ]
+            art_style_str = ", ".join(p for p in style_parts if p)
+        else:
+            art_style_str = cfg.style or "3D render"
+
         return f"""Bạn là chuyên gia sản xuất video viral cho kênh "{cfg.name}".
 Viết {num_scenes} scene giữ chân người xem từ giây đầu tiên.
 
 Tiêu đề: {title}
-{kw_line}Phong cách: {angle}{tts_context}
+{kw_line}Phong cách nội dung: {angle}{tts_context}
 
-YÊU CẦU:
+PHONG CÁCH HÌNH ẢNH CỦA KÊNH (CỐ ĐỊNH - KHÔNG ĐƯỢC THAY ĐỔI):
+{art_style_str}
+
+YÊU CẦU BẮT BUỘC:
 - Lời thoại VIẾT TIẾNG VIỆT CÓ DẤU, tự nhiên như người nói thật
 - KHÔNG dùng tiếng Anh - dùng tiếng Việt tương đương
 - Chỉ chọn MỘT nhân vật duy nhất từ danh sách: [{char_list_str}] cho mỗi scene
+- Background phải TUÂN THỦ tuyệt đối phong cách hình ảnh cố định ở trên - KHÔNG được tự ý thay đổi lighting, art_style, camera, environment hay composition
 
 CẤU TRÚC SCENE:
 - Scene 1 (MÓC HÓI): Mở đầu bằng statement táo bạo, câu hỏi gây sốc, hoặc số liệu bất ngờ. KHÔNG giới thiệu chủ đề — nhảy thẳng vào nội dung.
@@ -169,7 +187,7 @@ CẤU TRÚC SCENE:
 MỖI SCENE CẦN CÓ:
 - id: số nguyên (1, 2, 3...)
 - script: lời thoại tiếng Việt có dấu, mỗi scene 3-8 câu
-- background: mô tả cảnh nền 5-15 từ (ví dụ: "văn phòng hiện đại, ánh sáng ấm, 3D render")
+- background: mô tả cảnh nền 5-15 từ, BẮT BUỘC chứa phong cách hình ảnh cố định [{art_style_str}] - ví dụ: "văn phòng hiện đại, {art_style_str}"
 - character: tên MỘT nhân vật duy nhất được chọn từ [{char_list_str}]
 
 Trả về CHỈ JSON array, không kèm markdown."""
@@ -181,15 +199,46 @@ Trả về CHỈ JSON array, không kèm markdown."""
             if isinstance(scenes, dict):
                 scenes = scenes.get("scenes", [scenes])
             if isinstance(scenes, list) and scenes:
-                return scenes
+                return self._validate_scenes(scenes)
         except json.JSONDecodeError:
             match = re.search(r'\[.*\]', text, re.DOTALL)
             if match:
                 try:
-                    return json.loads(match.group())
+                    return self._validate_scenes(json.loads(match.group()))
                 except json.JSONDecodeError:
                     pass
         return []
+
+    def _validate_scenes(self, scenes: List[Dict]) -> List[Dict]:
+        """Validate and normalize scene structure.
+
+        Ensures each scene has:
+        - character: str (not array)
+        - 'characters' key removed if present
+        - Falls back to first available character from config if missing.
+        Always normalizes — channel_config only affects default character fallback.
+        """
+        # Determine default character from config if available
+        if self._channel_config:
+            available_chars = [c.name for c in self._channel_config.characters if c.name]
+            default_char = available_chars[0] if available_chars else "Narrator"
+        else:
+            default_char = "Narrator"
+
+        validated = []
+        for scene in scenes:
+            # Normalize: extract first from 'characters' array, or use 'character' string
+            char = scene.get("character") or scene.get("characters")
+            if isinstance(char, list):
+                char = char[0] if char else default_char
+            elif not isinstance(char, str) or not char:
+                char = default_char
+            scene["character"] = char
+            # Always remove 'characters' key — inconsistent field
+            scene.pop("characters", None)
+            validated.append(scene)
+
+        return validated
 
     def save_ideas_to_db(self, ideas: List[Dict], source_id: int = None) -> List[int]:
         """Save content ideas to DB, return list of idea IDs."""

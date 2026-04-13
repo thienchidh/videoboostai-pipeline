@@ -28,58 +28,26 @@ USE_STATIC_LIPSYNC = False
 # ==================== BACKWARD-COMPATIBLE WRAPPER ====================
 
 class VideoPipelineV3:
-    """Backward-compatible wrapper around VideoPipelineRunner.
+    """Thin wrapper around VideoPipelineRunner.
 
-    Accepts the same config_path argument as before, loads and merges
-    the config, then delegates to VideoPipelineRunner.
+    Args:
+        channel_id: Channel identifier (e.g., 'nang_suat_thong_minh')
+        scenario_path: Full path to scenario YAML file.
     """
 
-    def __init__(self, config_path):
-        from modules.pipeline.config_loader import ConfigLoader
+    def __init__(self, channel_id: str, scenario_path: str):
+        from modules.pipeline.config import PipelineContext
         from modules.pipeline.pipeline_runner import VideoPipelineRunner
 
-        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START, USE_STATIC_LIPSYNC
+        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, USE_STATIC_LIPSYNC
 
-        config_path = Path(config_path)
+        self.ctx = PipelineContext(channel_id, scenario_path=scenario_path)
 
-        # Load config via ConfigLoader
-        self.cfg = ConfigLoader.load(config_path)
-
-        # Set run directories
-        import secrets as _secrets
         self.timestamp = int(time.time())
-        self.output_dir = self.cfg.output_dir
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        date_str = time.strftime("%Y%m%d")
 
-        # Configure database before any DB operations
-        import db as _db
-        db_cfg = self.cfg.data.get("storage", {}).get("database")
-        if db_cfg:
-            _db.configure(db_cfg)
-
-        # Init DB
-        _db.init_db()
-        project_name = self.cfg.get("video", {}).get("title", "default")
-        project_id = _db.get_or_create_project(project_name)
-        assert project_id is not None and project_id != "", "project_id must not be null or empty"
-        config_name = str(config_path)
-        self.run_id = _db.start_video_run(project_id, config_name)
-        assert self.run_id is not None and self.run_id != "", "run_id must not be null or empty"
-
-        self.run_dir = self.output_dir / date_str / f"{self.timestamp}_{self.run_id}"
-        self.run_dir.mkdir(parents=True, exist_ok=True)
-
-        # Update cfg with run info
-        self.cfg.run_id = self.run_id
-        self.cfg.timestamp = self.timestamp
-        self.cfg.run_dir = self.run_dir
-        self.cfg.media_dir = self.run_dir / "final"
-        self.cfg.media_dir.mkdir(parents=True, exist_ok=True)
-
-        # Instantiate the real runner (pass same timestamp to avoid duplicate folders)
+        # Instantiate the real runner (handles DB setup + run_id internally)
         self._runner = VideoPipelineRunner(
-            self.cfg,
+            self.ctx,
             dry_run=DRY_RUN,
             dry_run_tts=DRY_RUN_TTS,
             dry_run_images=DRY_RUN_IMAGES,
@@ -88,12 +56,22 @@ class VideoPipelineV3:
         )
 
         # Mirror key state for external consumers
-        self.config = self.cfg.data
-        self.avatars_dir = self.cfg.avatars_dir
-        self.media_dir = self.cfg.media_dir
+        self.config = {
+            "video": {"title": self.ctx.scenario.title if self.ctx.scenario else "Untitled"},
+        }
+        self.avatars_dir = self._runner.run_dir / "avatars"
+        self.media_dir = self._runner.media_dir
 
-        log(f"🎬 Video Pipeline v3 - {self.cfg.get('video', {}).get('title', 'Untitled')}")
-        log(f"📁 Output: {self.run_dir}")
+        log(f"Video Pipeline - {self.ctx.scenario.title if self.ctx.scenario else 'Untitled'}")
+        log(f"Output: {self._runner.run_dir}")
+
+    @property
+    def run_id(self):
+        return self._runner.run_id
+
+    @property
+    def run_dir(self):
+        return self._runner.run_dir
 
     def run(self):
         video_path, word_timestamps = self._runner.run()
@@ -141,29 +119,28 @@ if __name__ == "__main__":
         else:
             config_files.append(arg)
 
-    if config_flag:
-        config_path = config_flag
-    elif len(config_files) == 2:
-        config_path = (config_files[0], config_files[1])
+    # CLI args: channel_id and scenario_path (full path to YAML)
+    if len(config_files) >= 2:
+        channel_id = config_files[0]
+        scenario_path = config_files[1]
     elif len(config_files) == 1:
-        config_path = config_files[0]
+        # Backward compat: single arg = channel_id only (no scenario, no run)
+        print(f"Usage: python video_pipeline_v3.py <channel_id> <scenario_path>")
+        print(f"  For direct Python API, use: from scripts.run_pipeline import run_video_pipeline")
+        sys.exit(1)
     else:
-        config_path = "configs/channels"
+        print(f"Usage: python video_pipeline_v3.py <channel_id> <scenario_path>")
+        sys.exit(1)
 
-    if isinstance(config_path, tuple):
-        if not all(Path(p).exists() for p in config_path):
-            print(f"❌ Config files not found: {config_path}")
-            sys.exit(1)
-    else:
-        # config_path is now a channel_id or channel_id/date/scenario identifier
-        # ConfigLoader.load() will handle path resolution
-        pass
+    if not Path(scenario_path).exists():
+        print(f"Scenario file not found: {scenario_path}")
+        sys.exit(1)
 
-    pipeline = VideoPipelineV3(config_path)
+    pipeline = VideoPipelineV3(channel_id, scenario_path)
 
     if resume_run_dir:
-        pipeline.run_dir = resume_run_dir
-        print(f"📁 Resuming from: {resume_run_dir}")
+        pipeline._runner.run_dir = resume_run_dir
+        print(f"Resuming from: {resume_run_dir}")
 
     result = pipeline.run()
     if result:

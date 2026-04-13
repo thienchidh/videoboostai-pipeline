@@ -24,7 +24,7 @@ def get_llm_provider(name: str = "minimax", api_key: str = "",
 
     Args:
         name: Provider name (default: "minimax")
-        api_key: API key. Caller should resolve from ConfigLoader.
+        api_key: API key. Caller should resolve from PipelineContext.
         model: Model name (default: MiniMax-M2.7)
         **kwargs: Additional provider-specific args (max_tokens, timeout, api_url, ...)
 
@@ -35,9 +35,9 @@ def get_llm_provider(name: str = "minimax", api_key: str = "",
         llm = get_llm_provider("minimax", api_key="your-key", model="MiniMax-M2.7")
         response = llm.chat("Hello in Vietnamese")
     """
-    # api_key must be provided by caller (resolved from ConfigLoader)
+    # api_key must be provided by caller (resolved from PipelineContext)
     if not api_key:
-        raise ValueError("api_key is required for LLM provider. Use ConfigLoader to resolve.")
+        raise ValueError("api_key is required for LLM provider. Use PipelineContext to resolve.")
 
     # Get provider class from registry
     cls = get_provider("llm", name)

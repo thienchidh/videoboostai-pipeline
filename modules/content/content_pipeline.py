@@ -174,7 +174,7 @@ class ContentPipeline:
         """Save scene script as YAML scenario file for video_pipeline.
 
         Output path: configs/channels/{channel_id}/scenarios/{YYYY-MM-DD}/{slugified_title}.yaml
-        Only 'scenes' and 'title' keys are included (ConfigLoader allowlist).
+        Only 'scenes' and 'title' keys are included (PipelineContext filter).
         """
         import re
         from datetime import date
@@ -190,7 +190,7 @@ class ContentPipeline:
         # Use today's date
         scenario_date = date.today().strftime("%Y-%m-%d")
 
-        # Build scenario output (only title + scenes for ConfigLoader allowlist)
+        # Build scenario output (only title + scenes for PipelineContext filter)
         scenario_data = {
             "title": title,
             "scenes": scenes,
@@ -252,16 +252,14 @@ class ContentPipeline:
             vp_module.DRY_RUN_IMAGES = False
             vp_module.UPLOAD_TO_SOCIALS = False
 
-            # Convert YAML path to ConfigLoader-compatible path: {channel_id}/{date}/{slug}
-            # e.g. d:\Work\.../configs/channels/nang_suat_thong_minh/scenarios/2026-04-12/some-slug.yaml
-            #      → nang_suat_thong_minh/2026-04-12/some-slug
+            # Extract channel_id from path: configs/channels/{channel_id}/scenarios/...
             config_path_obj = Path(config_path)
             rel_parts = config_path_obj.relative_to(self.project_root / "configs" / "channels").parts
             # rel_parts = (channel_id, "scenarios", date, slug.yaml)
-            scenario_path = f"{rel_parts[0]}/{rel_parts[2]}/{config_path_obj.stem}"
+            channel_id = rel_parts[0]
 
-            # Run pipeline
-            pipeline = VideoPipelineV3(scenario_path)
+            # Run pipeline with channel_id + full YAML path
+            pipeline = VideoPipelineV3(channel_id, str(config_path))
             result = pipeline.run()
 
             # Find output video

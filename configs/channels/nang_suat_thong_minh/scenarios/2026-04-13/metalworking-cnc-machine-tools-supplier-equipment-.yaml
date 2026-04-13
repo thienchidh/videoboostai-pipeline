@@ -1,25 +1,25 @@
 title: Metalworking CNC Machine Tools Supplier & Equipment Distributor ...
 scenes:
 - id: 1
-  script: Bạn có biết không? 70% doanh nghiệp CNC tại Việt Nam đang lãng phí hàng
-    trăm triệu đồng mỗi năm chỉ vì chọn nhà cung cấp thiết bị không đúng cách. Đây
-    là sai lầm mà hầu hết ai cũng mắc phải.
-  background: Phòng máy CNC hiện đại, ánh sáng xanh trắng, máy móc đang vận hành
+  script: Bạn có biết hơn 60% doanh nghiệp gia công kim loại đã từng gặp vấn đề nghiêm
+    trọng với nhà cung cấp thiết bị CNC không? Mình từng chứng kiến một xưởng mất
+    cả triệu đô chỉ vì chọn sai đối tác.
+  background: xưởng cơ khí công nghiệp, máy CNC đang vận hành, ánh sáng ban ngày
   characters:
   - Mentor
 - id: 2
-  script: Khi tìm kiếm nhà phân phối máy móc CNC, đừng chỉ nhìn vào giá cả. Hãy hỏi
-    về chế độ bảo hành, nguồn phụ tùng thay thế, và đội ngũ hỗ trợ kỹ thuật sau bán
-    hàng. Ví dụ, một nhà cung cấp uy tín sẽ cam kết giao hàng trong 24 giờ và hỗ trợ
-    lắp đặt miễn phí.
-  background: Nhà kho chứa thiết bị CNC, giá kệ sắp xếp ngăn nắp, robot đang vận chuyển
+  script: 'Điều đầu tiên cần nhớ là đừng bao giờ chọn nhà phân phối chỉ vì giá rẻ.
+    Hãy kiểm tra ba yếu tố: năng lực kỹ thuật, chính sách bảo hành và phản hồi từ
+    khách hàng cũ. Một nhà cung cấp uy tín ở Midwest sẽ minh bạch về nguồn gốc linh
+    kiện và có đội ngũ hỗ trợ 24/7.'
+  background: văn phòng chuyên nghiệp, giấy tờ hợp đồng, màn hình hiển thị thông số
+    máy CNC
   characters:
   - Mentor
 - id: 3
-  script: Nếu bạn đang cân nhắc nâng cấp hoặc mở rộng dây chuyền sản xuất, hãy comment
-    cho mình biết bạn đang gặp khó khăn gì nhất hiện tại. Mình sẽ gợi ý giải pháp
-    phù hợp cho bạn!
-  background: Văn phòng hiện đại, màn hình laptop hiển thị bản vẽ kỹ thuật, ánh sáng
-    ấm
+  script: Nếu bạn đang đối mặt với tình trạng thiết bị CNC hay hỏng vặt mà nhà cung
+    cấp không hỗ trợ kịp thời, comment cho mình biết nhé. Mình sẽ gợi ý cho bạn những
+    bước kiểm tra nhanh để tránh mất thời gian và tiền bạc.
+  background: phòng làm việc hiện đại, ánh sáng ấm, điện thoại và laptop trên bàn
   characters:
-  - Student
+  - Mentor

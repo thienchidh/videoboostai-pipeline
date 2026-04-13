@@ -70,7 +70,7 @@ class BasePipeline(ABC):
     def __init__(self, config: Dict[str, Any], run_dir: Optional[Path] = None):
         """
         Args:
-            config: Full merged config dict (from ConfigLoader)
+            config: Full merged config dict (from PipelineContext)
             run_dir: Override run output directory
         """
         self.config = config

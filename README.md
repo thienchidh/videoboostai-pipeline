@@ -77,7 +77,7 @@ videoboostai-pipeline/
 │                   └── {scenario}.yaml  # Kịch bản video
 ├── modules/
 │   ├── pipeline/
-│   │   ├── config_loader.py          # Load + merge configs
+│   │   ├── config.py                # Load + merge configs (PipelineContext)
 │   │   ├── pipeline_runner.py         # Điều phối pipeline
 │   │   ├── scene_processor.py         # Xử lý từng scene
 │   │   └── publisher.py             # Upload lên social
@@ -224,7 +224,7 @@ scenes:
 ./venv/bin/pytest tests/ -v
 
 # Chạy specific test file
-./venv/bin/pytest tests/test_config_loader.py -v
+./venv/bin/pytest tests/test_scene_processor.py -v
 
 # Test với coverage
 ./venv/bin/pytest tests/ --cov=. --cov-report=term-missing
@@ -307,7 +307,7 @@ Khi đang chạy full flow mà hết credits lipsync (Kie.ai/WaveSpeed), pipelin
 # Tests pass: 89/89 ✅
 
 # Structure tests
-./venv/bin/pytest tests/test_config_loader.py -v
+./venv/bin/pytest tests/test_scene_processor.py -v
 
 # Pipeline runner tests
 ./venv/bin/pytest tests/test_pipeline_runner.py -v

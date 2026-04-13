@@ -1,22 +1,22 @@
 title: Productivity - Wikipedia
 scenes:
 - id: 1
-  script: 87% người đi làm đo năng suất sai cách, không phải bằng thời gian đâu! Đó
-    là lý do họ luôn bận rộn nhưng hiệu quả lại thấp.
-  background: văn phòng hiện đại, ánh sáng tự nhiên, cận cảnh mentor
+  script: Bạn có biết? Phần lớn mọi người đều bị đánh lừa bởi một từ! Người ta nói
+    'năng suất' nhưng thường chỉ nghĩ đến việc làm nhiều hơn, thật ra không phải vậy!
+  background: phòng làm việc hiện đại, ánh sáng ấm, 3D render
   characters:
   - Mentor
 - id: 2
-  script: Năng suất thật sự được tính bằng kết quả chia cho thời gian, không phải
-    số việc làm xong. Như khi bạn học, thay vì đếm bao nhiêu bài, hãy đo mình hiểu
-    được bao nhiêu phần trăm sau mỗi giờ.
-  background: phòng học sáng sạch, bảng trắng, student đang ghi chép
+  script: 'Năng suất thực ra là tỷ lệ giữa đầu ra và đầu vào. Cùng một công việc,
+    người A hoàn thành trong 2 tiếng, người B chỉ mất 30 phút. Câu hỏi là: bạn đang
+    ở đâu trong tỷ lệ đó?'
+  background: bàn làm việc có laptop, sổ ghi chú, cốc cà phê
   characters:
   - Mentor
   - Student
 - id: 3
-  script: Từ nay bạn tính năng suất theo kết quả thay vì ngồi đếm giờ nhé. Cách nào
-    hiệu quả hơn với bạn? Comment cho mình biết đi!
-  background: noti bình luận trending, hiệu ứng nhẹ, góc nhìn gần
+  script: Bạn có muốn cải thiện tỷ lệ năng suất của mình không? Hãy comment cho mình
+    biết bạn đang dùng mẹo nào để hoàn thành công việc nhanh hơn nhé!
+  background: không gian mở, ánh sáng tự nhiên, plant-based
   characters:
-  - Mentor
+  - Student

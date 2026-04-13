@@ -87,6 +87,13 @@ class VideoPipelineRunner:
                 'password': db_cfg.password,
             })
 
+        # Init DB and create run record
+        db.init_db()
+        project_name = ctx.scenario.title if ctx.scenario else "default"
+        project_id = db.get_or_create_project(project_name)
+        self.run_id = db.start_video_run(project_id, str(ctx.channel_id))
+        self._project_id = project_id
+
         # Configure S3 once (used by lipsync provider for media uploads)
         s3 = ctx.technical.storage.s3
         configure_s3({

@@ -61,26 +61,6 @@ def temp_config_dir(tmp_path):
 
 
 @pytest.fixture
-def mock_config_loader(temp_config_dir, monkeypatch):
-    """Mock ConfigLoader to use temp config directory."""
-    from pathlib import Path
-
-    def mock_load(config_path):
-        from modules.pipeline.config_loader import ConfigLoader, PipelineConfig
-        # Patch PROJECT_ROOT temporarily
-        from core import paths as paths_module
-        original_root = paths_module.PROJECT_ROOT
-        paths_module.PROJECT_ROOT = temp_config_dir
-
-        try:
-            return ConfigLoader.load(config_path)
-        finally:
-            paths_module.PROJECT_ROOT = original_root
-
-    return mock_load
-
-
-@pytest.fixture
 def sample_business_config():
     """Sample business config for testing."""
     return {

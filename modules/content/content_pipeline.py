@@ -207,14 +207,16 @@ class ContentPipeline:
         """
         import re
         from datetime import date
+        from unidecode import unidecode
 
         title = script.get("title", f"idea_{idea_id}")
         scenes = script.get("scenes", [])
 
-        # Slugify title for filename
-        slug = re.sub(r'[^a-zA-Z0-9\s]', '', title)
-        slug = re.sub(r'\s+', '-', slug.lower())
-        slug = slug[:50]  # limit length
+        # Slugify title: unidecode (VI→EN) + keep only a-z0-9 + limit length
+        slug = unidecode(title)
+        slug = re.sub(r'[^a-zA-Z0-9\s]', ' ', slug)  # Remove special chars
+        slug = re.sub(r'\s+', '-', slug.strip().lower())  # hyphen-separated lowercase
+        slug = slug[:50].strip('-')  # limit length, remove trailing hyphens
 
         # Use today's date
         scenario_date = date.today().strftime("%Y-%m-%d")

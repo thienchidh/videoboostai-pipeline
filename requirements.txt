@@ -13,6 +13,7 @@ numpy>=1.24.0
 
 # Embeddings (semantic dedup)
 sentence-transformers>=2.2.0
+unidecode>=1.3.0
 
 # Image processing
 Pillow>=9.0.0

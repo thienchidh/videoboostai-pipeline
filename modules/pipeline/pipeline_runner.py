@@ -10,10 +10,10 @@ import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import db
-from core.paths import PROJECT_ROOT
+from modules.media.s3_uploader import configure as configure_s3, upload_file as s3_upload_file
 from core.video_utils import (
     log,
     concat_videos,
@@ -21,9 +21,12 @@ from core.video_utils import (
     add_background_music,
     add_static_watermark,
     get_video_duration,
+    mock_generate_tts,
+    mock_generate_image,
+    mock_lipsync_video,
 )
-from core.plugins import get_provider, register_provider
-from modules.pipeline.config_loader import PipelineConfig, ConfigLoader, MissingConfigError
+from core.plugins import get_provider
+from modules.pipeline.config_loader import PipelineConfig, MissingConfigError
 from modules.pipeline.scene_processor import SingleCharSceneProcessor, MultiCharSceneProcessor
 
 # Import providers to trigger registration
@@ -78,7 +81,6 @@ class VideoPipelineRunner:
             db.configure(db_cfg)
 
         # Configure S3 once (used by lipsync provider for media uploads)
-        from modules.media.s3_uploader import configure as configure_s3
         configure_s3({
             'endpoint': self.config.s3_endpoint,
             'access_key': self.config.s3_access_key,
@@ -146,7 +148,6 @@ class VideoPipelineRunner:
             raise ValueError(f"Unknown lipsync provider: {lipsync_name}")
 
         # S3 is already configured in __init__; use timestamp-based prefix to avoid collisions
-        from modules.media.s3_uploader import upload_file as s3_upload_file
         lipsync_prefix = f"lipsync/{self.config.timestamp}"
         upload_fn = lambda fp: s3_upload_file(fp, lipsync_prefix)
 
@@ -162,14 +163,12 @@ class VideoPipelineRunner:
     def tts_generate(self, text: str, voice: str, speed: float, output_path: str):
         """Generate TTS audio, returning (path, timestamps)."""
         if self._dry_run or self._dry_run_tts:
-            from core.video_utils import mock_generate_tts
             return mock_generate_tts(text, voice, speed, output_path), None
         return self.tts_provider.generate(text, voice, speed, output_path)
 
     def image_generate(self, prompt: str, output_path: str):
         """Generate image."""
         if self._dry_run or self._dry_run_images:
-            from core.video_utils import mock_generate_image
             return mock_generate_image(prompt, output_path)
         return self.image_provider.generate(prompt, output_path, aspect_ratio="9:16")
 
@@ -182,11 +181,9 @@ class VideoPipelineRunner:
             prompt: lipsync prompt from config
         """
         if self._dry_run:
-            from core.video_utils import mock_lipsync_video
             return mock_lipsync_video(image_path, audio_path, output_path)
 
         # S3 upload with scene-specific prefix (upload_fn is per-call, thread-safe)
-        from modules.media.s3_uploader import upload_file as s3_upload_file
         lipsync_prefix = f"lipsync/{self.config.timestamp}/scene_{scene_id}"
         upload_fn = lambda fp: s3_upload_file(fp, lipsync_prefix)
 
@@ -210,7 +207,6 @@ class VideoPipelineRunner:
 
     def _make_lipsync_wrapper(self):
         """Create a lipsync wrapper that uses static video when USE_STATIC_LIPSYNC flag is set."""
-        from core.video_utils import mock_lipsync_video
         real_lipsync = self.lipsync_generate
         use_static = self._use_static_lipsync
 

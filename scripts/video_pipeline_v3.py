@@ -77,13 +77,14 @@ class VideoPipelineV3:
         self.cfg.media_dir = self.run_dir / "final"
         self.cfg.media_dir.mkdir(parents=True, exist_ok=True)
 
-        # Instantiate the real runner
+        # Instantiate the real runner (pass same timestamp to avoid duplicate folders)
         self._runner = VideoPipelineRunner(
             self.cfg,
             dry_run=DRY_RUN,
             dry_run_tts=DRY_RUN_TTS,
             dry_run_images=DRY_RUN_IMAGES,
             use_static_lipsync=USE_STATIC_LIPSYNC,
+            timestamp=self.timestamp,
         )
 
         # Mirror key state for external consumers

@@ -50,7 +50,7 @@ class VideoPipelineRunner:
 
     def __init__(self, config: PipelineConfig, dry_run: bool = False,
                  dry_run_tts: bool = False, dry_run_images: bool = False,
-                 use_static_lipsync: bool = False):
+                 use_static_lipsync: bool = False, timestamp: Optional[int] = None):
         """
         Args:
             config: Loaded PipelineConfig from ConfigLoader
@@ -58,6 +58,8 @@ class VideoPipelineRunner:
             dry_run_tts: Mock TTS only
             dry_run_images: Mock image gen only
             use_static_lipsync: If True, use static image + TTS audio instead of real lipsync
+            timestamp: Optional timestamp (seconds since epoch). If None, will be generated.
+                       Pass same timestamp as VideoPipelineV3 to ensure single folder creation.
         """
         global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START
         DRY_RUN = dry_run
@@ -68,7 +70,7 @@ class VideoPipelineRunner:
         self._use_static_lipsync = use_static_lipsync
 
         self.config = config
-        self.timestamp = int(time.time())
+        self.timestamp = timestamp if timestamp is not None else int(time.time())
         self.config.timestamp = self.timestamp  # sync to config for S3 key uniqueness
 
         # Setup directories

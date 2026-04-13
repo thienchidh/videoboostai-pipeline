@@ -1,25 +1,22 @@
 title: Productivity - Wikipedia
 scenes:
 - id: 1
-  script: Bạn có biết 90% người làm việc 8 tiếng nhưng hiệu suất chỉ bằng 3 tiếng
-    không? Đó là lý do vì sao nhiều người luôn bận rộn nhưng kết quả lại ít ỏi. Vậy
-    năng suất thật sự là gì?
-  background: văn phòng hiện đại với đồng hồ treo tường, góc nhìn nghiêng
+  script: 87% người đi làm đo năng suất sai cách, không phải bằng thời gian đâu! Đó
+    là lý do họ luôn bận rộn nhưng hiệu quả lại thấp.
+  background: văn phòng hiện đại, ánh sáng tự nhiên, cận cảnh mentor
   characters:
   - Mentor
 - id: 2
-  script: Năng suất là tỷ lệ giữa đầu ra và đầu vào. Nghĩa đơn giản là cùng một nguồn
-    lực, bạn tạo ra được bao nhiêu giá trị. Ví dụ cùng một ngày làm việc, người A
-    hoàn thành 10 task trong khi người B chỉ xong 3. Đầu ra càng lớn so với đầu vào,
-    năng suất càng cao. Đây là công thức chung cho cả sản xuất hàng hóa lẫn cung cấp
-    dịch vụ.
-  background: bảng trắng có công thức minh họa, ánh sáng tự nhiên chiếu vào
+  script: Năng suất thật sự được tính bằng kết quả chia cho thời gian, không phải
+    số việc làm xong. Như khi bạn học, thay vì đếm bao nhiêu bài, hãy đo mình hiểu
+    được bao nhiêu phần trăm sau mỗi giờ.
+  background: phòng học sáng sạch, bảng trắng, student đang ghi chép
   characters:
   - Mentor
   - Student
 - id: 3
-  script: 'Thử hỏi bản thân xem: Bạn đang dùng bao nhiêu phần trăm thời gian làm việc
-    hiệu quả mỗi ngày? Comment cho mình biết con số đó nhé, mình sẽ đọc hết!'
-  background: không gian văn phòng ấm áp, cốc cà phê trên bàn làm việc
+  script: Từ nay bạn tính năng suất theo kết quả thay vì ngồi đếm giờ nhé. Cách nào
+    hiệu quả hơn với bạn? Comment cho mình biết đi!
+  background: noti bình luận trending, hiệu ứng nhẹ, góc nhìn gần
   characters:
   - Mentor

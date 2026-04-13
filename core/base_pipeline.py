@@ -34,7 +34,7 @@ from core.video_utils import (
     wait_for_job,
     mock_generate_tts,
     mock_generate_image,
-    mock_lipsync_video,
+    create_static_video,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ __all__ = [
     "add_background_music", "expand_script",
     "get_video_duration", "get_audio_duration",
     "upload_file", "wait_for_job",
-    "mock_generate_tts", "mock_generate_image", "mock_lipsync_video",
+    "mock_generate_tts", "mock_generate_image", "create_static_video",
 ]
 
 

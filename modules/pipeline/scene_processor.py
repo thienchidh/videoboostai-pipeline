@@ -11,7 +11,7 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.paths import PROJECT_ROOT, get_whisper, get_ffmpeg, get_ffprobe, get_config_path
 from core.video_utils import (
@@ -24,6 +24,7 @@ from core.video_utils import (
     add_background_music,
     upload_file,
     wait_for_job,
+    create_static_video,
 )
 
 
@@ -283,7 +284,10 @@ class SingleCharSceneProcessor(SceneProcessor):
             lipsync_result = lipsync_fn(str(scene_img), audio, str(video_raw),
                                          scene_id=scene_id, prompt=prompt)
             if not lipsync_result:
-                log(f"  ❌ Lipsync failed")
+                log(f"  ⚠️ Lipsync failed - falling back to static image + audio")
+                lipsync_result = create_static_video(str(scene_img), audio, str(video_raw))
+            if not lipsync_result:
+                log(f"  ❌ Static video fallback also failed")
                 return None, []
             log(f"  ✅ Lipsync done: {video_raw.stat().st_size/1024/1024:.1f}MB")
 
@@ -434,15 +438,23 @@ class MultiCharSceneProcessor(SceneProcessor):
 
             if left_lipsync_future:
                 log(f"  🎬 Generating left lipsync...")
-                if not left_lipsync_future.result():
-                    log(f"  ❌ Left lipsync failed")
+                left_result = left_lipsync_future.result()
+                if not left_result:
+                    log(f"  ⚠️ Left lipsync failed - falling back to static image + audio")
+                    left_result = create_static_video(str(scene_img), audio_left, str(video_left))
+                if not left_result:
+                    log(f"  ❌ Left static video fallback also failed")
                     return None, []
                 log(f"  ✅ Left lipsync done: {video_left.stat().st_size/1024/1024:.1f}MB")
 
             if right_lipsync_future:
                 log(f"  🎬 Generating right lipsync...")
-                if not right_lipsync_future.result():
-                    log(f"  ❌ Right lipsync failed")
+                right_result = right_lipsync_future.result()
+                if not right_result:
+                    log(f"  ⚠️ Right lipsync failed - falling back to static image + audio")
+                    right_result = create_static_video(str(scene_img), audio_right, str(video_right))
+                if not right_result:
+                    log(f"  ❌ Right static video fallback also failed")
                     return None, []
                 log(f"  ✅ Right lipsync done: {video_right.stat().st_size/1024/1024:.1f}MB")
 

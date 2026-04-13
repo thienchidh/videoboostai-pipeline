@@ -511,9 +511,18 @@ def mock_generate_image(prompt: str, output_path: str) -> Optional[str]:
     return None
 
 
-def mock_lipsync_video(image_path: str, audio_path: str, output_path: str) -> Optional[str]:
-    """Generate fake lipsync video using ffmpeg (static image + audio)."""
-    log(f"  🔴 DRY RUN: mock_lipsync_video - using placeholder video")
+def create_static_video(image_path: str, audio_path: str, output_path: str,
+                       dry_run: bool = False) -> Optional[str]:
+    """Create a video from a static image and audio using ffmpeg.
+
+    Args:
+        image_path: Path to the image file
+        audio_path: Path to the audio file
+        output_path: Path for the output video
+        dry_run: If True, log as DRY RUN; if False, log as fallback from lipsync failure
+    """
+    log(f"  🔴 DRY RUN: create_static_video - using placeholder video" if dry_run else
+        f"  ⚠️ Lipsync failed - falling back to static image + audio video")
 
     result = subprocess.run(
         [str(get_ffprobe()), "-v", "quiet", "-show_entries", "format=duration",

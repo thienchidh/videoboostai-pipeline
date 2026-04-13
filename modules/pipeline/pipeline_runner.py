@@ -23,7 +23,7 @@ from core.video_utils import (
     get_video_duration,
     mock_generate_tts,
     mock_generate_image,
-    mock_lipsync_video,
+    create_static_video,
 )
 from core.plugins import get_provider
 from modules.pipeline.config_loader import PipelineConfig, MissingConfigError
@@ -181,7 +181,7 @@ class VideoPipelineRunner:
             prompt: lipsync prompt from config
         """
         if self._dry_run:
-            return mock_lipsync_video(image_path, audio_path, output_path)
+            return create_static_video(image_path, audio_path, output_path, dry_run=True)
 
         # S3 upload with scene-specific prefix (upload_fn is per-call, thread-safe)
         lipsync_prefix = f"lipsync/{self.config.timestamp}/scene_{scene_id}"
@@ -213,7 +213,7 @@ class VideoPipelineRunner:
         def lipsync_wrapper(image_path, audio_path, output_path, scene_id=0, prompt=None):
             if use_static:
                 log(f"  🖼️ USE_STATIC_LIPSYNC: creating static video from image (image={Path(image_path).name})")
-                return mock_lipsync_video(image_path, audio_path, output_path)
+                return create_static_video(image_path, audio_path, output_path, dry_run=False)
             return real_lipsync(image_path, audio_path, output_path, scene_id=scene_id, prompt=prompt)
         return lipsync_wrapper
 

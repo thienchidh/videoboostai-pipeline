@@ -2,7 +2,7 @@
 modules/pipeline/pipeline_runner.py — Slimmed pipeline coordinator.
 
 Replaces VideoPipelineV3's raw HTTP calls with proper PluginRegistry provider calls.
-Orchestrates scene processing via SingleCharSceneProcessor / MultiCharSceneProcessor.
+Orchestrates scene processing via SingleCharSceneProcessor.
 """
 
 import json
@@ -27,7 +27,7 @@ from core.video_utils import (
 )
 from core.plugins import get_provider
 from modules.pipeline.config_loader import PipelineConfig, MissingConfigError
-from modules.pipeline.scene_processor import SingleCharSceneProcessor, MultiCharSceneProcessor
+from modules.pipeline.scene_processor import SingleCharSceneProcessor
 
 # Import providers to trigger registration
 from modules.media.tts import MiniMaxTTSProvider, EdgeTTSProvider  # noqa: F401
@@ -97,7 +97,6 @@ class VideoPipelineRunner:
 
         # Scene processors
         self.single_processor = SingleCharSceneProcessor(config, self.run_dir)
-        self.multi_processor = MultiCharSceneProcessor(config, self.run_dir)
 
     # ---- Provider builders ----
 
@@ -267,21 +266,15 @@ class VideoPipelineRunner:
                 log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping")
                 return (str(existing), [], tts_text)
 
-            if len(chars) == 1:
-                return self.single_processor.process(
-                    scene, scene_output,
-                    tts_fn=self.tts_generate,
-                    image_fn=self.image_generate,
-                    lipsync_fn=lipsync_fn,
-                ) + (tts_text,)
-            elif len(chars) == 2:
-                return self.multi_processor.process(
-                    scene, scene_output,
-                    tts_fn=self.tts_generate,
-                    image_fn=self.image_generate,
-                    lipsync_fn=lipsync_fn,
-                ) + (tts_text,)
-            return None
+            if len(chars) != 1:
+                log(f"  ❌ Scene {scene_id}: expected 1 character, got {len(chars)}")
+                return None
+            return self.single_processor.process(
+                scene, scene_output,
+                tts_fn=self.tts_generate,
+                image_fn=self.image_generate,
+                lipsync_fn=lipsync_fn,
+            ) + (tts_text,)
 
         # Process scenes in parallel using ThreadPoolExecutor
         log(f"\n🔄 Processing {len(scenes)} scenes in parallel...")

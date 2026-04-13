@@ -10,7 +10,6 @@ import os
 import time
 import requests
 import logging
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -127,106 +126,6 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
         return None
 
 
-# ==================== MULTI-TALK ====================
-
-class WaveSpeedMultiTalkProvider(LipsyncProvider):
-    """WaveSpeed InfiniteTalk multi-character video."""
-
-    def __init__(self, api_key: str, base_url: str = "https://api.wavespeed.ai",
-                 upload_func: Optional[callable] = None):
-        self.api_key = api_key
-        self.base_url = base_url
-        self.upload_func = upload_func
-
-    def upload_file(self, file_path: str) -> Optional[str]:
-        if self.upload_func:
-            return self.upload_func(file_path)
-        ext = Path(file_path).suffix.lstrip(".")
-        content_type = f"audio/{ext}" if ext in ["mp3", "wav", "ogg"] else f"image/{ext}"
-        url = f"{self.base_url}/api/v3/media/upload/binary?ext={ext}"
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": content_type}
-        try:
-            with open(file_path, "rb") as f:
-                resp = requests.post(url, headers=headers, data=f, timeout=60)
-            data = resp.json()
-            return data.get("data", {}).get("download_url")
-        except Exception as e:
-            logger.warning(f"Upload error: {e}")
-        return None
-
-    def wait_for_job(self, job_id: str, max_wait: int = 300) -> Optional[str]:
-        url = f"{self.base_url}/api/v3/predictions/{job_id}/result"
-        headers = {"Authorization": f"Bearer {self.api_key}"}
-        elapsed = 0
-        while elapsed < max_wait:
-            try:
-                resp = requests.get(url, headers=headers, timeout=30)
-                data = resp.json()
-                status = data.get("data", {}).get("status", "processing")
-                outputs = data.get("data", {}).get("outputs", [])
-                if status == "completed" and outputs:
-                    return outputs[0]
-                elif status == "failed":
-                    return None
-                time.sleep(10)
-                elapsed += 10
-            except Exception:
-                time.sleep(10)
-                elapsed += 10
-        return None
-
-    def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[Dict] = None,
-                 upload_func: Optional[callable] = None) -> Optional[str]:
-        """Multi-talk: audio_path should be (left_audio, right_audio) tuple or dict."""
-        cfg = config or {}
-        retries = cfg.get("retries", 2)
-        effective_upload = upload_func if upload_func is not None else self.upload_func
-
-        # Handle multi-audio: audio_path can be a dict with 'left' and 'right'
-        if isinstance(audio_path, dict):
-            left_audio = audio_path.get("left")
-            right_audio = audio_path.get("right")
-        elif isinstance(audio_path, tuple):
-            left_audio, right_audio = audio_path
-        else:
-            left_audio = right_audio = audio_path
-
-        for attempt in range(retries):
-            image_url = effective_upload(image_path) if effective_upload else self.upload_file(image_path)
-            if not image_url:
-                continue
-            left_url = effective_upload(left_audio) if (left_audio and effective_upload) else (self.upload_file(left_audio) if left_audio else None)
-            right_url = effective_upload(right_audio) if (right_audio and effective_upload) else (self.upload_file(right_audio) if right_audio else None)
-
-            if not left_url or not right_url:
-                continue
-
-            url = f"{self.base_url}/api/v3/wavespeed-ai/infinitetalk/multi"
-            headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-            payload = {
-                "image": image_url,
-                "left_audio": left_url,
-                "right_audio": right_url,
-                "order": "left_right",
-                "resolution": cfg.get("resolution", "480p")
-            }
-            try:
-                resp = requests.post(url, headers=headers, json=payload, timeout=30)
-                data = resp.json()
-                if not data.get("data", {}).get("id"):
-                    continue
-                result_url = self.wait_for_job(data["data"]["id"])
-                if result_url:
-                    resp = requests.get(result_url, timeout=120)
-                    with open(output_path, "wb") as f:
-                        f.write(resp.content)
-                    return output_path
-            except Exception as e:
-                logger.warning(f"  ❌ InfiniteTalk error: {e}")
-        return None
-
-
 # ==================== KIE.AI INFINITALK ====================
 
 import requests
@@ -339,7 +238,6 @@ class KieAIInfinitalkProvider(LipsyncProvider):
 
 def register_lipsync_providers():
     register_provider("lipsync", "wavespeed", WaveSpeedLipsyncProvider)
-    register_provider("lipsync", "multitalk", WaveSpeedMultiTalkProvider)
     register_provider("lipsync", "kieai", KieAIInfinitalkProvider)
 
 

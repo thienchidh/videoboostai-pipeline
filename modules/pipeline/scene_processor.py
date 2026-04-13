@@ -1,7 +1,7 @@
 """
 modules/pipeline/scene_processor.py — Scene processing logic extracted from VideoPipelineV3.
 
-Handles per-scene processing for both single-character and multi-character scenes.
+Handles per-scene processing for single-character scenes only.
 """
 
 import json
@@ -13,13 +13,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.paths import PROJECT_ROOT, get_whisper, get_ffmpeg, get_ffprobe, get_config_path
+from core.paths import PROJECT_ROOT, get_whisper, get_ffmpeg, get_ffprobe
 from core.video_utils import (
     log,
     expand_script,
     get_audio_duration,
     crop_to_9x16,
-    concat_videos,
     add_subtitles,
     add_background_music,
     upload_file,
@@ -304,178 +303,3 @@ class SingleCharSceneProcessor(SceneProcessor):
         return str(video_9x16), word_timestamps or []
 
 
-class MultiCharSceneProcessor(SceneProcessor):
-    """Processes a two-character scene.
-
-    Flow per scene:
-    1. Split script ~60/40 → expand each half
-    2. TTS for each character + duration validation
-    3. Single shared image → lipsync for each audio
-    4. Crop both → concat side by side
-    5. Return (video_path, timestamps)
-    """
-
-    def process(self, scene: Dict[str, Any], scene_output: Path,
-               tts_fn, image_fn, lipsync_fn) -> Tuple[Optional[str], List[Dict]]:
-        """Process a two-character scene."""
-        scene_id = scene.get("id", 0)
-        scene_tts = scene.get("tts", scene.get("script", ""))
-        chars = scene.get("characters", [])
-
-        scene_output.mkdir(parents=True, exist_ok=True)
-        existing = scene_output / "video_9x16.mp4"
-        if existing.exists():
-            log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping")
-            return str(existing), []
-
-        char0_cfg = chars[0] if isinstance(chars[0], dict) else {"name": chars[0]}
-        char1_cfg = chars[1] if isinstance(chars[1], dict) else {"name": chars[1]}
-
-        char0 = self.get_character(char0_cfg["name"])
-        if not char0:
-            log(f"  ❌ Character '{char0_cfg['name']}' not found")
-            return None, []
-        char1 = self.get_character(char1_cfg["name"])
-        if not char1:
-            log(f"  ❌ Character '{char1_cfg['name']}' not found")
-            return None, []
-
-        _, voice0, speed0 = self.resolve_voice(char0, scene)
-        _, voice1, speed1 = self.resolve_voice(char1, scene)
-
-        # Per-scene overrides
-        if char0_cfg.get("speed"):
-            speed0 = char0_cfg["speed"]
-        if char1_cfg.get("speed"):
-            speed1 = char1_cfg["speed"]
-
-        # Determine TTS text per character
-        char0_tts = char0_cfg.get("tts")
-        char1_tts = char1_cfg.get("tts")
-
-        if not char0_tts or not char1_tts:
-            # Auto-split scene tts 60/40
-            words = scene_tts.split()
-            split_at = max(3, len(words) * 60 // 100)
-            left_words = " ".join(words[:split_at])
-            right_words = " ".join(words[split_at:])
-            if not char0_tts:
-                char0_tts = left_words
-            if not char1_tts:
-                char1_tts = right_words
-
-        tts_cfg = self.get_tts_config()
-        min_dur = tts_cfg.get("min_duration")
-        max_dur = tts_cfg.get("max_duration")
-        wps = tts_cfg.get("words_per_second")
-        if min_dur is None or max_dur is None or wps is None:
-            raise MissingConfigError("config.tts.min_duration, max_duration, and words_per_second are all required")
-
-        char0_tts = expand_script(char0_tts,
-                                  min_duration=min_dur,
-                                  max_duration=max_dur,
-                                  words_per_second=wps)
-        char1_tts = expand_script(char1_tts,
-                                   min_duration=min_dur,
-                                   max_duration=max_dur,
-                                   words_per_second=wps)
-
-        video_prompt = self.get_video_prompt(scene)
-        scene_img = scene_output / "scene_multi.png"
-        audio_left_output = scene_output / f"audio_left_{self.timestamp}.mp3"
-        audio_right_output = scene_output / f"audio_right_{self.timestamp}.mp3"
-
-        # TTS left || TTS right || Image (all parallel after expand_script)
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            # Left TTS
-            left_tts_future = executor.submit(self._run_tts, tts_fn, char0_tts, voice0, speed0, str(audio_left_output))
-            # Right TTS
-            right_tts_future = executor.submit(self._run_tts, tts_fn, char1_tts, voice1, speed1, str(audio_right_output))
-            # Image (if not exists)
-            img_future = executor.submit(image_fn, f"{video_prompt}, featuring two characters together", str(scene_img)) if not scene_img.exists() else None
-
-            # Wait for Left TTS
-            left_result = left_tts_future.result()
-            audio_left = left_result[0] if isinstance(left_result, tuple) else left_result
-            if not audio_left:
-                log(f"  ❌ Left TTS failed")
-                return None, []
-            log(f"  ✅ TTS done: {Path(audio_left).stat().st_size/1024:.1f}KB")
-            left_duration = get_audio_duration(str(audio_left))
-            if left_duration > max_dur:
-                log(f"  ❌ Left TTS {left_duration:.1f}s > {max_dur}s limit!")
-                return None, []
-
-            # Wait for Right TTS
-            right_result = right_tts_future.result()
-            audio_right = right_result[0] if isinstance(right_result, tuple) else right_result
-            if not audio_right:
-                log(f"  ❌ Right TTS failed")
-                return None, []
-            log(f"  ✅ TTS done: {Path(audio_right).stat().st_size/1024:.1f}KB")
-            right_duration = get_audio_duration(str(audio_right))
-            if right_duration > max_dur:
-                log(f"  ❌ Right TTS {right_duration:.1f}s > {max_dur}s limit!")
-                return None, []
-
-            # Wait for Image
-            if img_future:
-                img_result = img_future.result()
-                if not img_result:
-                    log(f"  ❌ Multi scene image failed")
-                    return None, []
-                log(f"  ✅ Image done: {scene_img.stat().st_size/1024:.1f}KB")
-
-        # Left lipsync || Right lipsync (parallel after image and audio)
-        video_left = scene_output / "video_left.mp4"
-        video_right = scene_output / "video_right.mp4"
-
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            left_lipsync_future = executor.submit(lipsync_fn, str(scene_img), audio_left, str(video_left),
-                                                  scene_id=scene_id, prompt=f"{video_prompt}, character on the left, talking") if not video_left.exists() else None
-            right_lipsync_future = executor.submit(lipsync_fn, str(scene_img), audio_right, str(video_right),
-                                                   scene_id=scene_id, prompt=f"{video_prompt}, character on the right, talking") if not video_right.exists() else None
-
-            if left_lipsync_future:
-                log(f"  🎬 Generating left lipsync...")
-                left_result = left_lipsync_future.result()
-                if not left_result:
-                    log(f"  ⚠️ Left lipsync failed - falling back to static image + audio")
-                    left_result = create_static_video(str(scene_img), audio_left, str(video_left))
-                if not left_result:
-                    log(f"  ❌ Left static video fallback also failed")
-                    return None, []
-                log(f"  ✅ Left lipsync done: {video_left.stat().st_size/1024/1024:.1f}MB")
-
-            if right_lipsync_future:
-                log(f"  🎬 Generating right lipsync...")
-                right_result = right_lipsync_future.result()
-                if not right_result:
-                    log(f"  ⚠️ Right lipsync failed - falling back to static image + audio")
-                    right_result = create_static_video(str(scene_img), audio_right, str(video_right))
-                if not right_result:
-                    log(f"  ❌ Right static video fallback also failed")
-                    return None, []
-                log(f"  ✅ Right lipsync done: {video_right.stat().st_size/1024/1024:.1f}MB")
-
-        # Crop and concat
-        video_left_9x16 = scene_output / "video_left_9x16.mp4"
-        if not video_left_9x16.exists():
-            if not crop_to_9x16(str(video_left), str(video_left_9x16)):
-                video_left.unlink(missing_ok=True)
-                log(f"  ❌ Left crop failed")
-                return None, []
-
-        video_right_9x16 = scene_output / "video_right_9x16.mp4"
-        if not video_right_9x16.exists():
-            if not crop_to_9x16(str(video_right), str(video_right_9x16)):
-                video_right.unlink(missing_ok=True)
-                log(f"  ❌ Right crop failed")
-                return None, []
-
-        log(f"  🔗 Concatenating left + right...")
-        video_9x16 = scene_output / "video_9x16.mp4"
-        if not concat_videos([str(video_left_9x16), str(video_right_9x16)], str(video_9x16)):
-            return None, []
-
-        return str(video_9x16), []

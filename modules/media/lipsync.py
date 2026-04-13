@@ -3,21 +3,22 @@ modules/media/lipsync.py — Video lipsync providers
 
 Provides:
 - WaveSpeedLipsyncProvider: WaveSpeed LTX lipsync
-- MockLipsyncProvider: dry-run placeholder
+- WaveSpeedMultiTalkProvider: WaveSpeed InfiniteTalk multi-character video
+- KieAIInfinitalkProvider: Kie.ai Infinitalk lip-sync
+- mock_lipsync_video: dry-run placeholder (called by pipeline, not provider)
 """
 
-import os
-import time
-import requests
 import logging
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-logger = logging.getLogger(__name__)
+import requests
 
-from core.base_pipeline import DRY_RUN, log, mock_lipsync_video
 from core.video_utils import LipsyncQuotaError
 from core.plugins import LipsyncProvider, register_provider
+
+logger = logging.getLogger(__name__)
 
 
 # ==================== WAVESPEED LIPSYNC ====================
@@ -81,10 +82,6 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
 
     def generate(self, image_path: str, audio_path: str,
                  output_path: str, config: Optional[Dict] = None) -> Optional[str]:
-        global DRY_RUN
-        if DRY_RUN:
-            return mock_lipsync_video(image_path, audio_path, output_path)
-
         cfg = config or {}
         retries = cfg.get("retries", 2)
         resolution = cfg.get("resolution", "480p")
@@ -107,7 +104,6 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
                 "audio": audio_url,
                 "resolution": resolution
             }
-            # Add seed if specified
             if cfg.get("seed"):
                 payload["seed"] = cfg["seed"]
 
@@ -133,6 +129,8 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
                     with open(output_path, "wb") as f:
                         f.write(resp.content)
                     return output_path
+            except LipsyncQuotaError:
+                raise
             except Exception as e:
                 logger.warning(f"  ❌ LTX error: {e}")
         return None
@@ -189,10 +187,6 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
     def generate(self, image_path: str, audio_path: str,
                  output_path: str, config: Optional[Dict] = None) -> Optional[str]:
         """Multi-talk: audio_path should be (left_audio, right_audio) tuple or dict."""
-        global DRY_RUN
-        if DRY_RUN:
-            return mock_lipsync_video(image_path, audio_path, output_path)
-
         cfg = config or {}
         retries = cfg.get("retries", 2)
 
@@ -243,6 +237,8 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
                     with open(output_path, "wb") as f:
                         f.write(resp.content)
                     return output_path
+            except LipsyncQuotaError:
+                raise
             except Exception as e:
                 logger.warning(f"  ❌ InfiniteTalk error: {e}")
         return None
@@ -250,7 +246,6 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
 
 # ==================== KIE.AI INFINITALK ====================
 
-import requests
 from modules.media.kie_ai_client import KieAIClient
 
 
@@ -291,10 +286,6 @@ class KieAIInfinitalkProvider(LipsyncProvider):
                 max_wait: int,      # polling timeout in seconds
             }
         """
-        global DRY_RUN
-        if DRY_RUN:
-            return mock_lipsync_video(image_path, audio_path, output_path)
-
         cfg = config or {}
         prompt = cfg.get("prompt", "A person talking")
         resolution = cfg.get("resolution", "480p")

@@ -3,29 +3,22 @@ modules/media/music_gen.py — Music generation providers
 
 Provides:
 - MiniMaxMusicProvider: MiniMax Music API generation
-- MockMusicProvider: dry-run placeholder
+- create_mock_music: dry-run placeholder (called by pipeline, not provider)
 """
 
-import os
-import time
-import tempfile
+import base64
 import logging
+import subprocess
+import time
 from pathlib import Path
 from typing import Optional
 
+import requests
+
+from core.paths import get_ffmpeg
+from core.plugins import MusicProvider, register_provider
+
 logger = logging.getLogger(__name__)
-
-from core.base_pipeline import DRY_RUN, log
-
-# ==================== MUSIC PROVIDER BASE ====================
-
-class MusicProvider:
-    """Base class for music generation providers."""
-
-    def generate(self, prompt: str, duration: int = 30,
-                 output_path: Optional[str] = None) -> Optional[str]:
-        """Generate music from text prompt. Returns path to audio file or None."""
-        raise NotImplementedError
 
 
 # ==================== MINIMAX MUSIC ====================
@@ -45,14 +38,9 @@ class MiniMaxMusicProvider(MusicProvider):
     def generate(self, prompt: str, duration: int = 30,
                  output_path: Optional[str] = None) -> Optional[str]:
         """Generate music using MiniMax Music API. Returns path to MP3 file."""
-        global DRY_RUN
-        if DRY_RUN:
-            return mock_generate_music(prompt, duration, output_path)
-
         if not output_path:
             output_path = f"/tmp/music_{int(time.time()*1000)}.mp3"
 
-        import requests
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -88,7 +76,6 @@ class MiniMaxMusicProvider(MusicProvider):
             # Alternative: base64 audio
             audio_b64 = data.get("data", {}).get("audio")
             if audio_b64:
-                import base64
                 audio_bytes = base64.b64decode(audio_b64)
                 with open(output_path, "wb") as f:
                     f.write(audio_bytes)
@@ -105,14 +92,12 @@ class MiniMaxMusicProvider(MusicProvider):
 
 # ==================== MOCK MUSIC ====================
 
-def mock_generate_music(prompt: str, duration: int = 30,
-                        output_path: Optional[str] = None) -> Optional[str]:
+def create_mock_music(prompt: str, duration: int = 30,
+                      output_path: Optional[str] = None) -> Optional[str]:
     """Mock music generation for dry-run mode. Creates silent audio placeholder."""
     if not output_path:
         output_path = f"/tmp/music_mock_{int(time.time()*1000)}.mp3"
 
-    # Generate a short silent audio using ffmpeg (for testing only)
-    from core.paths import get_ffmpeg
     cmd = [
         str(get_ffmpeg()), "-y",
         "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo",
@@ -121,15 +106,14 @@ def mock_generate_music(prompt: str, duration: int = 30,
         output_path,
     ]
     try:
-        import subprocess
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if result.returncode == 0 and Path(output_path).exists():
-            log(f"  🎵 [MOCK] Music generated: {Path(output_path).name} ({duration}s)")
+            logger.info(f"  🎵 [MOCK] Music generated: {Path(output_path).name} ({duration}s)")
             return output_path
     except Exception as e:
         logger.warning(f"Mock music generation failed: {e}")
 
-    log(f"  ⚠️ Mock music generation failed, skipping")
+    logger.warning(f"  ⚠️ Mock music generation failed, skipping")
     return None
 
 
@@ -137,10 +121,7 @@ def mock_generate_music(prompt: str, duration: int = 30,
 
 def register_music_providers():
     """Register music providers with the plugin registry."""
-    from core.plugins import register_provider
     register_provider("music", "minimax", MiniMaxMusicProvider)
-    register_provider("music", "mock", MusicProvider)  # placeholder class
 
 
-# Auto-register on import
 register_music_providers()

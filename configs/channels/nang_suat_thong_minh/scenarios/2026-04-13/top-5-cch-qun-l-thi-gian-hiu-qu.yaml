@@ -1,0 +1,26 @@
+title: Top 5 cách quản lý thời gian hiệu quả
+scenes:
+- id: 1
+  script: Bạn có biết người bình thường lãng phí tới 2 tiếng mỗi ngày chỉ vì không
+    biết quản lý thời gian? Đó là 1 tiếng rưỡi mỗi ngày, 10 tiếng mỗi tuần. Thử tính
+    xem bạn đã đánh mất bao nhiêu công việc quan trọng? 2 tiếng đó đủ để bạn đạt được
+    mục tiêu tháng này đấy!
+  background: văn phòng hiện đại, ánh sáng vàng nhấp nháy, 3D render
+  characters:
+  - Mentor
+- id: 2
+  script: 'Cách đầu tiên cực kỳ hiệu quả: phân loại công việc theo ma trận ưu tiên.
+    Chia ra 4 ô: vừa gấp vừa quan trọng, chỉ gấp không quan trọng, chỉ quan trọng
+    không gấp, và không gấp không quan trọng. Ví dụ hôm qua mình phải nộp báo cáo
+    trước 5 giờ chiều thì cho vào ô gấp và quan trọng, còn trả lời email thì cho vào
+    ô cuối cùng. Kết quả là mình hoàn thành báo cáo đúng hạn mà không cần OT.'
+  background: bàn làm việc có lịch và sổ ghi chú, cốc cà phê, 3D render
+  characters:
+  - Mentor
+- id: 3
+  script: Vậy bạn đã thử áp dụng ma trận ưu tiên chưa? Hay bạn đang dùng cách nào
+    khác để quản lý thời gian? Comment cho mình biết nhé, biết đâu mình sẽ quay video
+    phân tích cách của bạn đấy!
+  background: phòng làm việc cá nhân, ánh sáng tự nhiên, 3D render
+  characters:
+  - Mentor

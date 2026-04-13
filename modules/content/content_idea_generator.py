@@ -149,7 +149,7 @@ class ContentIdeaGenerator:
         kw_list_str = ", ".join(keywords) if keywords else ""
         kw_line = f"Từ khóa: {kw_list_str}\n" if kw_list_str else ""
         all_char_names = [c.name for c in cfg.characters if c.name]
-        char_list_str = ", ".join(f'"{n}"' for n in all_char_names)
+        char_list_str = ", ".join(all_char_names)
 
         tts = cfg.tts
         tts_context = f"\nGiới hạn thời lượng: tối đa {tts.max_duration}s, tối thiểu {tts.min_duration}s"

@@ -117,19 +117,9 @@ class VideoPipelineRunner:
     # ---- Provider builders ----
 
     def _get_models(self) -> dict:
-        """Get models config, preferring channel override then technical base."""
-        # Channel override (dict format)
-        if self.ctx.channel.generation and self.ctx.channel.generation.models:
-            return self.ctx.channel.generation.models
-        # Technical base (Pydantic format)
-        if self.ctx.technical.generation.models:
-            tm = self.ctx.technical.generation.models
-            return {"tts": tm.tts, "image": tm.image, "video": tm.video}
-        # Fallback to channel default_models
-        if self.ctx.channel.default_models:
-            dm = self.ctx.channel.default_models
-            return {"tts": dm.tts, "image": dm.image, "video": dm.video}
-        return {}
+        """Get models config from channel generation.models."""
+        gm = self.ctx.channel.generation.models
+        return {"tts": gm.tts, "image": gm.image, "video": gm.video}
 
     def _build_tts_provider(self):
         """Instantiate TTS provider via PluginRegistry."""
@@ -215,9 +205,11 @@ class VideoPipelineRunner:
         lipsync_prefix = f"lipsync/{self.timestamp}/scene_{scene_id}"
         upload_fn = lambda fp: s3_upload_file(fp, lipsync_prefix)
 
-        # Get lipsync config from channel (preferred) or technical
-        lipsync_cfg = self.ctx.channel.lipsync
-        if not lipsync_cfg:
+        # Get lipsync config from channel.generation (preferred) or technical
+        lipsync_cfg = None
+        if self.ctx.channel.generation and self.ctx.channel.generation.lipsync:
+            lipsync_cfg = self.ctx.channel.generation.lipsync
+        elif self.ctx.technical.generation.lipsync:
             lipsync_cfg = self.ctx.technical.generation.lipsync
 
         config = {

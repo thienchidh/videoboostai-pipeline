@@ -161,9 +161,8 @@ class FontConfig(BaseModel):
 
 
 class GenerationSettings(BaseModel):
-    models: dict
-    lipsync: dict
-    tts: dict
+    models: GenerationModels
+    lipsync: GenerationLipsync
 
 
 class SubtitleConfig(BaseModel):
@@ -262,9 +261,47 @@ class ChannelConfig(BaseModel):
 
 # ─── Scenario Config ────────────────────────────────────────
 
+class SceneCharacter(BaseModel):
+    """Character trong scene — hỗ trợ cả string (name) và dict với overrides."""
+    name: str
+    tts: Optional[str] = None
+    speed: Optional[float] = None
+
+    @classmethod
+    def from_yaml(cls, data: "str | dict") -> "SceneCharacter":
+        """Parse từ YAML — chấp nhận string (name) hoặc dict."""
+        if isinstance(data, str):
+            return cls(name=data)
+        return cls(**data)
+
+
+class SceneConfig(BaseModel):
+    """Một scene từ scenario YAML file."""
+    id: int = 0
+    tts: Optional[str] = None
+    script: Optional[str] = None  # alternative to tts
+    characters: List["SceneCharacter | str"] = []
+    video_prompt: Optional[str] = None
+    background: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SceneConfig":
+        """Parse scene từ dict — convert characters list."""
+        chars = data.get("characters", [])
+        parsed_chars = [SceneCharacter.from_yaml(c) for c in chars]
+        return cls(
+            id=data.get("id", 0),
+            tts=data.get("tts"),
+            script=data.get("script"),
+            characters=parsed_chars,
+            video_prompt=data.get("video_prompt"),
+            background=data.get("background"),
+        )
+
+
 class ScenarioConfig(BaseModel):
     """Scenes and title from scenario YAML files."""
-    scenes: List[Dict[str, Any]]
+    scenes: List[SceneConfig]
     title: str = ""
 
     @classmethod
@@ -272,4 +309,7 @@ class ScenarioConfig(BaseModel):
         path = Path(path)
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
-        return cls(**data)
+        scenes = [SceneConfig.from_dict(s) for s in data.get("scenes", [])]
+        return cls(scenes=scenes, title=data.get("title", ""))
+
+

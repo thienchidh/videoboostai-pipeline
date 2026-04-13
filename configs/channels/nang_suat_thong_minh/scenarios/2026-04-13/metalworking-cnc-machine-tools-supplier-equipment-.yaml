@@ -1,22 +1,22 @@
 title: Metalworking CNC Machine Tools Supplier & Equipment Distributor ...
 scenes:
 - id: 1
-  script: Bạn có biết chọn nhà cung cấp dụng cụ cắt CNC không đúng có thể khiến chi
-    phí sản xuất tăng vượt kiểm soát không?
-  background: nhà xưởng CNC hiện đại, máy móc đang vận hành
+  script: Bạn có biết hơn 80% doanh nghiệp gia công kim loại ở vùng Midwest và Rocky
+    đang gặp khó về nguồn cung máy CNC không?
+  background: nhà kho máy móc công nghiệp, ánh sáng LED xanh, máy CNC trưng bày
   characters:
   - Mentor
 - id: 2
-  script: 'Nhà cung cấp máy móc CNC chuyên nghiệp cần đảm bảo ba yếu tố: dụng cụ chất
-    lượng cao, giao hàng nhanh, và hỗ trợ kỹ thuật tốt. Ví dụ, dao phay và dao tiện
-    được kiểm nghiệm kỹ sẽ giúp bạn tiết kiệm đáng kể chi phí.'
-  background: kho hàng dụng cụ CNC, giá sắp xếp gọn gàng
+  script: Nhưng không phải lo lắng nữa! Chúng tôi là nhà phân phối thiết bị máy công
+    cụ CNC hàng đầu khu vực, cung cấp đầy đủ từ máy phay, máy tiện đến hệ thống tự
+    động hóa với giao hàng nhanh và bảo hành dài hạn.
+  background: xưởng sản xuất hiện đại, robot tự động, dây chuyền lắp ráp máy CNC
   characters:
   - Mentor
 - id: 3
-  script: Chọn đúng nhà cung cấp sẽ bảo vệ khoản đầu tư và nâng cao năng suất của
-    bạn. Nếu bạn thấy thông tin này hữu ích, hãy like và follow kênh để xem thêm các
-    tips sản xuất thông minh.
-  background: văn phòng hiện đại, ánh sáng ấm, phong cách chuyên nghiệp
+  script: Nếu bạn đang cần nguồn cung máy CNC đáng tin cậy, hãy liên hệ ngay với chúng
+    tôi! Like, Follow và Comment 'CNC' để nhận báo giá ưu đãi hôm nay!
+  background: văn phòng doanh nghiệp, màn hình hiển thị logo công ty, ánh sáng chuyên
+    nghiệp
   characters:
   - Mentor

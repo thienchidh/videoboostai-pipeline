@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from modules.llm import get_llm_provider
+from modules.pipeline.models import ChannelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +37,22 @@ class ContentIdeaGenerator:
             niche_keywords: list of niche keywords
             llm_config: Optional dict with 'provider', 'model', 'api_key' keys.
                          If None, resolves from config automatically.
-            channel_config: Optional channel config dict for characters and TTS limits.
-                           If None, no character/TTS context is included in prompt.
+            channel_config: Optional channel config dict. If provided, validated
+                           via Pydantic ChannelConfig — missing required fields
+                           raise ValidationError.
         """
         self.project_id = project_id
         self.target_platform = target_platform
         self.content_angle = content_angle
-        self.niche_keywords = niche_keywords or ["productivity", "time management", "năng suất"]
+        self.niche_keywords = niche_keywords or []
         self._llm_config = llm_config or {}
-        self._channel_config = channel_config or {}
+
+        # Validate channel config with Pydantic — raise on missing required fields
+        if channel_config:
+            validated = ChannelConfig(**channel_config)
+            self._channel_config = validated
+        else:
+            self._channel_config = None
 
     def generate_ideas_from_topics(self, topics: List[Dict], count: int = 5) -> List[Dict]:
         """Generate content ideas from researched topics."""
@@ -74,13 +82,19 @@ class ContentIdeaGenerator:
 
         scenes = self._generate_scenes(title, keywords, angle, num_scenes)
 
+        # Read from validated ChannelConfig — no hardcoded fallbacks
+        if not self._channel_config:
+            raise ValueError("channel_config is required — pass a validated ChannelConfig")
+        watermark = self._channel_config.watermark.text
+        style = self._channel_config.style
+
         return {
             "title": title,
             "content_angle": angle,
             "keywords": keywords,
             "scenes": scenes,
-            "watermark": "@NangSuatThongMinh",
-            "style": "3D animated Pixar Disney style, high quality 3D render, vibrant colors, smooth animation",
+            "watermark": watermark,
+            "style": style,
             "generated_at": datetime.now().isoformat()
         }
 
@@ -123,37 +137,34 @@ class ContentIdeaGenerator:
     def _build_scene_prompt(self, title: str, keywords: List[str], angle: str,
                              num_scenes: int) -> str:
         """Build the prompt sent to LLM for scene generation."""
-        kw_str = ", ".join(keywords) if keywords else "năng suất, quản lý thời gian"
+        if not self._channel_config:
+            raise ValueError("channel_config is required")
 
-        # Build character context from channel config (single char only)
-        char_name = "Mentor"
-        if self._channel_config:
-            chars = self._channel_config.get("characters", [])
-            if chars:
-                char_name = chars[0].get("name", "Mentor")
+        cfg = self._channel_config
+        kw_list_str = ", ".join(keywords) if keywords else ""
+        kw_line = f"Từ khóa: {kw_list_str}\n" if kw_list_str else ""
+        all_char_names = [c.get("name") for c in cfg.characters if c.get("name")]
+        char_list_str = ", ".join(f'"{n}"' for n in all_char_names) if all_char_names else '"Mentor"'
 
-        # Build TTS constraints from channel config
-        tts_context = ""
-        if self._channel_config:
-            tts_cfg = self._channel_config.get("tts", {})
-            if tts_cfg:
-                max_dur = tts_cfg.get("max_duration", 15)
-                min_dur = tts_cfg.get("min_duration", 5)
-                wps = tts_cfg.get("words_per_second", 2.5)
-                tts_context = f"\nRàng buộc TTS: tối đa {max_dur}s, tối thiểu {min_dur}s, ~{wps} từ/giây"
+        tts = cfg.tts
+        tts_context = f"\nRàng buộc TTS: tối đa {tts.max_duration}s, tối thiểu {tts.min_duration}s, ~{tts.words_per_second} từ/giây"
 
-        return f"""Bạn là một chuyên gia sản xuất video TikTok/Facebook cho kênh "Năng Suất Thông Minh".
+        # Platform context
+        platform = cfg.research.target_platform if hasattr(cfg, 'research') and cfg.research else self.target_platform
+        platform_map = {"facebook": "Facebook", "tiktok": "TikTok", "both": "Facebook và TikTok"}
+        platform_str = platform_map.get(platform, platform)
+
+        return f"""Bạn là một chuyên gia sản xuất video {platform_str} cho kênh "{cfg.name}".
 Hãy tạo {num_scenes} kịch bản scene cho video với chủ đề:
 
 Tiêu đề: {title}
-Từ khóa: {kw_str}
-Phong cách: {angle}{tts_context}
+{kw_line}Phong cách: {angle}{tts_context}
 
 YÊU CẦU:
 - Tất cả lời thoại phải VIẾT TIẾNG VIỆT CÓ DẤU (ví dụ: "cải thiện", "quản lý thời gian", "năng suất làm việc")
 - KHÔNG dùng tiếng Anh như "time management" - phải dùng tiếng Việt tương đương
 - Viết lời thoại tự nhiên, gần gũi như đang nói chuyện với khán giả
-- Nhân vật duy nhất: "{char_name}"
+- LLM được phép chọn bất kỳ nhân vật nào từ danh sách: [{char_list_str}] cho mỗi scene
 
 CẤU TRÚC SCENE:
 - Scene 1 = MÓC HÓI: câu hỏi gây tò mò hoặc statement táo bạo
@@ -164,7 +175,7 @@ MỖI SCENE CẦN CÓ:
 - id: số nguyên (1, 2, 3...)
 - script: lời thoại tiếng Việt có dấu, tự nhiên như người nói thật
 - background: mô tả cảnh nền ngắn 5-15 từ (ví dụ: "văn phòng hiện đại, ánh sáng ấm, 3D render")
-- characters: mảng tên nhân vật - luôn dùng ["{char_name}"]
+- characters: mảng tên nhân vật được chọn từ [{char_list_str}]
 
 Trả về CHỈ JSON array, không kèm markdown, không giải thích thêm."""
 
@@ -221,10 +232,18 @@ Trả về CHỈ JSON array, không kèm markdown, không giải thích thêm.""
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
+    # Load channel config for testing
+    import yaml
+    from core.paths import PROJECT_ROOT
+    channel_cfg_path = PROJECT_ROOT / "configs" / "channels" / "nang_suat_thong_minh" / "config.yaml"
+    with open(channel_cfg_path, encoding="utf-8") as f:
+        channel_cfg = yaml.safe_load(f)
+
     gen = ContentIdeaGenerator(
         project_id=1,
         content_angle="tips",
-        niche_keywords=["productivity", "time management"]
+        niche_keywords=["productivity", "time management"],
+        channel_config=channel_cfg,
     )
 
     test_idea = {

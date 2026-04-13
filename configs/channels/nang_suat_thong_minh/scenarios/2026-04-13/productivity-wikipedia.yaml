@@ -1,23 +1,21 @@
 title: Productivity - Wikipedia
 scenes:
 - id: 1
-  script: Bạn có biết Wikipedia định nghĩa năng suất là gì không? Câu trả lời có thể
-    sẽ khiến bạn bất ngờ đấy.
-  background: phòng làm việc hiện đại, ánh sáng vàng ấm, 3D render
+  script: Bạn có biết năng suất không chỉ là làm nhiều hơn, mà còn là làm thông minh
+    hơn không?
+  background: văn phòng hiện đại, ánh sáng ấm, phong cách 3D render
   characters:
   - Mentor
 - id: 2
-  script: 'Theo Wikipedia, năng suất là tỷ số giữa đầu ra và đầu vào. Tỷ số này thường
-    được biểu diễn bằng công thức: năng suất bằng kết quả chia cho công sức. Muốn
-    tăng năng suất, bạn cần hoặc tạo ra nhiều hơn với cùng công sức, hoặc đạt kết
-    quả tương tự với ít hơn. Đó là hai con đường để cải thiện hiệu suất làm việc mỗi
-    ngày.'
-  background: văn phòng có biểu đồ tỷ số, bảng trắng, phong cách công nghệ
+  script: Năng suất là cách chúng ta đo lường hiệu quả, bằng cách so sánh đầu ra với
+    đầu vào trong việc sản xuất hàng hóa và dịch vụ.
+  background: nhà kho với robot tự động, ánh sáng xanh hiện đại, 3D render
   characters:
   - Mentor
 - id: 3
-  script: Nếu video này hữu ích với bạn, hãy like, follow kênh Năng Suất Thông Minh
-    và chia sẻ cho bạn bè cùng xem nhé!
-  background: màn hình điện thoại với logo kênh, nền gradient xanh dương
+  script: Like và follow kênh Năng Suất Thông Minh để nhận thêm nhiều mẹo cải thiện
+    hiệu quả làm việc nhé!
+  background: studio quay chuyên nghiệp, ánh sáng rim, backdrop kênh Năng Suất Thông
+    Minh, 3D render
   characters:
   - Mentor

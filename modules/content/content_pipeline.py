@@ -70,8 +70,6 @@ class ContentPipeline:
 
         self.fb_page = page_cfg.get("facebook", {})
         self.tiktok_account = page_cfg.get("tiktok", {})
-        self.niche_keywords = content_cfg.get("niche_keywords", ["productivity", "time management"])
-        self.cadence = content_cfg.get("cadence", {"facebook": "daily", "tiktok": "daily"})
         self.auto_schedule = content_cfg.get("auto_schedule", True)
 
         # Load channel config for content generation context
@@ -81,6 +79,15 @@ class ContentPipeline:
             with open(channel_cfg_path, encoding="utf-8") as f:
                 channel_cfg = yaml.safe_load(f) or {}
 
+        # Read content research params from channel config (no hardcoded defaults)
+        research_cfg = channel_cfg.get("research", {})
+        self.niche_keywords = research_cfg.get("niche_keywords", [])
+        self.content_angle = research_cfg.get("content_angle", "tips")
+        self.target_platform = research_cfg.get("target_platform", "both")
+
+        # Store channel name for social upload fallback
+        self.channel_name = channel_cfg.get("name", "")
+
         # Initialize components
         self.researcher = TopicResearcher(
             niche_keywords=self.niche_keywords,
@@ -88,7 +95,8 @@ class ContentPipeline:
         )
         self.idea_gen = ContentIdeaGenerator(
             project_id=project_id,
-            content_angle="tips",
+            content_angle=self.content_angle,
+            target_platform=self.target_platform,
             niche_keywords=self.niche_keywords,
             channel_config=channel_cfg,
         )
@@ -347,7 +355,7 @@ class ContentPipeline:
             publisher = FacebookPublisher()
             post_result = publisher.publish(
                 video_path=video_path,
-                title=caption or "Video from NangSuatThongMinh",
+                title=caption or f"Video from {self.channel_name}",
                 description=caption or "",
                 page_id=page_id,
                 page_access_token=self.fb_page.get("access_token")
@@ -372,7 +380,7 @@ class ContentPipeline:
             publisher = TikTokPublisher()
             post_result = publisher.publish(
                 video_path=video_path,
-                title=caption or "Video from NangSuatThongMinh",
+                title=caption or f"Video from {self.channel_name}",
                 description=caption or "",
                 account_id=account_id
             )
@@ -397,7 +405,6 @@ if __name__ == "__main__":
                 "tiktok": {"account_id": "YOUR_TIKTOK_ACCOUNT_ID", "account_name": "@NangSuatThongMinh"}
             },
             "content": {
-                "niche_keywords": ["productivity", "time management", "năng suất"],
                 "auto_schedule": True
             }
         }

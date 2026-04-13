@@ -7,6 +7,34 @@
 
 channel_id: "nang_suat_thong_minh"
 name: "Năng Suất Thông Minh"
+style: "3D animated Pixar Disney style, high quality 3D render, vibrant colors, smooth animation"
+
+# ===== CHARACTERS =====
+characters:
+  - name: "Mentor"
+    voice_id: "mentor_female"
+
+  - name: "Student"
+    voice_id: "student_male"
+
+# ===== TTS =====
+tts:
+  max_duration: 15.0
+  min_duration: 5.0
+  words_per_second: 2.5
+
+# ===== WATERMARK =====
+watermark:
+  text: "@NangSuatThongMinh"
+  enable: true
+  font_size: 30
+  opacity: 0.15
+  motion: "bounce"
+  bounce_speed: 80
+  bounce_padding: 20
+  velocity_x: 1.2
+  velocity_y: 0.8
+  margin: 8
 
 # ===== VOICE CATALOG =====
 voices:
@@ -29,14 +57,6 @@ voices:
       - provider: "edge"
         model: "vi-VN-NamMinhNeural"
         speed: 1.0
-
-# ===== CHARACTERS =====
-characters:
-  - name: "Mentor"
-    voice_id: "mentor_female"
-
-  - name: "Student"
-    voice_id: "student_male"
 
 # ===== VIDEO =====
 video:
@@ -62,19 +82,6 @@ generation:
     min_duration: 5.0
     words_per_second: 2.5
 
-# ===== WATERMARK =====
-watermark:
-  enable: true
-  text: "@NangSuatThongMinh"
-  font_size: 30
-  opacity: 0.15
-  motion: "bounce"
-  bounce_speed: 80
-  bounce_padding: 20
-  velocity_x: 1.2
-  velocity_y: 0.8
-  margin: 8
-
 # ===== SUBTITLE =====
 subtitle:
   font_size: 60
@@ -86,25 +93,19 @@ background_music:
   volume: 0.15
   fade_duration: 2
 
-# ===== IMAGE STYLE - Consistent visual style for all channel videos =====
+# ===== IMAGE STYLE =====
 image_style:
-  lighting: "warm"                      # warm | cinematic | golden hour | moody | bright
-  camera: "eye-level"                   # close-up | wide angle | eye-level | bird-eye view
-  art_style: "3D render"                # realistic | anime | illustration | 3D render
-  environment: "modern office"         # indoor | outdoor | studio | bokeh | clean background
-  composition: "professional"           # minimalist | detailed | professional
+  lighting: "warm"
+  camera: "eye-level"
+  art_style: "3D render"
+  environment: "modern office"
+  composition: "professional"
 
 # ===== DEFAULT MODELS =====
 default_models:
   tts: "edge"
   image: "minimax"
   video: "kieai"
-
-# ===== TTS SETTINGS =====
-tts:
-  max_duration: 15.0
-  min_duration: 5.0
-  words_per_second: 2.5
 
 # ===== LIPSYNC =====
 lipsync:
@@ -126,3 +127,13 @@ social:
   tiktok:
     account_name: "@NangSuatThongMinh"
     auto_publish: false
+
+# ===== CONTENT RESEARCH =====
+research:
+  niche_keywords:
+    - "productivity"
+    - "time management"
+    - "năng suất"
+  content_angle: "tips"
+  target_platform: "both"
+  research_interval_hours: 24

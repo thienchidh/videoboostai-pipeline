@@ -38,7 +38,7 @@ from modules.llm.minimax import MiniMaxLLMProvider  # noqa: F401
 # CLI flags (not in video_utils since they're runner-specific)
 FORCE_START = False
 UPLOAD_TO_SOCIALS = False
-STOP_BEFORE_LIPSYNC = False
+USE_STATIC_LIPSYNC = False
 
 
 class VideoPipelineRunner:
@@ -50,22 +50,22 @@ class VideoPipelineRunner:
 
     def __init__(self, config: PipelineConfig, dry_run: bool = False,
                  dry_run_tts: bool = False, dry_run_images: bool = False,
-                 stop_before_lipsync: bool = False):
+                 use_static_lipsync: bool = False):
         """
         Args:
             config: Loaded PipelineConfig from ConfigLoader
             dry_run: Mock all API calls
             dry_run_tts: Mock TTS only
             dry_run_images: Mock image gen only
-            stop_before_lipsync: If True, stop after TTS+Image to save credit
+            use_static_lipsync: If True, use static image + TTS audio instead of real lipsync
         """
         global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START
         DRY_RUN = dry_run
         DRY_RUN_TTS = dry_run_tts
         DRY_RUN_IMAGES = dry_run_images
         FORCE_START = FORCE_START  # keep existing global
-        # Store stop_before_lipsync as instance attribute (NOT global to avoid shadowing issues)
-        self._stop_before_lipsync = stop_before_lipsync
+        # Store use_static_lipsync as instance attribute (NOT global to avoid shadowing issues)
+        self._use_static_lipsync = use_static_lipsync
 
         self.config = config
         self.timestamp = int(time.time())
@@ -231,14 +231,15 @@ class VideoPipelineRunner:
         return self.lipsync_provider.generate(image_path, audio_path, output_path, config=config)
 
     def _make_lipsync_wrapper(self):
-        """Create a lipsync wrapper that respects STOP_BEFORE_LIPSYNC flag."""
+        """Create a lipsync wrapper that uses static video when USE_STATIC_LIPSYNC flag is set."""
+        from core.video_utils import mock_lipsync_video
         real_lipsync = self.lipsync_generate
-        stop_flag = self._stop_before_lipsync
+        use_static = self._use_static_lipsync
 
         def lipsync_wrapper(image_path, audio_path, output_path, scene_id=0, prompt=None):
-            if stop_flag:
-                log(f"  ⏭️ STOP_BEFORE_LIPSYNC: skipping lipsync (image={Path(image_path).name})")
-                return None
+            if use_static:
+                log(f"  🖼️ USE_STATIC_LIPSYNC: creating static video from image (image={Path(image_path).name})")
+                return mock_lipsync_video(image_path, audio_path, output_path)
             return real_lipsync(image_path, audio_path, output_path, scene_id=scene_id, prompt=prompt)
         return lipsync_wrapper
 
@@ -254,8 +255,8 @@ class VideoPipelineRunner:
 
         log(f"\n{'='*60}")
         log(f"🎬 VIDEO PIPELINE RUNNER")
-        if self._stop_before_lipsync:
-            log(f"⏭️  STOP_BEFORE_LIPSYNC mode: will stop after TTS+Image")
+        if self._use_static_lipsync:
+            log(f"🖼️  USE_STATIC_LIPSYNC mode: using static image + TTS for video")
         log(f"{'='*60}")
 
         scenes = self.config.get("scenes")

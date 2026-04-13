@@ -27,6 +27,7 @@ from core.video_utils import (
 from core.video_utils import LipsyncQuotaError  # noqa: F401
 from modules.pipeline.config import PipelineContext
 from modules.pipeline.models import SceneConfig
+from modules.pipeline.exceptions import SceneDurationError
 
 
 class SceneProcessor:
@@ -234,11 +235,18 @@ class SingleCharSceneProcessor(SceneProcessor):
                 log(f"  ✅ Image done: {scene_img.stat().st_size/1024:.1f}KB")
 
         # 3. Validate duration
-        max_tts = self.get_tts_config().max_duration
+        tts_cfg = self.get_tts_config()
+        min_tts = tts_cfg.min_duration
+        max_tts = tts_cfg.max_duration
         actual_duration = get_audio_duration(str(audio))
-        if actual_duration > max_tts:
-            log(f"  ❌ TTS duration {actual_duration:.1f}s > {max_tts}s limit!")
-            return None, []
+        if actual_duration > max_tts or actual_duration < min_tts:
+            raise SceneDurationError(
+                scene_id=scene_id,
+                actual_duration=actual_duration,
+                min_duration=min_tts,
+                max_duration=max_tts,
+                script=tts_text
+            )
 
         # 4. Whisper timestamps
         audio_file = scene_output / "audio_tts.mp3"

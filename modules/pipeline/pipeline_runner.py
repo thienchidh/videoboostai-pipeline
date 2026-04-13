@@ -28,6 +28,7 @@ from core.video_utils import (
 from core.plugins import get_provider
 from core.paths import PROJECT_ROOT
 from modules.pipeline.config import PipelineContext
+from modules.pipeline.exceptions import SceneDurationError
 from modules.pipeline.scene_processor import SingleCharSceneProcessor
 
 # Import providers to trigger registration
@@ -361,6 +362,10 @@ class VideoPipelineRunner:
                 try:
                     result = future.result()
                     results_by_scene[scene_id] = result
+                except SceneDurationError:
+                    # Re-raise duration errors so caller can regenerate script
+                    log(f"  ⚠️ Scene {scene_id} duration error, will retry with new script")
+                    raise
                 except Exception as e:
                     log(f"  ❌ Scene {scene_id} failed: {e}")
                     results_by_scene[scene_id] = None

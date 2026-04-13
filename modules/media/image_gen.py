@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-from core.base_pipeline import DRY_RUN, DRY_RUN_IMAGES, log, mock_generate_image
+from core.base_pipeline import log
 from core.plugins import ImageProvider, register_provider
 
 
@@ -33,10 +33,6 @@ class MiniMaxImageProvider(ImageProvider):
 
     def generate(self, prompt: str, output_path: str,
                  aspect_ratio: str = "9:16") -> Optional[str]:
-        global DRY_RUN, DRY_RUN_IMAGES
-        if DRY_RUN or DRY_RUN_IMAGES:
-            return mock_generate_image(prompt, output_path)
-
         logger.debug(f"MiniMax image: {prompt[:50]}...")
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
         payload = {"model": "image-01", "prompt": prompt, "aspect_ratio": aspect_ratio, "num_images": 1}
@@ -114,10 +110,6 @@ class WaveSpeedImageProvider(ImageProvider):
 
     def generate(self, prompt: str, output_path: str,
                  aspect_ratio: str = "9:16") -> Optional[str]:
-        global DRY_RUN, DRY_RUN_IMAGES
-        if DRY_RUN or DRY_RUN_IMAGES:
-            return mock_generate_image(prompt, output_path)
-
         if aspect_ratio == "9:16":
             size = "1080*1920"
         elif aspect_ratio == "16:9":

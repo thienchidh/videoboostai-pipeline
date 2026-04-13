@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 from core.base_pipeline import (
-    DRY_RUN, DRY_RUN_TTS, log, mock_generate_tts
+    log
 )
 from core.paths import get_edge_tts, get_whisper
 from core.plugins import TTSProvider, register_provider
@@ -45,10 +45,6 @@ class MiniMaxTTSProvider(TTSProvider):
     def generate(self, text: str, voice: str = "female_voice",
                  speed: float = 1.0, output_path: Optional[str] = None) -> Optional[str]:
         """Generate TTS using MiniMax API. Returns (audio_path, word_timestamps) or (path, None)."""
-        global DRY_RUN, DRY_RUN_TTS
-        if DRY_RUN or DRY_RUN_TTS:
-            return mock_generate_tts(text, voice, speed, output_path)
-
         if not output_path:
             output_path = f"/tmp/tts_{int(time.time()*1000)}.mp3"
 

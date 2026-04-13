@@ -452,12 +452,6 @@ def add_static_watermark(video_path: str, output_path: str,
     return video_path
 
 
-# ==================== DRY RUN FLAGS (shared global) ====================
-DRY_RUN = False
-DRY_RUN_TTS = False
-DRY_RUN_IMAGES = False
-
-
 # ==================== DRY RUN MOCK FUNCTIONS ====================
 
 def mock_generate_tts(text: str, voice: str = "female_voice",

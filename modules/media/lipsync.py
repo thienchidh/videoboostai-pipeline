@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-from core.base_pipeline import DRY_RUN, log, mock_lipsync_video
+from core.base_pipeline import log
 from core.plugins import LipsyncProvider, register_provider
 
 
@@ -81,10 +81,6 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
     def generate(self, image_path: str, audio_path: str,
                  output_path: str, config: Optional[Dict] = None,
                  upload_func: Optional[callable] = None) -> Optional[str]:
-        global DRY_RUN
-        if DRY_RUN:
-            return mock_lipsync_video(image_path, audio_path, output_path)
-
         cfg = config or {}
         retries = cfg.get("retries", 2)
         resolution = cfg.get("resolution", "480p")
@@ -183,10 +179,6 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
                  output_path: str, config: Optional[Dict] = None,
                  upload_func: Optional[callable] = None) -> Optional[str]:
         """Multi-talk: audio_path should be (left_audio, right_audio) tuple or dict."""
-        global DRY_RUN
-        if DRY_RUN:
-            return mock_lipsync_video(image_path, audio_path, output_path)
-
         cfg = config or {}
         retries = cfg.get("retries", 2)
         effective_upload = upload_func if upload_func is not None else self.upload_func
@@ -280,10 +272,6 @@ class KieAIInfinitalkProvider(LipsyncProvider):
             }
             upload_func: Optional callable to use for file uploads instead of instance's
         """
-        global DRY_RUN
-        if DRY_RUN:
-            return mock_lipsync_video(image_path, audio_path, output_path)
-
         cfg = config or {}
         prompt = cfg.get("prompt", "A person talking")
         resolution = cfg.get("resolution", "480p")

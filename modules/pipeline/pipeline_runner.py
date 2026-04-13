@@ -21,9 +21,6 @@ from core.video_utils import (
     add_background_music,
     add_static_watermark,
     get_video_duration,
-    DRY_RUN,
-    DRY_RUN_TTS,
-    DRY_RUN_IMAGES,
 )
 from core.plugins import get_provider, register_provider
 from modules.pipeline.config_loader import PipelineConfig, ConfigLoader, MissingConfigError
@@ -34,12 +31,6 @@ from modules.media.tts import MiniMaxTTSProvider, EdgeTTSProvider  # noqa: F401
 from modules.media.image_gen import MiniMaxImageProvider, WaveSpeedImageProvider  # noqa: F401
 from modules.media.lipsync import WaveSpeedLipsyncProvider, KieAIInfinitalkProvider  # noqa: F401
 from modules.llm.minimax import MiniMaxLLMProvider  # noqa: F401
-
-
-# CLI flags (not in video_utils since they're runner-specific)
-FORCE_START = False
-UPLOAD_TO_SOCIALS = False
-USE_STATIC_LIPSYNC = False
 
 
 class VideoPipelineRunner:
@@ -62,12 +53,10 @@ class VideoPipelineRunner:
             timestamp: Optional timestamp (seconds since epoch). If None, will be generated.
                        Pass same timestamp as VideoPipelineV3 to ensure single folder creation.
         """
-        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START
-        DRY_RUN = dry_run
-        DRY_RUN_TTS = dry_run_tts
-        DRY_RUN_IMAGES = dry_run_images
-        FORCE_START = FORCE_START  # keep existing global
-        # Store use_static_lipsync as instance attribute (NOT global to avoid shadowing issues)
+        self._dry_run = dry_run
+        self._dry_run_tts = dry_run_tts
+        self._dry_run_images = dry_run_images
+        self._force_start = False  # CLI must call runner.run(force_start=True) to enable
         self._use_static_lipsync = use_static_lipsync
 
         self.config = config
@@ -173,16 +162,14 @@ class VideoPipelineRunner:
 
     def tts_generate(self, text: str, voice: str, speed: float, output_path: str):
         """Generate TTS audio, returning (path, timestamps)."""
-        global DRY_RUN, DRY_RUN_TTS
-        if DRY_RUN or DRY_RUN_TTS:
+        if self._dry_run or self._dry_run_tts:
             from core.video_utils import mock_generate_tts
             return mock_generate_tts(text, voice, speed, output_path), None
         return self.tts_provider.generate(text, voice, speed, output_path)
 
     def image_generate(self, prompt: str, output_path: str):
         """Generate image."""
-        global DRY_RUN, DRY_RUN_IMAGES
-        if DRY_RUN or DRY_RUN_IMAGES:
+        if self._dry_run or self._dry_run_images:
             from core.video_utils import mock_generate_image
             return mock_generate_image(prompt, output_path)
         return self.image_provider.generate(prompt, output_path, aspect_ratio="9:16")
@@ -195,8 +182,7 @@ class VideoPipelineRunner:
             scene_id: scene number (used for unique S3 key)
             prompt: lipsync prompt from config
         """
-        global DRY_RUN
-        if DRY_RUN:
+        if self._dry_run:
             from core.video_utils import mock_lipsync_video
             return mock_lipsync_video(image_path, audio_path, output_path)
 
@@ -238,14 +224,12 @@ class VideoPipelineRunner:
 
     # ---- Main run ----
 
-    def run(self) -> tuple[str, list]:
+    def run(self, force_start: bool = False) -> tuple[str, list]:
         """Run the full pipeline.
 
         Returns:
             Tuple of (final_video_path, combined_word_timestamps)
         """
-        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START
-
         log(f"\n{'='*60}")
         log(f"🎬 VIDEO PIPELINE RUNNER")
         if self._use_static_lipsync:
@@ -270,7 +254,7 @@ class VideoPipelineRunner:
             'public_url_base': self.config.s3_public_url_base,
         })
 
-        if FORCE_START:
+        if force_start:
             log(f"🆕 Clearing previous scene cache...")
             for run_folder in self.output_dir.glob("*"):
                 if not run_folder.is_dir():

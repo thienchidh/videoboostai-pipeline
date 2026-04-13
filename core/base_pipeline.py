@@ -35,9 +35,6 @@ from core.video_utils import (
     mock_generate_tts,
     mock_generate_image,
     mock_lipsync_video,
-    DRY_RUN,
-    DRY_RUN_TTS,
-    DRY_RUN_IMAGES,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,7 +47,6 @@ def get_karaoke_python() -> str:
 
 # Re-export everything from video_utils for backward compatibility
 __all__ = [
-    "DRY_RUN", "DRY_RUN_TTS", "DRY_RUN_IMAGES",
     "get_karaoke_python", "log", "deep_merge",
     "crop_to_9x16", "concat_videos", "add_subtitles",
     "add_background_music", "expand_script",

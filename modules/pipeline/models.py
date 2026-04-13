@@ -100,12 +100,18 @@ class StorageConfig(BaseModel):
     database: DatabaseConfig
 
 
+class LoggingConfig(BaseModel):
+    level: str = "INFO"
+    format: str = "%(asctime)s %(levelname)s %(message)s"
+
+
 class TechnicalConfig(BaseModel):
     api_keys: APIKeys
     api_urls: APIURLs
     models: GenerationModels
     generation: GenerationConfig
     storage: StorageConfig
+    logging: LoggingConfig = LoggingConfig()
 
     @classmethod
     def load(cls) -> "TechnicalConfig":
@@ -119,6 +125,7 @@ class TechnicalConfig(BaseModel):
             'models': data.get('api', {}).get('models', {}),
             'generation': data.get('generation', {}),
             'storage': data.get('storage', {}),
+            'logging': data.get('logging', {}),
         }
         return cls(**restructured)
 
@@ -254,6 +261,8 @@ class ChannelConfig(BaseModel):
     @classmethod
     def load(cls, channel_id: str) -> "ChannelConfig":
         path = PROJECT_ROOT / "configs" / "channels" / channel_id / "config.yaml"
+        if not path.exists():
+            raise FileNotFoundError(f"Channel config not found: {path}")
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return cls(**data)
@@ -311,5 +320,36 @@ class ScenarioConfig(BaseModel):
             data = yaml.safe_load(f)
         scenes = [SceneConfig.from_dict(s) for s in data.get("scenes", [])]
         return cls(scenes=scenes, title=data.get("title", ""))
+
+
+class ContentPipelineConfig(BaseModel):
+    """Business config for content pipeline - social pages and content settings."""
+    page: Dict[str, Dict[str, Any]]
+    content: Dict[str, Any]
+
+    @classmethod
+    def load(cls, path: str | Path) -> "ContentPipelineConfig":
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Content pipeline config not found: {path}")
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        return cls(**data)
+
+    @classmethod
+    def load_or_default(cls, path: str | Path) -> "ContentPipelineConfig":
+        """Load config, or return sensible defaults if file not found."""
+        try:
+            return cls.load(path)
+        except FileNotFoundError:
+            return cls(**{
+                "page": {
+                    "facebook": {"page_id": "YOUR_PAGE_ID", "page_name": "NangSuatThongMinh"},
+                    "tiktok": {"account_id": "YOUR_TIKTOK_ACCOUNT_ID", "account_name": "@NangSuatThongMinh"}
+                },
+                "content": {
+                    "auto_schedule": True
+                }
+            })
 
 

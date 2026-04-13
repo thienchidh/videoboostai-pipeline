@@ -77,9 +77,13 @@ class MiniMaxLLMProvider(LLMProvider):
         resp.raise_for_status()
         data = resp.json()
 
+        # Strip thinking/reasoning blocks that MiniMax sometimes includes
         content = data.get("content", [])
         if isinstance(content, list) and content:
+            text_parts = []
             for block in content:
                 if block.get("type") == "text":
-                    return block.get("text", "")
+                    text_parts.append(block.get("text", ""))
+            if text_parts:
+                return "".join(text_parts)
         return ""

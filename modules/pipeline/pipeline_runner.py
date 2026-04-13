@@ -295,9 +295,9 @@ class VideoPipelineRunner:
         with ThreadPoolExecutor(max_workers=4) as executor:
             futures = {}
             for scene in scenes:
-                scene_id = scene.get("id", 0)
-                tts_text = scene.get("tts", scene.get("script", ""))
-                chars = scene.get("characters", [])
+                scene_id = scene.id or 0
+                tts_text = scene.tts or scene.script or ""
+                chars = scene.characters or []
                 scene_output = self.run_dir / f"scene_{scene_id}"
 
                 log(f"\n{'='*40}")
@@ -321,7 +321,7 @@ class VideoPipelineRunner:
 
             # Rebuild scene_videos and scene_scripts in original scene order
             for scene in scenes:
-                scene_id = scene.get("id", 0)
+                scene_id = scene.id or 0
                 result = results_by_scene.get(scene_id)
                 if result:
                     video_path, timestamps, tts_text = result
@@ -351,7 +351,7 @@ class VideoPipelineRunner:
         combined_timestamps = []
         offset = 0.0
         for i, scene in enumerate(scenes):
-            scene_id = scene.get("id", i + 1)
+            scene_id = scene.id or (i + 1)
             scene_dir = self.run_dir / f"scene_{scene_id}"
             if i >= len(scene_videos):
                 continue

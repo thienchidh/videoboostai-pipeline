@@ -26,6 +26,7 @@ from core.video_utils import (
     create_static_video_with_audio,
 )
 from modules.pipeline.config import PipelineContext
+from modules.pipeline.models import SceneConfig
 
 
 class SceneProcessor:
@@ -79,12 +80,12 @@ class SceneProcessor:
         # Fallback: use character tts_voice/tts_speed directly (backward compat)
         return "edge", getattr(character, 'tts_voice', "female_voice"), getattr(character, 'tts_speed', 1.0)
 
-    def get_video_prompt(self, scene: Dict[str, Any]) -> str:
+    def get_video_prompt(self, scene: SceneConfig) -> str:
         """Get video prompt from scene config, with image_style appended from channel config."""
-        explicit = scene.get("video_prompt")
+        explicit = scene.video_prompt
         if not explicit:
-            # Fallback for backward compat
-            explicit = self.build_scene_prompt(scene)
+            # Fallback: use scene background directly
+            explicit = scene.background or "a person talking"
 
         # Append image_style from channel config for consistent visual style
         image_style = self.ctx.channel.image_style
@@ -102,11 +103,10 @@ class SceneProcessor:
 
         return explicit
 
-    def build_scene_prompt(self, scene: Dict[str, Any]) -> str:
+    def build_scene_prompt(self, scene: SceneConfig) -> str:
         """Build scene prompt from scene background and channel prompt config."""
         # prompt config is not in standard config - use scene background directly
-        background = scene.get("background", "")
-        return background or "a person talking"
+        return scene.background or "a person talking"
 
     def get_tts_config(self):
         return self.ctx.channel.tts
@@ -171,9 +171,9 @@ class SingleCharSceneProcessor(SceneProcessor):
         Returns:
             (video_path, timestamps)
         """
-        scene_id = scene.get("id", 0)
-        tts_text = scene.get("tts", scene.get("script", ""))
-        chars = scene.get("characters", [])
+        scene_id = scene.id or 0
+        tts_text = scene.tts or scene.script or ""
+        chars = scene.characters or []
 
         scene_output.mkdir(parents=True, exist_ok=True)
         existing = scene_output / "video_9x16.mp4"
@@ -186,7 +186,10 @@ class SingleCharSceneProcessor(SceneProcessor):
                     timestamps = json.load(f)
             return str(existing), timestamps
 
-        char_cfg = self.get_character(chars[0]["name"] if isinstance(chars[0], dict) else chars[0])
+        # Get character name from SceneCharacter or string
+        first_char = chars[0]
+        char_name = first_char.name if hasattr(first_char, 'name') else first_char
+        char_cfg = self.get_character(char_name)
         if not char_cfg:
             log(f"  ❌ Character '{chars[0]}' not found")
             return None, []

@@ -17,13 +17,15 @@ logger = logging.getLogger(__name__)
 class TopicResearcher:
     """Research trending topics from web search and other sources."""
 
-    def __init__(self, niche_keywords: List[str] = None, project_id: int = None):
+    def __init__(self, niche_keywords: List[str], project_id: Optional[int] = None):
         """
         Args:
             niche_keywords: list of niche keywords, e.g. ['productivity', 'time management']
             project_id: project ID for DB storage
         """
-        self.niche_keywords = niche_keywords or ["productivity", "time management", "năng suất"]
+        if not niche_keywords:
+            raise ValueError("niche_keywords is required")
+        self.niche_keywords = niche_keywords
         self.project_id = project_id
 
     def web_search_trending(self, query: str, count: int = 10) -> List[Dict]:
@@ -32,8 +34,8 @@ class TopicResearcher:
             import requests
             api_key = self._get_you_search_key()
             if not api_key:
-                logger.warning("YouSearch API key not configured, using fallback topics")
-                return self._fallback_topics(query)
+                logger.warning("YouSearch API key not configured")
+                return []
 
             headers = {"X-API-Key": api_key}
             params = {"query": query, "count": count}
@@ -62,65 +64,43 @@ class TopicResearcher:
                 })
             return topics
         except Exception as e:
-            logger.warning(f"YouSearch failed: {e}, using fallback topics")
-            return self._fallback_topics(query)
+            logger.warning(f"YouSearch failed: {e}")
+            return []
 
     def _get_you_search_key(self) -> str:
-        """Get YouSearch API key from config."""
+        """Get YouSearch API key from TechnicalConfig."""
         try:
-            from core.paths import PROJECT_ROOT
-            import yaml
-            cfg_path = PROJECT_ROOT / "configs" / "technical" / "config_technical.yaml"
-            if cfg_path.exists():
-                with open(cfg_path, encoding="utf-8") as f:
-                    cfg = yaml.safe_load(f)
-                return cfg.get("api", {}).get("keys", {}).get("you_search", "")
+            from modules.pipeline.models import TechnicalConfig
+            return TechnicalConfig.load().api_keys.you_search
         except Exception:
             pass
         return ""
 
-    def _fallback_topics(self, query: str) -> List[Dict]:
-        """Fallback static topics when web search unavailable."""
-        return [
-            {
-                "title": f"Top 5 cách quản lý thời gian hiệu quả",
-                "summary": "Những phương pháp được chứng minh giúp tăng năng suất làm việc",
-                "keywords": ["time management", "productivity", "efficiency", "planning"]
-            },
-            {
-                "title": f"3 thói quen buổi sáng giúp tăng năng suất cả ngày",
-                "summary": "Bắt đầu ngày đúng cách để làm việc hiệu quả hơn",
-                "keywords": ["morning routine", "habits", "productivity", "energy"]
-            },
-            {
-                "title": f"Phương pháp Pomodoro: Làm việc 25 phút nghỉ 5 phút",
-                "summary": "Kỹ thuật quản lý thời gian phổ biến nhất thế giới",
-                "keywords": ["pomodoro", "focus", "time management", "work session"]
-            },
-            {
-                "title": f"Làm thế nào để không bị phân tâm khi làm việc?",
-                "summary": "Mẹo giữ tập trung trong thời đại thông tin",
-                "keywords": ["focus", "concentration", "distraction", "deep work"]
-            },
-            {
-                "title": f"3 sai lầm phổ biến khi lập kế hoạch ngày",
-                "summary": "Những lỗi khiến bạn không hoàn thành công việc",
-                "keywords": ["planning", "to-do list", "time blocking", "prioritization"]
-            }
-        ]
-
-    def research_from_keywords(self, keywords: List[str] = None, count: int = 10) -> List[Dict]:
+    def research_from_keywords(self, keywords: List[str] = None, count: int = 10,
+                               days_recent: int = 30) -> List[Dict]:
         """
         Main method: research topics from keywords.
         Searches web for each keyword and aggregates results.
+        Deduplicates against recently researched titles from DB.
         """
         keywords = keywords or self.niche_keywords
         all_topics = []
-        seen_titles = set()
+
+        # Load recent titles from DB to avoid duplicates
+        try:
+            from db import get_recent_topic_titles
+            seen_titles = get_recent_topic_titles(days=days_recent)
+            logger.debug(f"Loaded {len(seen_titles)} recent titles from DB for dedup")
+        except Exception as e:
+            logger.warning(f"Could not load recent titles from DB: {e}, using empty set")
+            seen_titles = set()
 
         for kw in keywords:
-            logger.info(f"Researching keyword: {kw}")
+            logger.debug(f"Researching keyword: {kw}")
             topics = self.web_search_trending(kw, count=count)
+            logger.debug(f"  Search results for '{kw}': {len(topics)} topics")
+            for i, topic in enumerate(topics):
+                logger.debug(f"    [{i+1}] {topic.get('title', '')[:80]}")
             for topic in topics:
                 title = topic.get("title", "")
                 if title and title not in seen_titles:

@@ -106,12 +106,8 @@ class ContentIdeaGenerator:
         api_key = self._llm_config.get("api_key", "") if self._llm_config else ""
         if not api_key:
             # Read minimax key from technical config
-            import yaml
-            from core.paths import PROJECT_ROOT
-            tech_cfg_path = PROJECT_ROOT / "configs" / "technical" / "config_technical.yaml"
-            with open(tech_cfg_path, encoding="utf-8") as f:
-                tech_cfg = yaml.safe_load(f)
-            api_key = tech_cfg.get("api", {}).get("keys", {}).get("minimax", "")
+            from modules.pipeline.models import TechnicalConfig
+            api_key = TechnicalConfig.load().api_keys.minimax
             if not api_key:
                 raise RuntimeError("minimax API key not found in config")
 
@@ -232,11 +228,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     # Load channel config for testing
-    import yaml
-    from core.paths import PROJECT_ROOT
-    channel_cfg_path = PROJECT_ROOT / "configs" / "channels" / "nang_suat_thong_minh" / "config.yaml"
-    with open(channel_cfg_path, encoding="utf-8") as f:
-        channel_cfg = yaml.safe_load(f)
+    from modules.pipeline.models import ChannelConfig
+    channel_cfg = ChannelConfig.load("nang_suat_thong_minh")
 
     gen = ContentIdeaGenerator(
         project_id=1,

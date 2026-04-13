@@ -100,6 +100,21 @@ def init_db():
     models.Base.metadata.create_all(_engine)
 
 
+def init_pgvector():
+    """Enable pgvector extension. Must be called BEFORE init_db() to enable vector type."""
+    _ensure_configured()
+    from sqlalchemy import text
+    with get_session() as session:
+        session.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        session.commit()
+
+
+def init_db_full():
+    """Init pgvector extension then create all tables."""
+    init_pgvector()
+    init_db()
+
+
 # ─── Project Operations ──────────────────────────────────────────────
 
 def create_project(name: str, config_file: str = None, description: str = None) -> int:
@@ -727,6 +742,45 @@ def save_topic_sources(source_type: str, source_query: str, topics: List[Dict]) 
         session.add(source)
         session.flush()
         return source.id
+
+
+def get_recent_topic_titles(days: int = 30) -> set:
+    """Lấy titles của topics đã research trong N ngày gần đây."""
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    with get_session() as session:
+        rows = session.query(models.TopicSource).filter(
+            models.TopicSource.created_at >= cutoff
+        ).all()
+        titles = set()
+        for r in rows:
+            for t in r.topics or []:
+                if t.get("title"):
+                    titles.add(t["title"])
+        return titles
+
+
+# ─── Idea Embedding Operations ───────────────────────────────────────
+
+def get_all_idea_embeddings(project_id: int) -> List[Dict]:
+    """Get all idea embeddings for a project. Used for similarity search."""
+    with get_session() as session:
+        rows = session.query(models.IdeaEmbedding, models.ContentIdea).join(
+            models.ContentIdea,
+            models.IdeaEmbedding.content_idea_id == models.ContentIdea.id
+        ).filter(
+            models.ContentIdea.project_id == project_id
+        ).all()
+        result = []
+        for emb, idea in rows:
+            result.append({
+                "idea_id": idea.id,
+                "idea_title": idea.title,
+                "title_vi": emb.title_vi,
+                "title_en": emb.title_en,
+                "embedding": emb.embedding.tolist() if hasattr(emb.embedding, 'tolist') else list(emb.embedding),
+            })
+        return result
 
 
 if __name__ == "__main__":

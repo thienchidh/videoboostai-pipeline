@@ -2,7 +2,6 @@
 """
 content_pipeline.py - Orchestrator for content research → production → social upload
 """
-import os
 import json
 import yaml
 import logging
@@ -17,7 +16,7 @@ from core.paths import PROJECT_ROOT, get_font_path
 from modules.content.topic_researcher import TopicResearcher
 from modules.content.content_idea_generator import ContentIdeaGenerator
 from modules.content.content_calendar import ContentCalendar
-from modules.pipeline.models import ChannelConfig
+from modules.pipeline.models import ChannelConfig, ContentPipelineConfig
 
 
 class ContentPipeline:
@@ -69,15 +68,12 @@ class ContentPipeline:
         self.tiktok_account = page_cfg.get("tiktok", {})
         self.auto_schedule = content_cfg.get("auto_schedule", True)
 
-        # Load channel config for content generation context
-        channel_cfg = {}
-        channel_cfg_path = self.project_root / "configs" / "channels" / self.channel_id / "config.yaml"
-        if channel_cfg_path.exists():
-            with open(channel_cfg_path, encoding="utf-8") as f:
-                channel_cfg = yaml.safe_load(f) or {}
+        # Load channel config via ChannelConfig.load() with fallback to None
+        try:
+            validated_channel = ChannelConfig.load(self.channel_id)
+        except FileNotFoundError:
+            validated_channel = None
 
-        # Validate and read content research params from channel config
-        validated_channel = ChannelConfig(**channel_cfg) if channel_cfg else None
         research = validated_channel.research if validated_channel else None
         self.niche_keywords = research.niche_keywords if research else []
         self.content_angle = research.content_angle if research else "tips"
@@ -91,12 +87,14 @@ class ContentPipeline:
             niche_keywords=self.niche_keywords,
             project_id=project_id
         )
+        # Pass ChannelConfig as dict for ContentIdeaGenerator validation
+        channel_cfg_dict = validated_channel.model_dump() if validated_channel else None
         self.idea_gen = ContentIdeaGenerator(
             project_id=project_id,
             content_angle=self.content_angle,
             target_platform=self.target_platform,
             niche_keywords=self.niche_keywords,
-            channel_config=channel_cfg,
+            channel_config=channel_cfg_dict,
         )
         self.calendar = ContentCalendar(project_id=project_id)
 
@@ -130,7 +128,42 @@ class ContentPipeline:
         results["ideas_generated"] = len(ideas)
         logger.info(f"  Generated {len(ideas)} ideas")
 
+        # Step 2b: Semantic deduplication
+        try:
+            from utils.embedding import check_duplicate_ideas, save_idea_embedding
+            logger.info("Step 2b: Checking for semantic duplicates...")
+            new_ideas = check_duplicate_ideas(ideas, self.project_id)
+            skipped_count = len(ideas) - len(new_ideas)
+            logger.info(f"  Dedup: {skipped_count} duplicates skipped, {len(new_ideas)} new ideas")
+            ideas = new_ideas
+        except Exception as e:
+            logger.warning(f"Embedding dedup failed: {e}, using all ideas")
+            pass
+
+        if not ideas:
+            logger.info("No new ideas after dedup. Skipping script generation.")
+            results["scripts_generated"] = 0
+            return results
+
+        # Save ideas to DB (only new ones)
         idea_ids = self.idea_gen.save_ideas_to_db(ideas, source_id=source_id)
+
+        # Save embeddings for new ideas
+        try:
+            from utils.embedding import save_idea_embedding
+            for i, idea_id in enumerate(idea_ids):
+                idea = ideas[i]
+                embedding = idea.get("_embedding")
+                if embedding:
+                    save_idea_embedding(
+                        idea_id=idea_id,
+                        title_vi=idea.get("title", ""),
+                        title_en="",  # No translation needed with multilingual model
+                        embedding=embedding,
+                    )
+        except Exception as e:
+            logger.warning(f"Could not save embeddings: {e}")
+
         results["idea_ids"] = idea_ids
 
         # Step 3: Generate scripts
@@ -386,21 +419,10 @@ class ContentPipeline:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    # Load config from project root
+    # Load config from project root via Pydantic
     config_path = PROJECT_ROOT / "configs/business/video_scenario.yaml.example"
-    if os.path.exists(config_path):
-        with open(config_path) as f:
-            config = yaml.safe_load(f)
-    else:
-        config = {
-            "page": {
-                "facebook": {"page_id": "YOUR_PAGE_ID", "page_name": "NangSuatThongMinh"},
-                "tiktok": {"account_id": "YOUR_TIKTOK_ACCOUNT_ID", "account_name": "@NangSuatThongMinh"}
-            },
-            "content": {
-                "auto_schedule": True
-            }
-        }
+    cfg = ContentPipelineConfig.load_or_default(config_path)
+    config = cfg.model_dump()
 
     pipeline = ContentPipeline(
         project_id=1,

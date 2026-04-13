@@ -1,24 +1,22 @@
 title: Productivity - Wikipedia
 scenes:
 - id: 1
-  script: Bạn có biết không? Năng suất lao động của người Việt Nam chỉ bằng 1/10 so
-    với các nước phát triển. Vậy tại sao chúng ta phải làm việc nhiều hơn mà hiệu
-    quả lại thấp hơn?
-  background: văn phòng hiện đại, ánh sáng xanh lạnh, cận cảnh khuôn mặt
+  script: Bạn có biết không? Năng suất không phải là càng làm nhiều càng tốt đâu!
+  background: Phòng làm việc hiện đại, ánh sáng vàng nhẹ, 3D render
   characters:
-  - Mentor
+  - Student
 - id: 2
-  script: Wikipedia định nghĩa năng suất là tổng hợp các phép đo hiệu quả. Tức là
-    chúng ta cần đo lường đầu vào và đầu ra. Ví dụ, thay vì ngồi làm 10 tiếng, hãy
-    tập trung 90 phút đầu vào tối đa rồi nghỉ ngơi. Đó là cách tính năng suất thực
-    tế.
-  background: bảng trắng có sơ đồ quy trình, phòng họp ánh sáng tự nhiên
+  script: Wikipedia nói rằng năng suất là tỷ lệ giữa đầu ra và đầu vào. Nhưng thực
+    ra, năng suất thông minh là làm ít hơn mà đạt kết quả cao hơn. Ví dụ, thay vì
+    ngồi làm 10 tiếng, hãy tập trung 2 tiếng đầu tiên vào công việc quan trọng nhất,
+    rồi nghỉ ngơi. Hiệu quả sẽ tăng gấp 3 lần đấy!
+  background: Văn phòng coworking, cốc cà phê, laptop, 3D render
   characters:
   - Mentor
+  - Student
 - id: 3
-  script: Bạn đang áp dụng phương pháp nào để đo năng suất của mình? Comment cho mình
-    biết nhé, và đừng quên xem tiếp video để mình chia sẻ thêm nhiều tips thực tế
-    hơn!
-  background: ' không gian làm việc sáng tạo, ánh sáng vàng ấm, plants xung quanh'
+  script: Vậy bạn đang áp dụng cách nào để tăng năng suất? Comment cho mình biết nhé,
+    mình sẽ đọc hết!
+  background: Studio simple, ánh sáng chính diện, mic podcast
   characters:
   - Mentor

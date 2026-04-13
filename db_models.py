@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey, Index, UniqueConstraint, JSON
 )
 from sqlalchemy.orm import declarative_base, relationship
+from pgvector.sqlalchemy import Vector
 
 Base = declarative_base()
 
@@ -177,9 +178,28 @@ class ContentIdea(Base):
 
     project = relationship("Project")
     calendar_entries = relationship("ContentCalendar", back_populates="idea")
+    embedding = relationship("IdeaEmbedding", back_populates="idea", uselist=False)
 
     __table_args__ = (
         Index("idx_content_ideas_project", "project_id"),
+    )
+
+
+class IdeaEmbedding(Base):
+    """Stores embedding vectors for semantic deduplication of content ideas."""
+    __tablename__ = "idea_embeddings"
+
+    id = Column(Integer, primary_key=True)
+    content_idea_id = Column(Integer, ForeignKey("content_ideas.id", ondelete="CASCADE"), nullable=False)
+    title_vi = Column(Text)          # Original Vietnamese title
+    title_en = Column(Text)          # Translated English title
+    embedding = Column(Vector(512))  # 512-dim vector (distiluse-base-multilingual-cased-v2)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    idea = relationship("ContentIdea", back_populates="embedding", uselist=False)
+
+    __table_args__ = (
+        Index("idx_idea_embedding_idea", "content_idea_id"),
     )
 
 

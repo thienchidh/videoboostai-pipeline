@@ -35,7 +35,17 @@ DRY_RUN_IMAGES = False
 UPLOAD_TO_SOCIALS = False
 USE_STATIC_LIPSYNC = False
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+# Load log level from TechnicalConfig
+_log_cfg = None
+try:
+    from modules.pipeline.models import TechnicalConfig
+    _tech = TechnicalConfig.load()
+    _log_cfg = _tech.logging.level
+except Exception:
+    _log_cfg = "INFO"
+
+_log_level = getattr(logging, _log_cfg.upper(), logging.INFO)
+logging.basicConfig(level=_log_level, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -85,13 +95,10 @@ def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = 
 
 
 def _load_content_config(channel_id: str = None):
-    """Load business config for content pipeline."""
-    import yaml
+    """Load business config for content pipeline via Pydantic."""
+    from modules.pipeline.models import ContentPipelineConfig
     config_path = PROJECT_ROOT / "configs/business/video_scenario.yaml.example"
-    if config_path.exists():
-        with open(config_path, encoding="utf-8") as f:
-            return yaml.safe_load(f)
-    return {}
+    return ContentPipelineConfig.load_or_default(config_path).model_dump()
 
 
 # ==================== VIDEO PIPELINE ====================

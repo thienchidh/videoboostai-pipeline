@@ -1,26 +1,23 @@
 title: Top 5 cách quản lý thời gian hiệu quả
 scenes:
 - id: 1
-  script: Bạn có biết người bình thường lãng phí tới 2 tiếng mỗi ngày chỉ vì không
-    biết quản lý thời gian? Đó là 1 tiếng rưỡi mỗi ngày, 10 tiếng mỗi tuần. Thử tính
-    xem bạn đã đánh mất bao nhiêu công việc quan trọng? 2 tiếng đó đủ để bạn đạt được
-    mục tiêu tháng này đấy!
-  background: văn phòng hiện đại, ánh sáng vàng nhấp nháy, 3D render
+  script: Bạn có biết người bình thường lãng phí tới 2.5 giờ mỗi ngày chỉ vì không
+    biết cách sắp xếp công việc? Nghe thì khó tin nhưng đó là sự thật đấy!
+  background: phòng làm việc hiện đại, ánh sáng vàng nhẹ, camera eye-level
   characters:
   - Mentor
 - id: 2
-  script: 'Cách đầu tiên cực kỳ hiệu quả: phân loại công việc theo ma trận ưu tiên.
-    Chia ra 4 ô: vừa gấp vừa quan trọng, chỉ gấp không quan trọng, chỉ quan trọng
-    không gấp, và không gấp không quan trọng. Ví dụ hôm qua mình phải nộp báo cáo
-    trước 5 giờ chiều thì cho vào ô gấp và quan trọng, còn trả lời email thì cho vào
-    ô cuối cùng. Kết quả là mình hoàn thành báo cáo đúng hạn mà không cần OT.'
-  background: bàn làm việc có lịch và sổ ghi chú, cốc cà phê, 3D render
+  script: 'Cách thứ nhất: quy tắc 2 phút. Nếu công việc nào làm trong 2 phút xong,
+    hãy làm ngay, đừng hoãn lại. ví dụ như trả lời tin nhắn nhanh, sắp xếp giấy tờ,
+    hay gửi một email ngắn. Mình áp dụng cách này từ năm ngoái, hiệu suất làm việc
+    tăng lên rõ rệt.'
+  background: góc bàn làm việc với laptop và đồng hồ, background blur nhẹ
   characters:
   - Mentor
 - id: 3
-  script: Vậy bạn đã thử áp dụng ma trận ưu tiên chưa? Hay bạn đang dùng cách nào
-    khác để quản lý thời gian? Comment cho mình biết nhé, biết đâu mình sẽ quay video
-    phân tích cách của bạn đấy!
-  background: phòng làm việc cá nhân, ánh sáng tự nhiên, 3D render
+  script: Vậy bạn đang dùng cách nào để quản lý thời gian? Là quy tắc 2 phút, hay
+    kỹ thuật Pomodoro? Comment cho mình biết để mình có thể chia sẻ thêm nhé!
+  background: phòng khách thân thiện, ánh sáng tự nhiên, camera nghiêng nhẹ
   characters:
   - Mentor
+  - Student

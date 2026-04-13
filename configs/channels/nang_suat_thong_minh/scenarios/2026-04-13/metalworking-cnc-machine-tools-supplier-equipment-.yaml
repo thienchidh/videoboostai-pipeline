@@ -1,22 +1,25 @@
 title: Metalworking CNC Machine Tools Supplier & Equipment Distributor ...
 scenes:
 - id: 1
-  script: Bạn có biết hơn 80% doanh nghiệp gia công kim loại ở vùng Midwest và Rocky
-    đang gặp khó về nguồn cung máy CNC không?
-  background: nhà kho máy móc công nghiệp, ánh sáng LED xanh, máy CNC trưng bày
+  script: Bạn có biết không? 70% doanh nghiệp CNC tại Việt Nam đang lãng phí hàng
+    trăm triệu đồng mỗi năm chỉ vì chọn nhà cung cấp thiết bị không đúng cách. Đây
+    là sai lầm mà hầu hết ai cũng mắc phải.
+  background: Phòng máy CNC hiện đại, ánh sáng xanh trắng, máy móc đang vận hành
   characters:
   - Mentor
 - id: 2
-  script: Nhưng không phải lo lắng nữa! Chúng tôi là nhà phân phối thiết bị máy công
-    cụ CNC hàng đầu khu vực, cung cấp đầy đủ từ máy phay, máy tiện đến hệ thống tự
-    động hóa với giao hàng nhanh và bảo hành dài hạn.
-  background: xưởng sản xuất hiện đại, robot tự động, dây chuyền lắp ráp máy CNC
+  script: Khi tìm kiếm nhà phân phối máy móc CNC, đừng chỉ nhìn vào giá cả. Hãy hỏi
+    về chế độ bảo hành, nguồn phụ tùng thay thế, và đội ngũ hỗ trợ kỹ thuật sau bán
+    hàng. Ví dụ, một nhà cung cấp uy tín sẽ cam kết giao hàng trong 24 giờ và hỗ trợ
+    lắp đặt miễn phí.
+  background: Nhà kho chứa thiết bị CNC, giá kệ sắp xếp ngăn nắp, robot đang vận chuyển
   characters:
   - Mentor
 - id: 3
-  script: Nếu bạn đang cần nguồn cung máy CNC đáng tin cậy, hãy liên hệ ngay với chúng
-    tôi! Like, Follow và Comment 'CNC' để nhận báo giá ưu đãi hôm nay!
-  background: văn phòng doanh nghiệp, màn hình hiển thị logo công ty, ánh sáng chuyên
-    nghiệp
+  script: Nếu bạn đang cân nhắc nâng cấp hoặc mở rộng dây chuyền sản xuất, hãy comment
+    cho mình biết bạn đang gặp khó khăn gì nhất hiện tại. Mình sẽ gợi ý giải pháp
+    phù hợp cho bạn!
+  background: Văn phòng hiện đại, màn hình laptop hiển thị bản vẽ kỹ thuật, ánh sáng
+    ấm
   characters:
-  - Mentor
+  - Student

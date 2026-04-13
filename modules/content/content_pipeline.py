@@ -412,9 +412,15 @@ if __name__ == "__main__":
     pipeline = ContentPipeline(
         project_id=1,
         config=config,
-        dry_run=True
+        dry_run=True,
+        channel_id="nang_suat_thong_minh"
     )
 
     print("🚀 Running full content cycle (dry-run)...")
     results = pipeline.run_full_cycle(num_ideas=3)
     print(json.dumps(results, indent=2))
+
+    if not pipeline.dry_run:
+        print("\n🎬 Producing videos for due items...")
+        prod_results = pipeline.produce_due_items()
+        print(json.dumps(prod_results, indent=2, default=str))

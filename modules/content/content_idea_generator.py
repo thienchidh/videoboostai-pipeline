@@ -143,36 +143,35 @@ class ContentIdeaGenerator:
         cfg = self._channel_config
         kw_list_str = ", ".join(keywords) if keywords else ""
         kw_line = f"Từ khóa: {kw_list_str}\n" if kw_list_str else ""
-        all_char_names = [c.get("name") for c in cfg.characters if c.get("name")]
+        all_char_names = [c.name for c in cfg.characters if c.name]
         char_list_str = ", ".join(f'"{n}"' for n in all_char_names)
 
         tts = cfg.tts
-        tts_context = f"\nRàng buộc TTS: tối đa {tts.max_duration}s, tối thiểu {tts.min_duration}s, ~{tts.words_per_second} từ/giây"
+        tts_context = f"\nGiới hạn thời lượng: tối đa {tts.max_duration}s, tối thiểu {tts.min_duration}s"
 
-        return f"""Bạn là một chuyên gia sản xuất video cho kênh "{cfg.name}".
-Hãy tạo {num_scenes} kịch bản scene cho video với chủ đề:
+        return f"""Bạn là chuyên gia sản xuất video viral cho kênh "{cfg.name}".
+Viết {num_scenes} scene giữ chân người xem từ giây đầu tiên.
 
 Tiêu đề: {title}
 {kw_line}Phong cách: {angle}{tts_context}
 
 YÊU CẦU:
-- Tất cả lời thoại phải VIẾT TIẾNG VIỆT CÓ DẤU (ví dụ: "cải thiện", "quản lý thời gian", "năng suất làm việc")
-- KHÔNG dùng tiếng Anh như "time management" - phải dùng tiếng Việt tương đương
-- Viết lời thoại tự nhiên, gần gũi như đang nói chuyện với khán giả
-- LLM được phép chọn bất kỳ nhân vật nào từ danh sách: [{char_list_str}] cho mỗi scene
+- Lời thoại VIẾT TIẾNG VIỆT CÓ DẤU, tự nhiên như người nói thật
+- KHÔNG dùng tiếng Anh - dùng tiếng Việt tương đương
+- Chọn nhân vật từ danh sách: [{char_list_str}] cho mỗi scene
 
 CẤU TRÚC SCENE:
-- Scene 1 = MÓC HÓI: câu hỏi gây tò mò hoặc statement táo bạo
-- Scene 2 đến Scene {num_scenes-1} = NỘI DUNG CHÍNH: trình bày ý chính có ví dụ minh họa
-- Scene {num_scenes} = CTA: kêu gọi hành động (like, follow, share)
+- Scene 1 (MÓC HÓI): Mở đầu bằng statement táo bạo, câu hỏi gây sốc, hoặc số liệu bất ngờ. KHÔNG giới thiệu chủ đề — nhảy thẳng vào nội dung.
+- Scene 2 đến Scene {num_scenes-1} (NỘI DUNG CHÍNH): Mỗi scene có 1 ý chính + ví dụ cụ thể, có thể kể chuyện hoặc dùng số liệu.
+- Scene {num_scenes} (CTA): Không nói "like, follow, share" — hãy kể CTA như đang nói chuyện với viewer, ví dụ: "Bạn đã thử cách nào trong số này? Comment cho mình biết nhé!"
 
 MỖI SCENE CẦN CÓ:
 - id: số nguyên (1, 2, 3...)
-- script: lời thoại tiếng Việt có dấu, tự nhiên như người nói thật
-- background: mô tả cảnh nền ngắn 5-15 từ (ví dụ: "văn phòng hiện đại, ánh sáng ấm, 3D render")
+- script: lời thoại tiếng Việt có dấu, mỗi scene 3-8 câu
+- background: mô tả cảnh nền 5-15 từ (ví dụ: "văn phòng hiện đại, ánh sáng ấm, 3D render")
 - characters: mảng tên nhân vật được chọn từ [{char_list_str}]
 
-Trả về CHỈ JSON array, không kèm markdown, không giải thích thêm."""
+Trả về CHỈ JSON array, không kèm markdown."""
 
     def _parse_scenes(self, text: str) -> List[Dict]:
         """Parse JSON scenes from LLM response text."""

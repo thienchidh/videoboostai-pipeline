@@ -32,11 +32,14 @@ class MiniMaxLLMProvider(LLMProvider):
         """
         if not api_key:
             raise ValueError("MiniMax API key is required")
+        import requests
         self.api_key = api_key
         self.model = model
         self.max_tokens = max_tokens
         self.timeout = timeout
         self.api_url = api_url or self.DEFAULT_URL
+        # Reuse connection pool via session
+        self._session = requests.Session()
 
     def chat(self, prompt: str, system: str = "", max_tokens: int = 1024) -> str:
         """
@@ -50,8 +53,6 @@ class MiniMaxLLMProvider(LLMProvider):
         Returns:
             Response text from LLM
         """
-        import requests
-
         messages = []
         if system:
             messages.append({"role": "assistant", "content": [{"type": "text", "text": system}]})
@@ -63,7 +64,7 @@ class MiniMaxLLMProvider(LLMProvider):
             "messages": messages,
         }
 
-        resp = requests.post(
+        resp = self._session.post(
             self.api_url,
             headers={
                 "anthropic-version": "2023-06-01",

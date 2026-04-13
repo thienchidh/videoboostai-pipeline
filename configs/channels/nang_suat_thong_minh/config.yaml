@@ -9,33 +9,6 @@ channel_id: "nang_suat_thong_minh"
 name: "Năng Suất Thông Minh"
 style: "3D animated Pixar Disney style, high quality 3D render, vibrant colors, smooth animation"
 
-# ===== CHARACTERS =====
-characters:
-  - name: "Mentor"
-    voice_id: "mentor_female"
-
-  - name: "Student"
-    voice_id: "student_male"
-
-# ===== TTS =====
-tts:
-  max_duration: 15.0
-  min_duration: 5.0
-  words_per_second: 2.5
-
-# ===== WATERMARK =====
-watermark:
-  text: "@NangSuatThongMinh"
-  enable: true
-  font_size: 30
-  opacity: 0.15
-  motion: "bounce"
-  bounce_speed: 80
-  bounce_padding: 20
-  velocity_x: 1.2
-  velocity_y: 0.8
-  margin: 8
-
 # ===== VOICE CATALOG =====
 voices:
   - id: "mentor_female"
@@ -57,6 +30,14 @@ voices:
       - provider: "edge"
         model: "vi-VN-NamMinhNeural"
         speed: 1.0
+
+# ===== CHARACTERS =====
+characters:
+  - name: "Mentor"
+    voice_id: "mentor_female"
+
+  - name: "Student"
+    voice_id: "student_male"
 
 # ===== VIDEO =====
 video:
@@ -80,7 +61,19 @@ generation:
   tts:
     max_duration: 15.0
     min_duration: 5.0
-    words_per_second: 2.5
+
+# ===== WATERMARK =====
+watermark:
+  text: "@NangSuatThongMinh"
+  enable: true
+  font_size: 30
+  opacity: 0.15
+  motion: "bounce"
+  bounce_speed: 80
+  bounce_padding: 20
+  velocity_x: 1.2
+  velocity_y: 0.8
+  margin: 8
 
 # ===== SUBTITLE =====
 subtitle:
@@ -127,6 +120,11 @@ social:
   tiktok:
     account_name: "@NangSuatThongMinh"
     auto_publish: false
+
+# ===== TTS =====
+tts:
+  max_duration: 15.0
+  min_duration: 5.0
 
 # ===== CONTENT RESEARCH =====
 research:

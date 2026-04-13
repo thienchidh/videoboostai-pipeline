@@ -7,7 +7,7 @@ Provides validated config models for:
 - PipelineConfig: merged pipeline config
 """
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Any
 
 
 # ─── Technical Config ───────────────────────────────────────
@@ -118,17 +118,86 @@ class CharacterConfig(BaseModel):
     voice_id: str
 
 
+class VoiceProvider(BaseModel):
+    provider: str
+    model: str
+    speed: float = 1.0
+    voice: Optional[str] = None  # openai uses 'voice' instead of 'model'
+
+
 class VoiceConfig(BaseModel):
     id: str
     name: str
     gender: str
-    providers: list[dict]
+    providers: list[VoiceProvider]
+
+
+class VideoSettings(BaseModel):
+    aspect_ratio: str = "9:16"
+    resolution: str = "480p"
+
+
+class FontConfig(BaseModel):
+    watermark: str
+
+
+class GenerationSettings(BaseModel):
+    models: dict
+    lipsync: dict
+    tts: dict
+
+
+class SubtitleConfig(BaseModel):
+    font_size: int = 60
+
+
+class BackgroundMusicConfig(BaseModel):
+    enable: bool = True
+    file: str = "random"
+    volume: float = 0.15
+    fade_duration: int = 2
+
+
+class ImageStyleConfig(BaseModel):
+    lighting: str = "warm"
+    camera: str = "eye-level"
+    art_style: str = "3D render"
+    environment: str = "modern office"
+    composition: str = "professional"
+
+
+class DefaultModelsConfig(BaseModel):
+    tts: str = "edge"
+    image: str = "minimax"
+    video: str = "kieai"
+
+
+class LipsyncSettings(BaseModel):
+    provider: str = "kieai"
+    resolution: str = "480p"
+    max_wait: int = 300
+
+
+class LLMConfig(BaseModel):
+    provider: str = "minimax"
+    model: str = "MiniMax-M2.7"
+    max_tokens: int = 2048
+
+
+class SocialPlatformConfig(BaseModel):
+    page_name: Optional[str] = None
+    account_name: Optional[str] = None
+    auto_publish: bool = False
+
+
+class SocialConfig(BaseModel):
+    facebook: SocialPlatformConfig
+    tiktok: SocialPlatformConfig
 
 
 class TTSConfig(BaseModel):
     max_duration: float
     min_duration: float
-    words_per_second: float
 
 
 class WatermarkConfig(BaseModel):
@@ -144,42 +213,23 @@ class WatermarkConfig(BaseModel):
     margin: int = 8
 
 
-class ImageStyle(BaseModel):
-    lighting: str = "warm"
-    camera: str = "eye-level"
-    art_style: str = "3D render"
-    environment: str = "modern office"
-    composition: str = "professional"
-
-
-class LLMConfig(BaseModel):
-    provider: str = "minimax"
-    model: str = "MiniMax-M2.7"
-    max_tokens: int = 2048
-
-
-class SocialConfig(BaseModel):
-    facebook: Optional[dict] = None
-    tiktok: Optional[dict] = None
-
-
 class ChannelConfig(BaseModel):
     channel_id: str
     name: str
-    characters: list[dict]
+    characters: list[CharacterConfig]
     tts: TTSConfig
     watermark: WatermarkConfig
     style: str
     research: ContentResearch
-    voices: Optional[list[dict]] = None
-    video: Optional[dict] = None
-    fonts: Optional[dict] = None
-    generation: Optional[dict] = None
-    subtitle: Optional[dict] = None
-    background_music: Optional[dict] = None
-    image_style: Optional[ImageStyle] = None
-    default_models: Optional[dict] = None
-    lipsync: Optional[dict] = None
+    voices: Optional[list[VoiceConfig]] = None
+    video: Optional[VideoSettings] = None
+    fonts: Optional[FontConfig] = None
+    generation: Optional[GenerationSettings] = None
+    subtitle: Optional[SubtitleConfig] = None
+    background_music: Optional[BackgroundMusicConfig] = None
+    image_style: Optional[ImageStyleConfig] = None
+    default_models: Optional[DefaultModelsConfig] = None
+    lipsync: Optional[LipsyncSettings] = None
     llm: Optional[LLMConfig] = None
     social: Optional[SocialConfig] = None
 

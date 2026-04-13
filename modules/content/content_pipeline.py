@@ -3,7 +3,6 @@
 content_pipeline.py - Orchestrator for content research → production → social upload
 """
 import os
-import sys
 import json
 import yaml
 import logging
@@ -41,14 +40,13 @@ class ContentPipeline:
     """
 
     def __init__(self, project_id: int, config: Dict = None, config_path: str = None,
-                 output_dir: str = None, dry_run: bool = True,
+                 dry_run: bool = True,
                  channel_id: str = "nang_suat_thong_minh"):
         """
         Args:
             project_id: project ID
             config: config dict
             config_path: path to config JSON file
-            output_dir: where to save generated configs/scripts
             dry_run: if True, don't actually produce/upload videos
             channel_id: channel ID for scenario output (default: nang_suat_thong_minh)
         """
@@ -56,8 +54,6 @@ class ContentPipeline:
         self.dry_run = dry_run
         self.project_root = PROJECT_ROOT
         self.channel_id = channel_id
-        self.output_dir = Path(output_dir or self.project_root / "output" / "content_pipeline")
-        self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Load config
         if config_path:
@@ -238,9 +234,6 @@ class ContentPipeline:
             }
 
         # Run pipeline directly
-        run_output_dir = run_dir or str(self.output_dir / f"run_{idea_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}")
-        os.makedirs(run_output_dir, exist_ok=True)
-
         try:
             # Import VideoPipelineV3 directly
             from scripts.video_pipeline_v3 import VideoPipelineV3
@@ -262,18 +255,18 @@ class ContentPipeline:
             pipeline = VideoPipelineV3(channel_id, str(config_path))
             result = pipeline.run()
 
-            # Find output video
+            # Get output video from runner's media_dir (VideoPipelineRunner manages its own directory structure)
             output_video = None
             if result:
-                for f in Path(run_output_dir).rglob("*.mp4"):
-                    if "final" in f.name or "video_concat" in f.name:
-                        output_video = str(f)
-                        break
+                media_dir = pipeline._runner.media_dir
+                for f in media_dir.glob("*.mp4"):
+                    output_video = str(f)
+                    break
 
             return {
                 "success": result is not None,
                 "output_video": output_video,
-                "run_dir": run_output_dir,
+                "run_dir": str(pipeline._runner.run_dir),
             }
 
         except Exception as e:

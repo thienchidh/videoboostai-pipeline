@@ -1,30 +1,22 @@
 title: PRODUCTIVITY Definition & Meaning - Merriam-Webster
 scenes:
 - id: 1
-  script: Bạn có biết rằng hơn 60% người đi làm đang lãng phí thời gian mà không hề
-    hay biết không? Thay vì làm việc thông minh, họ cứ bận rộn suốt ngày nhưng kết
-    quả lại không đáng kể. Định nghĩa năng suất thực sự không phải là cứ ngồi làm
-    thật lâu, mà là hoàn thành thật nhiều việc có ý nghĩa trong thời gian ngắn nhất.
-    Đây mới là điều khiến người thành công khác biệt so với người bình thường.
+  script: Bạn có biết? Đa số mọi người hiểu sai về năng suất. Họ nghĩ là làm càng
+    nhiều càng tốt, nhưng thực ra định nghĩa đó hoàn toàn sai.
   background: văn phòng hiện đại với ánh sáng ấm, 3D render, warm, eye-level, modern
     office, professional
   character: Mentor
 - id: 2
-  script: 'Theo Merriam-Webster, năng suất là khả năng tạo ra chất lượng công việc
-    được mong đợi trong một đơn vị thời gian nhất định. Nghĩa đen của nó là: bạn làm
-    được bao nhiêu, làm tốt đến đâu, và mất bao lâu để hoàn thành. Ví dụ đơn giản
-    thôi, cùng một báo cáo, người A hoàn thành trong 2 tiếng với chất lượng cao, còn
-    người B mất 5 tiếng nhưng lại đầy lỗi. Người A rõ ràng là người có năng suất tốt
-    hơn, và đó mới là ý nghĩa thực sự của từ năng suất.'
-  background: văn phòng hiện đại với ánh sáng vàng nhẹ, 3D render, warm, eye-level,
-    modern office, professional
+  script: Theo Merriam-Webster, năng suất là chất lượng hoặc trạng thái của việc tạo
+    ra kết quả. Quan trọng là chất lượng đầu ra, không phải số lượng đầu vào. Ví dụ,
+    một người làm 5 việc nhưng mỗi việc đều hoàn hảo thì năng suất cao hơn người làm
+    20 việc mà chỉ 2 cái đạt chuẩn.
+  background: không gian văn phòng 3D render ấm áp, warm, eye-level, modern office,
+    professional
   character: Mentor
 - id: 3
-  script: Vậy bạn đã áp dụng định nghĩa năng suất này vào công việc hàng ngày của
-    mình chưa? Nếu bạn nhận ra mình đang làm như người B, đừng lo, vì bạn hoàn toàn
-    có thể thay đổi được. Quan trọng là bạn cần biết mình đang lãng phí thời gian
-    ở đâu và tìm cách tối ưu hóa từng bước một. Bạn thử chia sẻ với mình xem, thường
-    thì bạn hay gặp vấn đề gì nhất khi muốn cải thiện năng suất làm việc nhé!
-  background: văn phòng hiện đại với không gian thoải mái, 3D render, warm, eye-level,
-    modern office, professional
-  character: Mentor
+  script: Bạn đang áp dụng định nghĩa nào cho công việc của mình? Hãy comment cho
+    mình biết nhé.
+  background: phòng làm việc hiện đại ấm cúng, 3D render, warm, eye-level, modern
+    office, professional
+  character: Student

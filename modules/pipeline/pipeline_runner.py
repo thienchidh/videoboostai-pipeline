@@ -32,7 +32,7 @@ from modules.pipeline.scene_processor import SingleCharSceneProcessor
 
 # Import providers to trigger registration
 from modules.media.tts import MiniMaxTTSProvider, EdgeTTSProvider  # noqa: F401
-from modules.media.image_gen import MiniMaxImageProvider, WaveSpeedImageProvider  # noqa: F401
+from modules.media.image_gen import MiniMaxImageProvider, WaveSpeedImageProvider, KieImageProvider  # noqa: F401
 from modules.media.lipsync import WaveSpeedLipsyncProvider, WaveSpeedMultiTalkProvider, KieAIInfinitalkProvider  # noqa: F401
 from modules.media.music_gen import MiniMaxMusicProvider  # noqa: F401
 from modules.llm.minimax import MiniMaxLLMProvider  # noqa: F401
@@ -144,9 +144,11 @@ class VideoPipelineRunner:
         provider_cls = get_provider("image", img_name)
         if provider_cls is None:
             raise ValueError(f"Unknown image provider: {img_name}")
-        # Use minimax_key for MiniMax provider, wavespeed_key for WaveSpeed provider
+        # Use minimax_key for MiniMax, kie_key for Kie, wavespeed_key for WaveSpeed
         if img_name == "minimax":
             return provider_cls(api_key=self.ctx.technical.api_keys.minimax)
+        if img_name == "kie":
+            return provider_cls(api_key=self.ctx.technical.api_keys.kie_ai)
         return provider_cls(api_key=self.ctx.technical.api_keys.wavespeed)
 
     def _build_lipsync_provider(self):
@@ -185,10 +187,34 @@ class VideoPipelineRunner:
         return self.tts_provider.generate(text, voice, speed, output_path)
 
     def image_generate(self, prompt: str, output_path: str):
-        """Generate image."""
+        """Generate image with MiniMax → Kie fallback."""
         if self._dry_run or self._dry_run_images:
             return mock_generate_image(prompt, output_path)
-        return self.image_provider.generate(prompt, output_path, aspect_ratio="9:16")
+
+        try:
+            result = self.image_provider.generate(prompt, output_path, aspect_ratio="9:16")
+        except Exception as e:
+            log(f"  ⚠️ Image provider raised: {type(e).__name__}: {e}")
+            result = None
+
+        if result:
+            return result
+
+        # Fallback: if primary is minimax and failed, try Kie
+        img_name = self._get_models().get("image", "")
+        if img_name == "minimax":
+            log(f"  ⚠️ MiniMax image failed, trying Kie Z Image fallback...")
+            try:
+                kie_cls = get_provider("image", "kie")
+                if kie_cls:
+                    kie_provider = kie_cls(api_key=self.ctx.technical.api_keys.kie_ai)
+                    return kie_provider.generate(prompt, output_path, aspect_ratio="9:16")
+                else:
+                    log(f"  ⚠️ Kie provider not registered")
+            except Exception as e:
+                log(f"  ⚠️ Kie fallback error: {type(e).__name__}: {e}")
+
+        return result
 
     def lipsync_generate(self, image_path: str, audio_path: str, output_path: str,
                         scene_id: int = 0, prompt: str = None):

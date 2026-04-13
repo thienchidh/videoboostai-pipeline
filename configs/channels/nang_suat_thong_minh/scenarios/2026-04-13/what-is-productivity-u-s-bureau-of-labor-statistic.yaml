@@ -1,24 +1,25 @@
 title: 'What is Productivity? : U.S. Bureau of Labor Statistics'
 scenes:
 - id: 1
-  script: Bạn có biết cứ mỗi giờ làm việc, người Mỹ tạo ra bao nhiêu giá trị không?
-    Theo Cục Thống kê Lao động, họ đo lường điều này bằng một chỉ số gọi là năng suất.
-    Nhưng năng suất không chỉ là con số khô khan trên báo cáo đâu.
-  background: văn phòng hiện đại với ánh sáng ấm, 3D render, warm, eye-level, modern
-    office, professional
+  script: Bạn có biết cứ mỗi giờ làm việc, người Mỹ tạo ra giá trị gấp đôi người Việt
+    Nam không? Theo Cục Thống Kê Lao Động Mỹ, năng suất chính là so sánh giữa sản
+    lượng đầu ra với các nguồn lực đã bỏ vào. Nói thẳng luôn, đây là lý do vì sao
+    nhiều công ty Việt vẫn chưa bứt phá được.
+  background: văn phòng hiện đại, ánh sáng ấm, 3D render, eye-level, modern office,
+    professional
   character: Mentor
 - id: 2
-  script: Năng suất đơn giản là so sánh cái bạn tạo ra với cái bạn bỏ vào. Nhiều đầu
-    ra hơn với ít đầu vào hơn tức là bạn làm việc thông minh hơn. Ví dụ, cùng một
-    công việc, người nào hoàn thành trong 4 tiếng thay vì 8 tiếng thì năng suất cao
-    hơn gấp đôi.
-  background: cảnh văn phòng 3D render với ánh sáng warm, eye-level, modern office,
+  script: 'Năng suất đơn giản là câu hỏi: Bạn tạo ra bao nhiêu giá trị từ bao nhiêu
+    thời gian và công sức? Ví dụ cụ thể nhé, một nhân viên có thể ngồi máy tính 8
+    tiếng nhưng chỉ thực sự làm việc hiệu quả 3 tiếng. Thay vì cố gắng ngồi lâu hơn,
+    hãy tập trung vào việc tăng đầu ra chất lượng từ đầu vào sẵn có.'
+  background: văn phòng hiện đại, ánh sáng ấm, 3D render, eye-level, modern office,
     professional
   character: Mentor
 - id: 3
-  script: Bạn đã bao giờ thử đo lường xem mình thực sự tạo ra bao nhiêu trong một
-    giờ làm việc chưa? Hãy thử áp dụng công thức này và comment lại cho mình biết
-    kết quả nhé!
-  background: văn phòng hiện đại ấm áp, 3D render, warm, eye-level, modern office,
+  script: Vậy bạn đang dùng bao nhiêu phần trăm thời gian làm việc thực sự hiệu quả
+    mỗi ngày? Comment cho mình biết con số ước tính nhé, và đừng lo, mình sẽ chia
+    sẻ cách cải thiện nó ngay trong video tiếp theo.
+  background: văn phòng hiện đại, ánh sáng ấm, 3D render, eye-level, modern office,
     professional
-  character: Mentor
+  character: Student

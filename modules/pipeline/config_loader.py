@@ -196,6 +196,10 @@ class ConfigLoader:
         s3_region = s3_cfg.get("region", "us-east-1")
         s3_public_url_base = s3_cfg.get("public_url_base", "https://s3.trachanhtv.top/videopipeline")
 
+        # Resolve derived paths from merged config (if specified)
+        resolved_output_dir = merged.get("output_dir", str(PROJECT_ROOT / "output"))
+        resolved_avatars_dir = merged.get("avatars_dir", str(PROJECT_ROOT / "avatars"))
+
         return PipelineConfig(
             data=merged,
             wavespeed_key=wsp_key,
@@ -209,4 +213,6 @@ class ConfigLoader:
             s3_bucket=s3_bucket,
             s3_region=s3_region,
             s3_public_url_base=s3_public_url_base,
+            output_dir=Path(resolved_output_dir),
+            avatars_dir=Path(resolved_avatars_dir),
         )

@@ -77,6 +77,17 @@ class VideoPipelineRunner:
         if db_cfg:
             db.configure(db_cfg)
 
+        # Configure S3 once (used by lipsync provider for media uploads)
+        from modules.media.s3_uploader import configure as configure_s3
+        configure_s3({
+            'endpoint': self.config.s3_endpoint,
+            'access_key': self.config.s3_access_key,
+            'secret_key': self.config.s3_secret_key,
+            'bucket': self.config.s3_bucket,
+            'region': self.config.s3_region,
+            'public_url_base': self.config.s3_public_url_base,
+        })
+
         # Instantiate providers via PluginRegistry
         self.tts_provider = self._build_tts_provider()
         self.image_provider = self._build_image_provider()
@@ -134,20 +145,8 @@ class VideoPipelineRunner:
         if provider_cls is None:
             raise ValueError(f"Unknown lipsync provider: {lipsync_name}")
 
-        # Use S3 for media uploads (MinIO at s3.trachanhtv.top)
+        # S3 is already configured in __init__; use timestamp-based prefix to avoid collisions
         from modules.media.s3_uploader import upload_file as s3_upload_file
-        from modules.media.s3_uploader import configure as configure_s3
-
-        configure_s3({
-            'endpoint': self.config.s3_endpoint,
-            'access_key': self.config.s3_access_key,
-            'secret_key': self.config.s3_secret_key,
-            'bucket': self.config.s3_bucket,
-            'region': self.config.s3_region,
-            'public_url_base': self.config.s3_public_url_base,
-        })
-
-        # Use timestamp-based prefix to avoid S3 key collisions across parallel scenes
         lipsync_prefix = f"lipsync/{self.config.timestamp}"
         upload_fn = lambda fp: s3_upload_file(fp, lipsync_prefix)
 
@@ -242,17 +241,6 @@ class VideoPipelineRunner:
         if not scenes:
             raise MissingConfigError("config.scenes is empty — at least one scene is required")
         log(f"📋 {len(scenes)} scenes loaded")
-
-        # Configure S3 once for all scenes (config is the same per pipeline)
-        from modules.media.s3_uploader import configure as configure_s3
-        configure_s3({
-            'endpoint': self.config.s3_endpoint,
-            'access_key': self.config.s3_access_key,
-            'secret_key': self.config.s3_secret_key,
-            'bucket': self.config.s3_bucket,
-            'region': self.config.s3_region,
-            'public_url_base': self.config.s3_public_url_base,
-        })
 
         if force_start:
             log(f"🆕 Clearing previous scene cache...")

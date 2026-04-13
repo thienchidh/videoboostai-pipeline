@@ -1,0 +1,24 @@
+title: 'What is Productivity? : U.S. Bureau of Labor Statistics'
+scenes:
+- id: 1
+  script: Bạn có biết cứ mỗi giờ làm việc, người Mỹ tạo ra bao nhiêu giá trị không?
+    Theo Cục Thống kê Lao động, họ đo lường điều này bằng một chỉ số gọi là năng suất.
+    Nhưng năng suất không chỉ là con số khô khan trên báo cáo đâu.
+  background: văn phòng hiện đại với ánh sáng ấm, 3D render, warm, eye-level, modern
+    office, professional
+  character: Mentor
+- id: 2
+  script: Năng suất đơn giản là so sánh cái bạn tạo ra với cái bạn bỏ vào. Nhiều đầu
+    ra hơn với ít đầu vào hơn tức là bạn làm việc thông minh hơn. Ví dụ, cùng một
+    công việc, người nào hoàn thành trong 4 tiếng thay vì 8 tiếng thì năng suất cao
+    hơn gấp đôi.
+  background: cảnh văn phòng 3D render với ánh sáng warm, eye-level, modern office,
+    professional
+  character: Mentor
+- id: 3
+  script: Bạn đã bao giờ thử đo lường xem mình thực sự tạo ra bao nhiêu trong một
+    giờ làm việc chưa? Hãy thử áp dụng công thức này và comment lại cho mình biết
+    kết quả nhé!
+  background: văn phòng hiện đại ấm áp, 3D render, warm, eye-level, modern office,
+    professional
+  character: Mentor

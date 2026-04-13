@@ -1,0 +1,23 @@
+title: Productivity - Wikipedia
+scenes:
+- id: 1
+  script: Bạn có biết 80% người đi làm đều tự nhận mình năng suất, nhưng thực tế chỉ
+    đo được bằng cảm tính? Không có số liệu cụ thể thì bạn đang lái xe mù trong công
+    việc đấy!
+  background: văn phòng hiện đại, 3D render, warm, eye-level, modern office, professional
+  character: Mentor
+- id: 2
+  script: Năng suất không phải là làm nhiều hơn, mà là đo lường được đầu ra chia cho
+    đầu vào. Một nhân viên làm ra 50 sản phẩm trong 5 giờ có năng suất gấp đôi người
+    làm 50 sản phẩm trong 10 giờ. Đó là process tạo ra output, chứ không phải thời
+    gian ngồi bàn!
+  background: văn phòng hiện đại với màn hình hiển thị biểu đồ, 3D render, warm, eye-level,
+    modern office, professional
+  character: Mentor
+- id: 3
+  script: Từ hôm nay, hãy thử ghi lại mỗi ngày bạn tạo ra bao nhiêu output và mất
+    bao lâu để tạo ra nó. Sau một tuần, bạn sẽ thấy mình thuộc nhóm nào trong 20%
+    người năng suất nhất đấy!
+  background: góc làm việc cá nhân với laptop và sổ ghi chép, 3D render, warm, eye-level,
+    modern office, professional
+  character: Mentor

@@ -1,0 +1,21 @@
+title: Metalworking CNC Machine Tools Supplier & Equipment Distributor ...
+scenes:
+- id: 1
+  script: Bạn có biết 73% doanh nghiệp gặp thất bại vì chọn nhà cung cấp thiết bị
+    CNC sai? Đúng rồi, không phải vì máy kém, mà vì chọn sai nơi mua!
+  background: văn phòng hiện đại với màn hình trưng bày máy CNC, 3D render, warm,
+    eye-level, modern office, professional
+  character: Mentor
+- id: 2
+  script: Khi tìm nhà cung cấp thiết bị, điều đầu tiên cần hỏi là họ có hiểu nhu cầu
+    đặc thù của khu vực bạn không. Ví dụ, doanh nghiệp ở Bình Dương cần linh hoạt
+    hơn do đặc thù đơn hàng ngắn hạn, khác với các nhà máy lớn ở Đồng Nai.
+  background: cảnh văn phòng chuyên nghiệp với bản đồ khu vực phía sau, 3D render,
+    warm, eye-level, modern office, professional
+  character: Mentor
+- id: 3
+  script: Vậy khi bạn đang tìm nhà cung cấp, tiêu chí nào là quan trọng nhất với bạn?
+    Giá cả, chế độ bảo hành, hay dịch vụ hậu mãi? Comment cho mình biết nhé!
+  background: góc văn phòng ấm cúng với ánh sáng tự nhiên, 3D render, warm, eye-level,
+    modern office, professional
+  character: Mentor

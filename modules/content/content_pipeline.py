@@ -111,13 +111,13 @@ class ContentPipeline:
 
         results = {}
 
-        # Step 1: Check pending pool → research only if pool is empty
+        # Step 1: Get topics — from pending pool OR fresh research
         from db import get_pending_topic_sources
-
         pending = get_pending_topic_sources(limit=1)
+
         if pending:
             ps = pending[0]
-            logger.info("Step 1: Using pending topic source id={} (skipping research)".format(ps["id"]))
+            logger.info("Step 1: Using pending topic source id={}".format(ps["id"]))
             topics = ps.get("topics", [])
             source_id = ps["id"]
             results["topics_found"] = len(topics)
@@ -133,31 +133,59 @@ class ContentPipeline:
             results["source_id"] = source_id
             results["pending_mode"] = False
 
-        # Step 2: Generate ideas
-        logger.info("Step 2: Generating content ideas...")
-        ideas = self.idea_gen.generate_ideas_from_topics(topics, count=num_ideas)
-        results["ideas_generated"] = len(ideas)
-        logger.info(f"  Generated {len(ideas)} ideas")
+        # Step 2: Generate ideas + dedup in a loop
+        # Keep loading topics until we get non-duplicate ideas or run out
+        from utils.embedding import check_duplicate_ideas, save_idea_embedding
 
-        # Step 2b: Semantic deduplication (skip for pending topics - already deduped)
-        if not results.get("pending_mode"):
+        ideas = []
+        topics_tried = set()  # track by title to avoid re-checking same topics
+
+        while len(ideas) < num_ideas:
+            # Generate ideas from remaining topics
+            remaining_topics = [t for t in topics if t.get("title", "") not in topics_tried]
+            if not remaining_topics:
+                logger.info("  No more topics to try from current batch")
+                break
+
+            batch_ideas = self.idea_gen.generate_ideas_from_topics(remaining_topics, count=num_ideas - len(ideas))
+            logger.info(f"Step 2: Generated {len(batch_ideas)} ideas from remaining topics")
+
+            if not batch_ideas:
+                break
+
+            # Dedup against all existing ideas in DB
             try:
-                from utils.embedding import check_duplicate_ideas, save_idea_embedding
-                logger.info("Step 2b: Checking for semantic duplicates...")
-                new_ideas = check_duplicate_ideas(ideas, self.project_id)
-                skipped_count = len(ideas) - len(new_ideas)
-                logger.info(f"  Dedup: {skipped_count} duplicates skipped, {len(new_ideas)} new ideas")
-                ideas = new_ideas
+                new_batch = check_duplicate_ideas(batch_ideas, self.project_id)
+                skipped = len(batch_ideas) - len(new_batch)
+                logger.info(f"Step 2b: Dedup: {skipped} duplicates skipped, {len(new_batch)} new ideas")
             except Exception as e:
-                logger.warning(f"Embedding dedup failed: {e}, using all ideas")
-        else:
-            logger.info("Step 2b: Skipping dedup (using pending topics - already filtered)")
+                logger.warning(f"Embedding dedup failed: {e}, using batch without dedup")
+                new_batch = batch_ideas
+
+            # Mark topics as tried
+            for t in batch_ideas:
+                topics_tried.add(t.get("title", ""))
+
+            ideas.extend(new_batch)
+
+            # If pending_mode and all from this batch were dupes, try more topics from same source
+            if not new_batch and results.get("pending_mode"):
+                logger.info("  All ideas from this batch are duplicates, trying more topics from pending pool...")
+                continue
+            elif not new_batch:
+                # Fresh research: if all dupes and no more topics, stop
+                if len(topics_tried) >= len(topics):
+                    logger.info("  No more topics to try")
+                    break
 
         if not ideas:
             logger.warning("No new ideas after dedup. All topics were duplicates of recent content.")
             results["scripts_generated"] = 0
             results["status"] = "no_new_ideas"
             return results
+
+        ideas = ideas[:num_ideas]  # respect requested count
+        results["ideas_generated"] = len(ideas)
 
         # Save ideas to DB (only new ones)
         idea_ids = self.idea_gen.save_ideas_to_db(ideas, source_id=source_id)

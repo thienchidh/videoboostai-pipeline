@@ -23,7 +23,7 @@ from core.video_utils import (
     add_background_music,
     upload_file,
     wait_for_job,
-    create_static_video,
+    create_static_video_with_audio,
 )
 from modules.pipeline.config import PipelineContext
 
@@ -262,7 +262,7 @@ class SingleCharSceneProcessor(SceneProcessor):
                                          scene_id=scene_id, prompt=prompt)
             if not lipsync_result:
                 log(f"  ⚠️ Lipsync failed - falling back to static image + audio")
-                lipsync_result = create_static_video(str(scene_img), audio, str(video_raw))
+                lipsync_result = create_static_video_with_audio(str(scene_img), audio, str(video_raw))
             if not lipsync_result:
                 log(f"  ❌ Static video fallback also failed")
                 return None, []

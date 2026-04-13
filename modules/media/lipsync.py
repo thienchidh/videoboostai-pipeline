@@ -79,7 +79,8 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
         return None
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
+                 output_path: str, config: Optional[Dict] = None,
+                 upload_func: Optional[callable] = None) -> Optional[str]:
         global DRY_RUN
         if DRY_RUN:
             return mock_lipsync_video(image_path, audio_path, output_path)
@@ -87,14 +88,15 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
         cfg = config or {}
         retries = cfg.get("retries", 2)
         resolution = cfg.get("resolution", "480p")
+        effective_upload = upload_func if upload_func is not None else self.upload_func
 
         for attempt in range(retries):
             logger.debug(f"  🎬 LTX Lipsync (attempt {attempt+1})...")
-            image_url = self.upload_file(image_path)
+            image_url = effective_upload(image_path) if effective_upload else self.upload_file(image_path)
             if not image_url:
                 logger.warning(f"  ❌ Image upload failed")
                 continue
-            audio_url = self.upload_file(audio_path)
+            audio_url = effective_upload(audio_path) if effective_upload else self.upload_file(audio_path)
             if not audio_url:
                 logger.warning(f"  ❌ Audio upload failed")
                 continue
@@ -178,7 +180,8 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
         return None
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
+                 output_path: str, config: Optional[Dict] = None,
+                 upload_func: Optional[callable] = None) -> Optional[str]:
         """Multi-talk: audio_path should be (left_audio, right_audio) tuple or dict."""
         global DRY_RUN
         if DRY_RUN:
@@ -186,6 +189,7 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
 
         cfg = config or {}
         retries = cfg.get("retries", 2)
+        effective_upload = upload_func if upload_func is not None else self.upload_func
 
         # Handle multi-audio: audio_path can be a dict with 'left' and 'right'
         if isinstance(audio_path, dict):
@@ -197,11 +201,11 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
             left_audio = right_audio = audio_path
 
         for attempt in range(retries):
-            image_url = self.upload_file(image_path)
+            image_url = effective_upload(image_path) if effective_upload else self.upload_file(image_path)
             if not image_url:
                 continue
-            left_url = self.upload_file(left_audio) if left_audio else None
-            right_url = self.upload_file(right_audio) if right_audio else None
+            left_url = effective_upload(left_audio) if (left_audio and effective_upload) else (self.upload_file(left_audio) if left_audio else None)
+            right_url = effective_upload(right_audio) if (right_audio and effective_upload) else (self.upload_file(right_audio) if right_audio else None)
 
             if not left_url or not right_url:
                 continue
@@ -260,7 +264,8 @@ class KieAIInfinitalkProvider(LipsyncProvider):
         )
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
+                 output_path: str, config: Optional[Dict] = None,
+                 upload_func: Optional[callable] = None) -> Optional[str]:
         """
         Kie.ai Infinitalk lip-sync: image_url + audio_url → video.
 
@@ -273,6 +278,7 @@ class KieAIInfinitalkProvider(LipsyncProvider):
                 resolution: str,    # "480p" or "720p"
                 max_wait: int,      # polling timeout in seconds
             }
+            upload_func: Optional callable to use for file uploads instead of instance's
         """
         global DRY_RUN
         if DRY_RUN:
@@ -286,10 +292,11 @@ class KieAIInfinitalkProvider(LipsyncProvider):
         # Upload image and audio if upload_func provided
         image_url = None
         audio_url = None
+        effective_upload = upload_func if upload_func is not None else self.upload_func
 
-        if self.upload_func:
-            image_url = self.upload_func(image_path)
-            audio_url = self.upload_func(audio_path)
+        if effective_upload:
+            image_url = effective_upload(image_path)
+            audio_url = effective_upload(audio_path)
         if not image_url:
             image_url = cfg.get("image_url")
         if not audio_url:

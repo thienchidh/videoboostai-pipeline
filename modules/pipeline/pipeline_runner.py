@@ -200,20 +200,10 @@ class VideoPipelineRunner:
             from core.video_utils import mock_lipsync_video
             return mock_lipsync_video(image_path, audio_path, output_path)
 
-        # Configure S3 with unique prefix per scene
+        # S3 upload with scene-specific prefix (upload_fn is per-call, thread-safe)
         from modules.media.s3_uploader import upload_file as s3_upload_file
-        from modules.media.s3_uploader import configure as configure_s3
-
-        configure_s3({
-            'endpoint': self.config.s3_endpoint,
-            'access_key': self.config.s3_access_key,
-            'secret_key': self.config.s3_secret_key,
-            'bucket': self.config.s3_bucket,
-            'region': self.config.s3_region,
-            'public_url_base': self.config.s3_public_url_base,
-        })
         lipsync_prefix = f"lipsync/{self.config.timestamp}/scene_{scene_id}"
-        self.lipsync_provider.upload_func = lambda fp: s3_upload_file(fp, lipsync_prefix)
+        upload_fn = lambda fp: s3_upload_file(fp, lipsync_prefix)
 
         # Check both 'generation.lipsync' (channel config style) and 'lipsync' (legacy)
         lipsync_cfg = self.config.get('generation', {}).get('lipsync') or self.config.get('lipsync')
@@ -231,7 +221,7 @@ class VideoPipelineRunner:
             'max_wait': lipsync_cfg.get('max_wait', 300),
         }
 
-        return self.lipsync_provider.generate(image_path, audio_path, output_path, config=config)
+        return self.lipsync_provider.generate(image_path, audio_path, output_path, config=config, upload_func=upload_fn)
 
     def _make_lipsync_wrapper(self):
         """Create a lipsync wrapper that uses static video when USE_STATIC_LIPSYNC flag is set."""
@@ -268,6 +258,17 @@ class VideoPipelineRunner:
         if not scenes:
             raise MissingConfigError("config.scenes is empty — at least one scene is required")
         log(f"📋 {len(scenes)} scenes loaded")
+
+        # Configure S3 once for all scenes (config is the same per pipeline)
+        from modules.media.s3_uploader import configure as configure_s3
+        configure_s3({
+            'endpoint': self.config.s3_endpoint,
+            'access_key': self.config.s3_access_key,
+            'secret_key': self.config.s3_secret_key,
+            'bucket': self.config.s3_bucket,
+            'region': self.config.s3_region,
+            'public_url_base': self.config.s3_public_url_base,
+        })
 
         if FORCE_START:
             log(f"🆕 Clearing previous scene cache...")

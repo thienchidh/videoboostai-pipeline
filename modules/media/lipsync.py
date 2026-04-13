@@ -10,11 +10,13 @@ import os
 import time
 import requests
 import logging
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-from core.base_pipeline import log
+from core.base_pipeline import DRY_RUN, log, mock_lipsync_video
+from core.video_utils import LipsyncQuotaError
 from core.plugins import LipsyncProvider, register_provider
 
 
@@ -78,53 +80,172 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
         return None
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[Dict] = None,
-                 upload_func: Optional[callable] = None) -> Optional[str]:
-        from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
+                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
+        global DRY_RUN
+        if DRY_RUN:
+            return mock_lipsync_video(image_path, audio_path, output_path)
 
         cfg = config or {}
+        retries = cfg.get("retries", 2)
         resolution = cfg.get("resolution", "480p")
-        effective_upload = upload_func if upload_func is not None else self.upload_file
 
-        @retry(
-            stop=stop_after_attempt(3),
-            wait=wait_exponential(multiplier=1, min=2, max=10),
-            before_sleep=before_sleep_log(logger, logging.WARNING),
-            reraise=True,
-        )
-        def _do_lipsync() -> str:
-            image_url = effective_upload(image_path)
+        for attempt in range(retries):
+            logger.debug(f"  🎬 LTX Lipsync (attempt {attempt+1})...")
+            image_url = self.upload_file(image_path)
             if not image_url:
-                raise ValueError("Image upload failed")
-            audio_url = effective_upload(audio_path)
+                logger.warning(f"  ❌ Image upload failed")
+                continue
+            audio_url = self.upload_file(audio_path)
             if not audio_url:
-                raise ValueError("Audio upload failed")
+                logger.warning(f"  ❌ Audio upload failed")
+                continue
 
             url = f"{self.base_url}/api/v3/wavespeed-ai/ltx-2.3/lipsync"
             headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-            payload = {"image": image_url, "audio": audio_url, "resolution": resolution}
+            payload = {
+                "image": image_url,
+                "audio": audio_url,
+                "resolution": resolution
+            }
+            # Add seed if specified
             if cfg.get("seed"):
                 payload["seed"] = cfg["seed"]
 
-            resp = requests.post(url, headers=headers, json=payload, timeout=30)
-            data = resp.json()
-            if not data.get("data", {}).get("id"):
-                raise ValueError(f"Job failed: {data}")
-            job_id = data["data"]["id"]
-            logger.debug(f"  ✅ Job: {job_id}")
-            result_url = self.wait_for_job(job_id, max_wait=300)
-            if not result_url:
-                raise ValueError("Lipsync job timed out")
-            resp = requests.get(result_url, timeout=120)
-            with open(output_path, "wb") as f:
-                f.write(resp.content)
-            return output_path
+            try:
+                resp = requests.post(url, headers=headers, json=payload, timeout=30)
+                data = resp.json()
+                # Detect quota/credits errors
+                status_code = resp.status_code
+                error_msg = str(data.get("error", "") or data.get("message", "") or "").lower()
+                quota_keywords = ("quota", "credit", "insufficient", "exceed", "limit", "429",
+                                 "rate limit", "monthly", "free tier", "余额", "配额", "额度")
+                if status_code == 429 or any(k in error_msg for k in quota_keywords):
+                    logger.error(f"  ❌ LTX Lipsync QUOTA EXHAUSTED: {data}")
+                    raise LipsyncQuotaError(f"WaveSpeed LTX quota exceeded: {data}")
+                if not data.get("data", {}).get("id"):
+                    logger.warning(f"  ❌ Job failed: {data}")
+                    continue
+                job_id = data["data"]["id"]
+                logger.debug(f"  ✅ Job: {job_id}")
+                result_url = self.wait_for_job(job_id, max_wait=300)
+                if result_url:
+                    resp = requests.get(result_url, timeout=120)
+                    with open(output_path, "wb") as f:
+                        f.write(resp.content)
+                    return output_path
+            except Exception as e:
+                logger.warning(f"  ❌ LTX error: {e}")
+        return None
 
+
+# ==================== MULTI-TALK ====================
+
+class WaveSpeedMultiTalkProvider(LipsyncProvider):
+    """WaveSpeed InfiniteTalk multi-character video."""
+
+    def __init__(self, api_key: str, base_url: str = "https://api.wavespeed.ai",
+                 upload_func: Optional[callable] = None):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.upload_func = upload_func
+
+    def upload_file(self, file_path: str) -> Optional[str]:
+        if self.upload_func:
+            return self.upload_func(file_path)
+        ext = Path(file_path).suffix.lstrip(".")
+        content_type = f"audio/{ext}" if ext in ["mp3", "wav", "ogg"] else f"image/{ext}"
+        url = f"{self.base_url}/api/v3/media/upload/binary?ext={ext}"
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": content_type}
         try:
-            return _do_lipsync()
+            with open(file_path, "rb") as f:
+                resp = requests.post(url, headers=headers, data=f, timeout=60)
+            data = resp.json()
+            return data.get("data", {}).get("download_url")
         except Exception as e:
-            logger.error(f"  ❌ LTX Lipsync failed after 3 attempts: {e}")
-            return None
+            logger.warning(f"Upload error: {e}")
+        return None
+
+    def wait_for_job(self, job_id: str, max_wait: int = 300) -> Optional[str]:
+        url = f"{self.base_url}/api/v3/predictions/{job_id}/result"
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        elapsed = 0
+        while elapsed < max_wait:
+            try:
+                resp = requests.get(url, headers=headers, timeout=30)
+                data = resp.json()
+                status = data.get("data", {}).get("status", "processing")
+                outputs = data.get("data", {}).get("outputs", [])
+                if status == "completed" and outputs:
+                    return outputs[0]
+                elif status == "failed":
+                    return None
+                time.sleep(10)
+                elapsed += 10
+            except Exception:
+                time.sleep(10)
+                elapsed += 10
+        return None
+
+    def generate(self, image_path: str, audio_path: str,
+                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
+        """Multi-talk: audio_path should be (left_audio, right_audio) tuple or dict."""
+        global DRY_RUN
+        if DRY_RUN:
+            return mock_lipsync_video(image_path, audio_path, output_path)
+
+        cfg = config or {}
+        retries = cfg.get("retries", 2)
+
+        # Handle multi-audio: audio_path can be a dict with 'left' and 'right'
+        if isinstance(audio_path, dict):
+            left_audio = audio_path.get("left")
+            right_audio = audio_path.get("right")
+        elif isinstance(audio_path, tuple):
+            left_audio, right_audio = audio_path
+        else:
+            left_audio = right_audio = audio_path
+
+        for attempt in range(retries):
+            image_url = self.upload_file(image_path)
+            if not image_url:
+                continue
+            left_url = self.upload_file(left_audio) if left_audio else None
+            right_url = self.upload_file(right_audio) if right_audio else None
+
+            if not left_url or not right_url:
+                continue
+
+            url = f"{self.base_url}/api/v3/wavespeed-ai/infinitetalk/multi"
+            headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+            payload = {
+                "image": image_url,
+                "left_audio": left_url,
+                "right_audio": right_url,
+                "order": "left_right",
+                "resolution": cfg.get("resolution", "480p")
+            }
+            try:
+                resp = requests.post(url, headers=headers, json=payload, timeout=30)
+                data = resp.json()
+                # Detect quota/credits errors
+                status_code = resp.status_code
+                error_msg = str(data.get("error", "") or data.get("message", "") or "").lower()
+                quota_keywords = ("quota", "credit", "insufficient", "exceed", "limit", "429",
+                                 "rate limit", "monthly", "free tier", "余额", "配额", "额度")
+                if status_code == 429 or any(k in error_msg for k in quota_keywords):
+                    logger.error(f"  ❌ InfiniteTalk QUOTA EXHAUSTED: {data}")
+                    raise LipsyncQuotaError(f"WaveSpeed InfiniteTalk quota exceeded: {data}")
+                if not data.get("data", {}).get("id"):
+                    continue
+                result_url = self.wait_for_job(data["data"]["id"])
+                if result_url:
+                    resp = requests.get(result_url, timeout=120)
+                    with open(output_path, "wb") as f:
+                        f.write(resp.content)
+                    return output_path
+            except Exception as e:
+                logger.warning(f"  ❌ InfiniteTalk error: {e}")
+        return None
 
 
 # ==================== KIE.AI INFINITALK ====================
@@ -156,8 +277,7 @@ class KieAIInfinitalkProvider(LipsyncProvider):
         )
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[Dict] = None,
-                 upload_func: Optional[callable] = None) -> Optional[str]:
+                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
         """
         Kie.ai Infinitalk lip-sync: image_url + audio_url → video.
 
@@ -170,8 +290,11 @@ class KieAIInfinitalkProvider(LipsyncProvider):
                 resolution: str,    # "480p" or "720p"
                 max_wait: int,      # polling timeout in seconds
             }
-            upload_func: Optional callable to use for file uploads instead of instance's
         """
+        global DRY_RUN
+        if DRY_RUN:
+            return mock_lipsync_video(image_path, audio_path, output_path)
+
         cfg = config or {}
         prompt = cfg.get("prompt", "A person talking")
         resolution = cfg.get("resolution", "480p")
@@ -180,11 +303,10 @@ class KieAIInfinitalkProvider(LipsyncProvider):
         # Upload image and audio if upload_func provided
         image_url = None
         audio_url = None
-        effective_upload = upload_func if upload_func is not None else self.upload_func
 
-        if effective_upload:
-            image_url = effective_upload(image_path)
-            audio_url = effective_upload(audio_path)
+        if self.upload_func:
+            image_url = self.upload_func(image_path)
+            audio_url = self.upload_func(audio_path)
         if not image_url:
             image_url = cfg.get("image_url")
         if not audio_url:
@@ -197,41 +319,35 @@ class KieAIInfinitalkProvider(LipsyncProvider):
             )
             return None
 
-        from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
-
-        @retry(
-            stop=stop_after_attempt(3),
-            wait=wait_exponential(multiplier=1, min=2, max=60),
-            before_sleep=before_sleep_log(logger, logging.WARNING),
-            reraise=True,
+        # Submit task
+        result = self._client.infinitalk(
+            image_url=image_url,
+            audio_url=audio_url,
+            prompt=prompt,
+            resolution=resolution,
         )
-        def _submit_task():
-            return self._client.infinitalk(
-                image_url=image_url,
-                audio_url=audio_url,
-                prompt=prompt,
-                resolution=resolution,
-            )
-
-        result = _submit_task()
         if not result.get("success"):
+            error_str = str(result.get("error", "")).lower()
+            quota_keywords = ("quota", "credit", "insufficient", "exceed", "limit", "429",
+                             "rate limit", "monthly", "free tier", "余额", "配额", "额度")
+            if any(k in error_str for k in quota_keywords):
+                logger.error(f"Kie.ai Infinitalk QUOTA EXHAUSTED: {result.get('error')}")
+                raise LipsyncQuotaError(f"Kie.ai Infinitalk quota exceeded: {result.get('error')}")
             logger.error(f"Kie.ai Infinitalk submit failed: {result.get('error')}")
             return None
 
         task_id = result["task_id"]
         logger.info(f"Kie.ai Infinitalk task: {task_id}")
 
-        @retry(
-            stop=stop_after_attempt(3),
-            wait=wait_exponential(multiplier=1, min=2, max=60),
-            before_sleep=before_sleep_log(logger, logging.WARNING),
-            reraise=True,
-        )
-        def _poll_task():
-            return self._client.poll_task(task_id, max_wait=max_wait)
-
-        poll_result = _poll_task()
+        # Poll for completion
+        poll_result = self._client.poll_task(task_id, max_wait=max_wait)
         if not poll_result.get("success"):
+            error_str = str(poll_result.get("error", "")).lower()
+            quota_keywords = ("quota", "credit", "insufficient", "exceed", "limit", "429",
+                             "rate limit", "monthly", "free tier", "余额", "配额", "额度")
+            if any(k in error_str for k in quota_keywords):
+                logger.error(f"Kie.ai Infinitalk QUOTA EXHAUSTED: {poll_result.get('error')}")
+                raise LipsyncQuotaError(f"Kie.ai Infinitalk quota exceeded: {poll_result.get('error')}")
             logger.error(f"Kie.ai Infinitalk failed: {poll_result.get('error')}")
             return None
 
@@ -257,6 +373,7 @@ class KieAIInfinitalkProvider(LipsyncProvider):
 
 def register_lipsync_providers():
     register_provider("lipsync", "wavespeed", WaveSpeedLipsyncProvider)
+    register_provider("lipsync", "multitalk", WaveSpeedMultiTalkProvider)
     register_provider("lipsync", "kieai", KieAIInfinitalkProvider)
 
 

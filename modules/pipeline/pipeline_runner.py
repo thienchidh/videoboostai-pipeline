@@ -33,7 +33,8 @@ from modules.pipeline.scene_processor import SingleCharSceneProcessor
 # Import providers to trigger registration
 from modules.media.tts import MiniMaxTTSProvider, EdgeTTSProvider  # noqa: F401
 from modules.media.image_gen import MiniMaxImageProvider, WaveSpeedImageProvider  # noqa: F401
-from modules.media.lipsync import WaveSpeedLipsyncProvider, KieAIInfinitalkProvider  # noqa: F401
+from modules.media.lipsync import WaveSpeedLipsyncProvider, WaveSpeedMultiTalkProvider, KieAIInfinitalkProvider  # noqa: F401
+from modules.media.music_gen import MiniMaxMusicProvider  # noqa: F401
 from modules.llm.minimax import MiniMaxLLMProvider  # noqa: F401
 
 
@@ -101,6 +102,7 @@ class VideoPipelineRunner:
         self.tts_provider = self._build_tts_provider()
         self.image_provider = self._build_image_provider()
         self.lipsync_provider = self._build_lipsync_provider()
+        self.music_provider = self._build_music_provider()
 
         # Scene processors
         self.single_processor = SingleCharSceneProcessor(ctx, self.run_dir)
@@ -171,6 +173,11 @@ class VideoPipelineRunner:
                 upload_func=upload_fn,
             )
         return provider_cls(api_key=self.ctx.technical.api_keys.wavespeed, upload_func=upload_fn)
+
+    def _build_music_provider(self):
+        """Instantiate music provider via PluginRegistry."""
+        # Use minimax_key for music generation
+        return MiniMaxMusicProvider(api_key=self.ctx.technical.api_keys.minimax)
 
     # ---- TTS/Image/Lipsync wrappers (with dry-run support) ----
 

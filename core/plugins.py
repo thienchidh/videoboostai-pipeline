@@ -51,6 +51,16 @@ class LipsyncProvider(ABC):
         ...
 
 
+class MusicProvider(ABC):
+    """Abstract base for music generation providers."""
+
+    @abstractmethod
+    def generate(self, prompt: str, duration: int = 30,
+                 output_path: Optional[str] = None) -> Optional[str]:
+        """Generate music from text prompt. Returns path to audio file or None."""
+        ...
+
+
 class LLMProvider(ABC):
     """Abstract base for LLM chat providers."""
 
@@ -70,6 +80,7 @@ class PluginRegistry:
         self._image: Dict[str, Type[ImageProvider]] = {}
         self._lipsync: Dict[str, Type[LipsyncProvider]] = {}
         self._llm: Dict[str, Type[LLMProvider]] = {}
+        self._music: Dict[str, Type[MusicProvider]] = {}
 
     def register_tts(self, name: str, provider_class: Type[TTSProvider]) -> None:
         self._tts[name] = provider_class
@@ -87,6 +98,10 @@ class PluginRegistry:
         self._llm[name] = provider_class
         logger.debug(f"Registered LLM provider: {name}")
 
+    def register_music(self, name: str, provider_class: Type[MusicProvider]) -> None:
+        self._music[name] = provider_class
+        logger.debug(f"Registered music provider: {name}")
+
     def get_tts(self, name: str) -> Optional[Type[TTSProvider]]:
         return self._tts.get(name)
 
@@ -99,6 +114,9 @@ class PluginRegistry:
     def get_llm(self, name: str) -> Optional[Type[LLMProvider]]:
         return self._llm.get(name)
 
+    def get_music(self, name: str) -> Optional[Type[MusicProvider]]:
+        return self._music.get(name)
+
     def list_tts(self) -> List[str]:
         return list(self._tts.keys())
 
@@ -110,6 +128,9 @@ class PluginRegistry:
 
     def list_llm(self) -> List[str]:
         return list(self._llm.keys())
+
+    def list_music(self) -> List[str]:
+        return list(self._music.keys())
 
 
 # Global registry instance
@@ -126,6 +147,8 @@ def register_provider(category: str, name: str, cls: Type) -> None:
         _registry.register_lipsync(name, cls)
     elif category == "llm":
         _registry.register_llm(name, cls)
+    elif category == "music":
+        _registry.register_music(name, cls)
     else:
         raise ValueError(f"Unknown provider category: {category}")
 
@@ -140,6 +163,8 @@ def get_provider(category: str, name: str) -> Optional[Type]:
         return _registry.get_lipsync(name)
     elif category == "llm":
         return _registry.get_llm(name)
+    elif category == "music":
+        return _registry.get_music(name)
     return None
 
 
@@ -153,4 +178,6 @@ def list_providers(category: str) -> List[str]:
         return _registry.list_lipsync()
     elif category == "llm":
         return _registry.list_llm()
+    elif category == "music":
+        return _registry.list_music()
     return []

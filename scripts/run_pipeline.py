@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unified Pipeline Entry Point — Content Generation + Video Production.
+Unified Pipeline Entry Point - Content Generation + Video Production.
 
 Can be called directly from Python without CLI:
 
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 # ==================== CONTENT PIPELINE ====================
 
 def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = False):
-    """Run content generation cycle: research → ideas → scripts.
+    """Run content generation cycle: research -> ideas -> scripts.
 
     Args:
         channel_id: Channel identifier (e.g., 'nang_suat_thong_minh')
@@ -64,7 +64,7 @@ def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = 
     )
 
     logger.info("=" * 60)
-    logger.info("CONTENT PIPELINE — Content Generation")
+    logger.info("CONTENT PIPELINE - Content Generation")
     logger.info("=" * 60)
     logger.info(f"  Channel: {channel_id}")
     logger.info(f"  Ideas count: {ideas_count}")
@@ -98,7 +98,7 @@ def _load_content_config(channel_id: str = None):
 
 def run_video_pipeline(channel_id: str, scenario_path: str,
                       dry_run: bool = False, dry_run_tts: bool = False,
-                      dry_run_images: bool = False) -> tuple[str, list]:
+                      dry_run_images: bool = False) -> tuple:
     """Run video production from a scenario YAML file.
 
     Args:
@@ -113,7 +113,6 @@ def run_video_pipeline(channel_id: str, scenario_path: str,
     """
     global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, USE_STATIC_LIPSYNC
 
-    # Update global flags
     DRY_RUN = dry_run
     DRY_RUN_TTS = dry_run_tts
     DRY_RUN_IMAGES = dry_run_images
@@ -146,7 +145,7 @@ def run_video_pipeline(channel_id: str, scenario_path: str,
 
 # ==================== FULL PIPELINE ====================
 
-def run_full_pipeline(channel_id: str, ideas_count: int = 3, produce: bool = True) -> dict:
+def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = True) -> dict:
     """Run full pipeline: content generation + video production.
 
     Args:
@@ -160,7 +159,6 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 3, produce: bool = Tru
             - videos: list of video result dicts (if produce=True)
     """
     from modules.content.content_pipeline import ContentPipeline
-    from scripts.video_pipeline_v3 import VideoPipelineV3
 
     config = _load_content_config()
     pipeline = ContentPipeline(
@@ -171,7 +169,7 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 3, produce: bool = Tru
     )
 
     logger.info("=" * 60)
-    logger.info("FULL PIPELINE — Content + Video")
+    logger.info("FULL PIPELINE - Content + Video")
     logger.info("=" * 60)
     logger.info(f"  Channel: {channel_id}")
     logger.info(f"  Ideas count: {ideas_count}")
@@ -213,11 +211,10 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 3, produce: bool = Tru
             continue
 
         title = idea.get("title", f"idea_{idea_id}")
-        logger.info(f"")
+        logger.info("")
         logger.info(f"  [{len(video_results)+1}/{len(ideas)}] Producing: {title[:50]}...")
 
         try:
-            # produce_video saves the YAML and runs VideoPipelineV3
             prod_result = pipeline.produce_video(idea_id)
 
             if prod_result.get("success"):
@@ -269,18 +266,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Unified Pipeline")
     parser.add_argument("--channel", default="nang_suat_thong_minh", help="Channel ID")
-    parser.add_argument("--ideas", type=int, default=3, help="Number of ideas")
+    parser.add_argument("--ideas", type=int, default=1, help="Number of ideas")
     parser.add_argument("--produce", action="store_true", help="Run video production")
     parser.add_argument("--dry-run", action="store_true", help="Dry run mode")
     parser.add_argument("--dry-run-tts", action="store_true", help="Dry run TTS")
     parser.add_argument("--dry-run-images", action="store_true", help="Dry run images")
 
     args = parser.parse_args()
-
-    global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES
-    DRY_RUN = args.dry_run
-    DRY_RUN_TTS = args.dry_run_tts
-    DRY_RUN_IMAGES = args.dry_run_images
 
     if args.produce:
         result = run_full_pipeline(

@@ -1,22 +1,25 @@
 title: Productivity - Wikipedia
 scenes:
 - id: 1
-  script: Bạn có biết? Phần lớn mọi người đều bị đánh lừa bởi một từ! Người ta nói
-    'năng suất' nhưng thường chỉ nghĩ đến việc làm nhiều hơn, thật ra không phải vậy!
-  background: phòng làm việc hiện đại, ánh sáng ấm, 3D render
+  script: Bạn có biết 80% người đo năng suất sai cách không? Họ chỉ đếm bao nhiêu
+    việc xong, mà quên mất phần quan trọng nhất là đo lường đầu vào. Wikipedia nói
+    rằng năng suất là tỉ lệ giữa đầu ra và đầu vào, nghĩa là không chỉ nhìn kết quả
+    thôi đâu!
+  background: phòng làm việc hiện đại, ánh sáng vàng nhẹ, 3D render
   characters:
   - Mentor
 - id: 2
-  script: 'Năng suất thực ra là tỷ lệ giữa đầu ra và đầu vào. Cùng một công việc,
-    người A hoàn thành trong 2 tiếng, người B chỉ mất 30 phút. Câu hỏi là: bạn đang
-    ở đâu trong tỷ lệ đó?'
-  background: bàn làm việc có laptop, sổ ghi chú, cốc cà phê
+  script: Giả sử một nhân viên dịch vụ làm được 10 đơn hàng mỗi ngày, nghe có vẻ năng
+    suất lắm đúng không? Nhưng nếu anh ta cần 12 tiếng để làm, trong khi đồng nghiệp
+    chỉ cần 6 tiếng cho cùng 10 đơn đó, thì anh ta thực ra kém hiệu quả hơn rất nhiều.
+    Đó là vì mình chưa đo lường yếu tố đầu vào.
+  background: văn phòng mở, nhân viên đang làm việc, quầy dịch vụ
   characters:
-  - Mentor
   - Student
 - id: 3
-  script: Bạn có muốn cải thiện tỷ lệ năng suất của mình không? Hãy comment cho mình
-    biết bạn đang dùng mẹo nào để hoàn thành công việc nhanh hơn nhé!
-  background: không gian mở, ánh sáng tự nhiên, plant-based
+  script: 'Từ nay, trước khi tự hỏi mình có năng suất không, hãy hỏi: mình đã đo lường
+    cả đầu vào chưa? Bạn thường đo năng suất bằng cách nào? Comment cho mình biết
+    nhé, để xem ai đang đo đúng!'
+  background: phòng làm việc cá nhân, ánh sáng tự nhiên, cận mặt Mentor
   characters:
-  - Student
+  - Mentor

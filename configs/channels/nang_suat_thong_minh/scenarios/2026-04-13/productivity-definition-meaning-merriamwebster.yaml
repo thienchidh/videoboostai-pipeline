@@ -1,22 +1,23 @@
 title: PRODUCTIVITY Definition & Meaning - Merriam-Webster
 scenes:
 - id: 1
-  script: Bạn có biết không? Người làm việc 12 tiếng một ngày, lại kém năng suất hơn
-    người làm 6 tiếng. Đó là vì họ không hiểu năng suất là gì.
-  background: văn phòng hiện đại, ánh sáng ấm, 3D render
+  script: Đừng tin khi người ta nói năng suất là làm thật nhiều việc trong một ngày.
+    Merriam-Webster định nghĩa nó hoàn toàn khác. Và đây là lý do hầu hết chúng ta
+    đều đang làm sai.
+  background: văn phòng hiện đại ánh sáng vàng nhân tạo 3D render
   characters:
   - Mentor
 - id: 2
-  script: Theo Merriam-Webster, năng suất là trạng thái chất lượng hoặc sự sinh ra
-    kết quả có giá trị. Nghĩa là bạn không chỉ bận, mà phải tạo ra thứ có ý nghĩa.
-    Như một học sinh học smart, hiểu bài nhanh hơn 3 lần so với học vẹt.
-  background: phòng học trung bình, bảng trắng, ánh sáng tự nhiên
+  script: Theo Merriam-Webster, năng suất là khả năng tạo ra kết quả có giá trị từ
+    công việc mình làm. Một sinh viên học 10 tiếng nhưng không hiểu bài, khác gì một
+    nhân viên ngồi máy tính 8 tiếng nhưng chỉ lướt mạng. Điều quan trọng là chất lượng
+    đầu ra, không phải số giờ đầu vào.
+  background: thư viện đơn giản ánh sáng tự nhiên 3D render
   characters:
   - Mentor
-  - Student
 - id: 3
-  script: Vậy bạn đang làm việc smart hay chỉ đang bận thôi? Hãy comment cho mình
-    biết, mình sẽ giúp bạn cải thiện ngay.
-  background: quán cafe yên tĩnh, ly cà phê, ánh sáng vàng
+  script: Vậy theo bạn, làm sao để biết mình đang thật sự năng suất thay vì chỉ bận
+    rộn? Comment cho mình biết cách bạn đang đo lường năng suất của mình nhé!
+  background: phòng làm việc cá nhân ánh sáng ấm studio
   characters:
   - Mentor

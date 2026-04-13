@@ -745,12 +745,13 @@ def save_topic_sources(source_type: str, source_query: str, topics: List[Dict]) 
 
 
 def get_recent_topic_titles(days: int = 30) -> set:
-    """Lấy titles của topics đã research trong N ngày gần đây."""
+    """Lấy titles của topics đã research trong N ngày gần đây, chỉ topics chưa completed."""
     from datetime import timedelta
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     with get_session() as session:
         rows = session.query(models.TopicSource).filter(
-            models.TopicSource.created_at >= cutoff
+            models.TopicSource.created_at >= cutoff,
+            models.TopicSource.status != "completed"
         ).all()
         titles = set()
         for r in rows:
@@ -758,6 +759,33 @@ def get_recent_topic_titles(days: int = 30) -> set:
                 if t.get("title"):
                     titles.add(t["title"])
         return titles
+
+
+def mark_topic_source_completed(source_id: int):
+    """Mark a topic source as completed after script YAML is saved."""
+    with get_session() as session:
+        row = session.query(models.TopicSource).filter_by(id=source_id).first()
+        if row:
+            row.status = "completed"
+            session.flush()
+
+
+def get_pending_topic_sources(limit: int = 3) -> List[Dict]:
+    """Lấy topic_sources đang ở trạng thái pending, kèm topics của chúng."""
+    with get_session() as session:
+        rows = session.query(models.TopicSource).filter(
+            models.TopicSource.status == "pending"
+        ).order_by(models.TopicSource.created_at.asc()).limit(limit).all()
+        result = []
+        for r in rows:
+            result.append({
+                "id": r.id,
+                "source_query": r.source_query,
+                "topics": r.topics or [],
+                "status": r.status,
+                "created_at": r.created_at,
+            })
+        return result
 
 
 # ─── Idea Embedding Operations ───────────────────────────────────────

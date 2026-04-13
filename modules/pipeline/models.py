@@ -295,9 +295,18 @@ class SceneConfig(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict) -> "SceneConfig":
-        """Parse scene từ dict — convert characters list."""
-        chars = data.get("characters", [])
-        parsed_chars = [SceneCharacter.from_yaml(c) for c in chars]
+        """Parse scene từ dict — convert characters list.
+
+        Supports both 'character' (singular string, our normalized format)
+        and 'characters' (plural array) from older formats.
+        """
+        # Support both 'character' (singular string) and 'characters' (array)
+        raw_chars = data.get("characters", [])
+        if not raw_chars and "character" in data:
+            # Normalize singular 'character' to list format
+            raw_chars = [data["character"]]
+
+        parsed_chars = [SceneCharacter.from_yaml(c) for c in raw_chars]
         return cls(
             id=data.get("id", 0),
             tts=data.get("tts"),

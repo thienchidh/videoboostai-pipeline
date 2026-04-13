@@ -115,7 +115,8 @@ def find_similar_ideas(embedding: List[float], project_id: int,
             models.ContentIdea,
             models.IdeaEmbedding.content_idea_id == models.ContentIdea.id
         ).filter(
-            models.ContentIdea.project_id == project_id
+            models.ContentIdea.project_id == project_id,
+            models.ContentIdea.status == "script_ready"
         ).all()
 
         similar = []

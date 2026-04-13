@@ -79,8 +79,9 @@ class ContentIdeaGenerator:
         title = idea.get("title", "")
         keywords = idea.get("topic_keywords", [])
         angle = idea.get("content_angle", self.content_angle)
+        description = idea.get("description", "")  # actual article content from research
 
-        scenes = self._generate_scenes(title, keywords, angle, num_scenes)
+        scenes = self._generate_scenes(title, keywords, angle, description, num_scenes)
 
         # Read from validated ChannelConfig — no hardcoded fallbacks
         if not self._channel_config:
@@ -99,7 +100,7 @@ class ContentIdeaGenerator:
         }
 
     def _generate_scenes(self, title: str, keywords: List[str], angle: str,
-                          num_scenes: int = 3) -> List[Dict]:
+                          description: str = "", num_scenes: int = 3) -> List[Dict]:
         """Generate scene scripts using LLM provider with exponential backoff retry."""
         from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 
@@ -116,7 +117,7 @@ class ContentIdeaGenerator:
             api_key=api_key,
             model=self._llm_config.get("model", "MiniMax-M2.7") if self._llm_config else "MiniMax-M2.7",
         )
-        prompt = self._build_scene_prompt(title, keywords, angle, num_scenes)
+        prompt = self._build_scene_prompt(title, keywords, angle, description, num_scenes)
 
         @retry(
             stop=stop_after_attempt(3),
@@ -136,7 +137,7 @@ class ContentIdeaGenerator:
         return scenes
 
     def _build_scene_prompt(self, title: str, keywords: List[str], angle: str,
-                             num_scenes: int) -> str:
+                             description: str = "", num_scenes: int = 3) -> str:
         """Build the prompt sent to LLM for scene generation."""
         if not self._channel_config:
             raise ValueError("channel_config is required")
@@ -164,11 +165,13 @@ class ContentIdeaGenerator:
         else:
             art_style_str = cfg.style or "3D render"
 
+        desc_line = f"NỘI DUNG THAM KHẢO:\n{description[:1000]}\n" if description else ""
+
         return f"""Bạn là chuyên gia sản xuất video viral cho kênh "{cfg.name}".
 Viết {num_scenes} scene giữ chân người xem từ giây đầu tiên.
 
 Tiêu đề: {title}
-{kw_line}Phong cách nội dung: {angle}{tts_context}
+{desc_line}{kw_line}Phong cách nội dung: {angle}{tts_context}
 
 PHONG CÁCH HÌNH ẢNH CỦA KÊNH (CỐ ĐỊNH - KHÔNG ĐƯỢC THAY ĐỔI):
 {art_style_str}
@@ -229,7 +232,13 @@ Trả về CHỈ JSON array, không kèm markdown."""
         for scene in scenes:
             # Normalize: extract first from 'characters' array, or use 'character' string
             char = scene.get("character") or scene.get("characters")
+            original_chars = char if isinstance(char, list) else None
             if isinstance(char, list):
+                if len(char) > 1:
+                    logger.warning(
+                        f"Scene {scene.get('id', '?')} has {len(char)} characters "
+                        f"({char}), expected 1. Using first: {char[0]}"
+                    )
                 char = char[0] if char else default_char
             elif not isinstance(char, str) or not char:
                 char = default_char

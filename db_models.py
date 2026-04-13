@@ -235,4 +235,5 @@ class TopicSource(Base):
     source_type = Column(String(50))
     source_query = Column(Text)
     topics = Column(JSON)  # list of topic dicts
+    status = Column(String(20), default="pending")  # pending | completed
     created_at = Column(DateTime, default=datetime.datetime.utcnow)

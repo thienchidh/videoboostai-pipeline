@@ -34,22 +34,31 @@ class TopicResearcher:
             import requests
             api_key = self._get_you_search_key()
             if not api_key:
-                logger.warning("YouSearch API key not configured")
+                logger.warning(f"YouSearch API key not configured for query: '{query}'")
                 return []
 
             headers = {"X-API-Key": api_key}
             params = {"query": query, "count": count}
+            logger.info(f"YouSearch request: query='{query}', count={count}")
+
             response = requests.get(
                 "https://ydc-index.io/v1/search",
                 headers=headers,
                 params=params,
                 timeout=15
             )
-            response.raise_for_status()
+            logger.info(f"YouSearch response status: {response.status_code}")
+
+            if response.status_code != 200:
+                logger.warning(f"YouSearch API error: status={response.status_code}, body={response.text[:200]}")
+                return []
+
             data = response.json()
+            results = data.get("results", {}).get("web", [])
+            logger.info(f"YouSearch returned {len(results)} results for query: '{query}'")
 
             topics = []
-            for item in data.get("results", {}).get("web", [])[:count]:
+            for item in results[:count]:
                 title = item.get("title", "")
                 description = item.get("description", "") or item.get("url", "")
                 url = item.get("url", "")
@@ -64,7 +73,7 @@ class TopicResearcher:
                 })
             return topics
         except Exception as e:
-            logger.warning(f"YouSearch failed: {e}")
+            logger.warning(f"YouSearch request failed: {e}")
             return []
 
     def _get_you_search_key(self) -> str:
@@ -96,9 +105,13 @@ class TopicResearcher:
             seen_titles = set()
 
         for kw in keywords:
-            logger.debug(f"Researching keyword: {kw}")
-            topics = self.web_search_trending(kw, count=count)
-            logger.debug(f"  Search results for '{kw}': {len(topics)} topics")
+            # Search with higher count per keyword to account for dedup losses
+            search_count = max(count, 10)  # at least 10 per keyword
+            logger.info(f"Researching keyword: '{kw}', search_count={search_count}")
+            topics = self.web_search_trending(kw, count=search_count)
+            logger.info(f"  Search results for '{kw}': {len(topics)} topics")
+            for i, topic in enumerate(topics):
+                logger.info(f"    [{i+1}] {topic.get('title', '')[:80]}")
             for i, topic in enumerate(topics):
                 logger.debug(f"    [{i+1}] {topic.get('title', '')[:80]}")
             for topic in topics:

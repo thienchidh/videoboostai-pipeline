@@ -64,8 +64,6 @@ def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = 
     """
     from modules.content.content_pipeline import ContentPipeline
 
-    config = _load_content_config()
-
     pipeline = ContentPipeline(
         project_id=1,
         config=config,
@@ -92,13 +90,6 @@ def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = 
         logger.info(f"  [{i+1}] ID={idea_id}: {title[:50]}")
 
     return ideas
-
-
-def _load_content_config(channel_id: str = None):
-    """Load business config for content pipeline via Pydantic."""
-    from modules.pipeline.models import ContentPipelineConfig
-    config_path = PROJECT_ROOT / "configs/business/video_scenario.yaml.example"
-    return ContentPipelineConfig.load_or_default(config_path).model_dump()
 
 
 # ==================== VIDEO PIPELINE ====================
@@ -167,10 +158,9 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
     """
     from modules.content.content_pipeline import ContentPipeline
 
-    config = _load_content_config()
     pipeline = ContentPipeline(
         project_id=1,
-        config=config,
+        config=None,
         dry_run=False,
         channel_id=channel_id,
     )
@@ -182,7 +172,7 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
     logger.info(f"  Ideas count: {ideas_count}")
     logger.info(f"  Produce: {produce}")
 
-    # Step 1: Content Generation
+    # Step 1: Content Generation + Production
     logger.info("")
     logger.info("STEP 1: Content Generation")
     logger.info(f"  Running content cycle for {ideas_count} ideas...")
@@ -190,86 +180,42 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
     results = pipeline.run_full_cycle(num_ideas=ideas_count)
     logger.info(f"  Content cycle done: {results}")
 
+    # run_full_cycle already produced videos — use its results directly
+    video_results = results.get("produced", [])
+    success_count = sum(1 for v in video_results if v.get("result", {}).get("success"))
+    fail_count = len(video_results) - success_count
+
     ideas = pipeline.idea_gen.get_ideas_by_status(status="script_ready", limit=ideas_count)
     logger.info(f"  Found {len(ideas)} ideas ready for production")
 
-    if not ideas:
-        logger.warning("  No ideas with scripts found!")
+    if not ideas and not video_results:
+        logger.warning("  No ideas generated and no videos produced!")
         return {"ideas": [], "videos": []}
-
-    if not produce:
-        logger.info("  Skipping video production (produce=False)")
-        return {"ideas": ideas, "videos": []}
-
-    # Step 2: Video Production for each idea
-    logger.info("")
-    logger.info("STEP 2: Video Production")
-    logger.info(f"  Producing {len(ideas)} videos...")
-
-    video_results = []
-    success_count = 0
-    fail_count = 0
-
-    for idea in ideas:
-        idea_id = idea.get("id")
-        script_json = idea.get("script_json")
-        if not script_json:
-            logger.warning(f"  Idea {idea_id} has no script, skipping")
-            continue
-
-        title = idea.get("title", f"idea_{idea_id}")
-        logger.info("")
-        logger.info(f"  [{len(video_results)+1}/{len(ideas)}] Producing: {title[:50]}...")
-
-        try:
-            prod_result = pipeline.produce_video(idea_id)
-
-            if prod_result.get("success"):
-                video_path = prod_result.get("output_video")
-                run_dir = prod_result.get("run_dir", "N/A")
-                logger.info(f"    SUCCESS: {video_path}")
-                logger.info(f"    Run dir: {run_dir}")
-                video_results.append({
-                    "idea_id": idea_id,
-                    "title": title,
-                    "video_path": video_path,
-                })
-                success_count += 1
-            else:
-                error = prod_result.get('error', 'Unknown error')
-                logger.error(f"    FAILED: {error}")
-                video_results.append({
-                    "idea_id": idea_id,
-                    "title": title,
-                    "failed": True,
-                    "error": error,
-                })
-                fail_count += 1
-        except Exception as e:
-            logger.error(f"    ERROR: {e}")
-            video_results.append({
-                "idea_id": idea_id,
-                "title": title,
-                "failed": True,
-                "error": str(e),
-            })
-            fail_count += 1
 
     logger.info("")
     logger.info("=" * 60)
     logger.info("FULL PIPELINE COMPLETE")
     logger.info("=" * 60)
-    logger.info(f"  Total ideas: {len(ideas)}")
+    logger.info(f"  Total ideas generated: {results.get('ideas_generated', 0)}")
+    logger.info(f"  Scripts generated: {results.get('scripts_generated', 0)}")
     logger.info(f"  Videos produced: {success_count}")
     logger.info(f"  Videos failed: {fail_count}")
 
-    return {"ideas": ideas, "videos": video_results}
+    return {"ideas": ideas, "videos": video_results, "cycle_results": results}
 
 
 # ==================== CLI ====================
 
 if __name__ == "__main__":
     import argparse
+
+    # Initialize DB schema if not exists
+    from db import init_db_full
+    try:
+        init_db_full()
+        logger.info("DB schema ready")
+    except Exception as e:
+        logger.warning(f"DB init skipped (may already exist): {e}")
 
     parser = argparse.ArgumentParser(description="Unified Pipeline")
     parser.add_argument("--channel", default="nang_suat_thong_minh", help="Channel ID")

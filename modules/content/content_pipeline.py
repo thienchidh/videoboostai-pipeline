@@ -101,10 +101,9 @@ class ContentPipeline:
     def run_full_cycle(self, num_ideas: int = 5) -> Dict:
         """
         Run full content cycle:
-        1. Research trending topics
+        1. Check pending pool → use pending topics or research new
         2. Generate content ideas
-        3. Generate scene scripts
-        4. Schedule content
+        3. Generate scene scripts + produce video
         """
         logger.info("=" * 50)
         logger.info("CONTENT PIPELINE - FULL CYCLE")
@@ -112,15 +111,27 @@ class ContentPipeline:
 
         results = {}
 
-        # Step 1: Research
-        logger.info("Step 1: Researching trending topics...")
-        topics = self.researcher.research_from_keywords(count=num_ideas)
-        results["topics_found"] = len(topics)
-        logger.info(f"  Found {len(topics)} topics")
+        # Step 1: Check pending pool → research only if pool is empty
+        from db import get_pending_topic_sources
 
-        # Save topics to DB
-        source_id = self.researcher.save_to_db(topics, source_query=", ".join(self.niche_keywords))
-        results["topic_source_id"] = source_id
+        pending = get_pending_topic_sources(limit=1)
+        if pending:
+            ps = pending[0]
+            logger.info("Step 1: Using pending topic source id={} (skipping research)".format(ps["id"]))
+            topics = ps.get("topics", [])
+            source_id = ps["id"]
+            results["topics_found"] = len(topics)
+            results["source_id"] = source_id
+            results["pending_mode"] = True
+            logger.info(f"  Loaded {len(topics)} topics from pending pool")
+        else:
+            logger.info("Step 1: Researching trending topics (pending pool empty)...")
+            topics = self.researcher.research_from_keywords(count=num_ideas)
+            results["topics_found"] = len(topics)
+            logger.info(f"  Found {len(topics)} topics")
+            source_id = self.researcher.save_to_db(topics, source_query=", ".join(self.niche_keywords))
+            results["source_id"] = source_id
+            results["pending_mode"] = False
 
         # Step 2: Generate ideas
         logger.info("Step 2: Generating content ideas...")
@@ -128,21 +139,24 @@ class ContentPipeline:
         results["ideas_generated"] = len(ideas)
         logger.info(f"  Generated {len(ideas)} ideas")
 
-        # Step 2b: Semantic deduplication
-        try:
-            from utils.embedding import check_duplicate_ideas, save_idea_embedding
-            logger.info("Step 2b: Checking for semantic duplicates...")
-            new_ideas = check_duplicate_ideas(ideas, self.project_id)
-            skipped_count = len(ideas) - len(new_ideas)
-            logger.info(f"  Dedup: {skipped_count} duplicates skipped, {len(new_ideas)} new ideas")
-            ideas = new_ideas
-        except Exception as e:
-            logger.warning(f"Embedding dedup failed: {e}, using all ideas")
-            pass
+        # Step 2b: Semantic deduplication (skip for pending topics - already deduped)
+        if not results.get("pending_mode"):
+            try:
+                from utils.embedding import check_duplicate_ideas, save_idea_embedding
+                logger.info("Step 2b: Checking for semantic duplicates...")
+                new_ideas = check_duplicate_ideas(ideas, self.project_id)
+                skipped_count = len(ideas) - len(new_ideas)
+                logger.info(f"  Dedup: {skipped_count} duplicates skipped, {len(new_ideas)} new ideas")
+                ideas = new_ideas
+            except Exception as e:
+                logger.warning(f"Embedding dedup failed: {e}, using all ideas")
+        else:
+            logger.info("Step 2b: Skipping dedup (using pending topics - already filtered)")
 
         if not ideas:
-            logger.info("No new ideas after dedup. Skipping script generation.")
+            logger.warning("No new ideas after dedup. All topics were duplicates of recent content.")
             results["scripts_generated"] = 0
+            results["status"] = "no_new_ideas"
             return results
 
         # Save ideas to DB (only new ones)
@@ -166,25 +180,34 @@ class ContentPipeline:
 
         results["idea_ids"] = idea_ids
 
-        # Step 3: Generate scripts
-        logger.info("Step 3: Generating scene scripts...")
-        for idea_id in idea_ids:
-            idea = ideas[idea_ids.index(idea_id)]
+        # Step 3: Generate scripts + produce videos
+        logger.info("Step 3: Generating scripts and producing videos...")
+        produced = []
+        scheduled = []
+
+        for i, idea_id in enumerate(idea_ids):
+            idea = ideas[i]
             script = self.idea_gen.generate_script_from_idea(idea, num_scenes=3)
             self.idea_gen.update_idea_script(idea_id, script)
 
             # Save script to file
-            self._save_script_config(idea_id, script)
+            config_path = self._save_script_config(idea_id, script)
             logger.info(f"  Script saved for idea {idea_id}: {idea.get('title', '')[:50]}")
 
-        results["scripts_generated"] = len(idea_ids)
+            # Produce video immediately for this just-generated script
+            logger.info(f"  Producing video for idea {idea_id}...")
+            prod_result = self.produce_video(idea_id)
+            produced.append({
+                "idea_id": idea_id,
+                "config_path": str(config_path),
+                "result": prod_result,
+            })
+            logger.info(f"  Production result: {prod_result.get('success')}")
 
-        # Step 4: Schedule
-        if self.auto_schedule:
-            logger.info("Step 4: Scheduling content...")
-            start_date = date.today()
-            for i, idea_id in enumerate(idea_ids):
+            # Schedule for social posting (if not dry_run and auto_schedule)
+            if self.auto_schedule and prod_result.get("success") and not self.dry_run:
                 platforms = ["facebook", "tiktok"] if self.idea_gen.target_platform == "both" else [self.idea_gen.target_platform]
+                start_date = date.today()
                 for platform in platforms:
                     cal_id = self.calendar.schedule_idea(
                         idea_id=idea_id,
@@ -193,8 +216,22 @@ class ContentPipeline:
                         scheduled_time=time(9, 0),
                         priority="medium"
                     )
-                    logger.info(f"  Scheduled idea {idea_id} for {platform} on {start_date}")
-            results["scheduled"] = True
+                    scheduled.append({"idea_id": idea_id, "platform": platform, "calendar_id": cal_id})
+                    logger.info(f"  Scheduled {idea_id} for {platform}")
+
+        # Mark topic source as completed after all YAML files are saved successfully
+        if source_id:
+            from db import mark_topic_source_completed
+            try:
+                mark_topic_source_completed(source_id)
+                logger.info(f"  Topic source {source_id} marked as completed")
+            except Exception as e:
+                logger.warning(f"Could not mark topic source completed: {e}")
+
+        results["produced"] = produced
+        results["scheduled"] = scheduled
+
+        results["scripts_generated"] = len(idea_ids)
 
         logger.info("✅ Full cycle complete!")
         return results
@@ -238,9 +275,10 @@ class ContentPipeline:
         logger.info(f"  Scenario saved: {config_path}")
         return config_path
 
-    def produce_video(self, idea_id: int, run_dir: str = None) -> Dict:
+    def produce_video(self, idea_id: int, config_path: Optional[str] = None) -> Dict:
         """
         Trigger video_pipeline for a scheduled idea.
+        If config_path is not provided, saves YAML from DB first.
         Returns pipeline result dict.
         """
         from db import get_content_idea
@@ -255,9 +293,9 @@ class ContentPipeline:
         if not script_json:
             return {"success": False, "error": f"Idea {idea_id} has no script"}
 
-        # Save config (YAML scenario file)
-        idea_id_val = idea_id
-        config_path = self._save_script_config(idea_id_val, script_json)
+        # Save config (YAML scenario file) only if not provided by caller
+        if not config_path:
+            config_path = str(self._save_script_config(idea_id, script_json))
 
         if self.dry_run:
             logger.info(f"DRY RUN: would run pipeline with {config_path}")
@@ -420,6 +458,14 @@ class ContentPipeline:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+    # Initialize DB schema if not exists
+    from db import init_db_full
+    try:
+        init_db_full()
+        logger.info("DB schema ready")
+    except Exception as e:
+        logger.warning(f"DB init skipped (may already exist): {e}")
 
     # Load config from project root via Pydantic
     config_path = PROJECT_ROOT / "configs/business/video_scenario.yaml.example"

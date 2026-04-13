@@ -80,50 +80,51 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
     def generate(self, image_path: str, audio_path: str,
                  output_path: str, config: Optional[Dict] = None,
                  upload_func: Optional[callable] = None) -> Optional[str]:
-        cfg = config or {}
-        retries = cfg.get("retries", 2)
-        resolution = cfg.get("resolution", "480p")
-        effective_upload = upload_func if upload_func is not None else self.upload_func
+        from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 
-        for attempt in range(retries):
-            logger.debug(f"  🎬 LTX Lipsync (attempt {attempt+1})...")
-            image_url = effective_upload(image_path) if effective_upload else self.upload_file(image_path)
+        cfg = config or {}
+        resolution = cfg.get("resolution", "480p")
+        effective_upload = upload_func if upload_func is not None else self.upload_file
+
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+            before_sleep=before_sleep_log(logger, logging.WARNING),
+            reraise=True,
+        )
+        def _do_lipsync() -> str:
+            image_url = effective_upload(image_path)
             if not image_url:
-                logger.warning(f"  ❌ Image upload failed")
-                continue
-            audio_url = effective_upload(audio_path) if effective_upload else self.upload_file(audio_path)
+                raise ValueError("Image upload failed")
+            audio_url = effective_upload(audio_path)
             if not audio_url:
-                logger.warning(f"  ❌ Audio upload failed")
-                continue
+                raise ValueError("Audio upload failed")
 
             url = f"{self.base_url}/api/v3/wavespeed-ai/ltx-2.3/lipsync"
             headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-            payload = {
-                "image": image_url,
-                "audio": audio_url,
-                "resolution": resolution
-            }
-            # Add seed if specified
+            payload = {"image": image_url, "audio": audio_url, "resolution": resolution}
             if cfg.get("seed"):
                 payload["seed"] = cfg["seed"]
 
-            try:
-                resp = requests.post(url, headers=headers, json=payload, timeout=30)
-                data = resp.json()
-                if not data.get("data", {}).get("id"):
-                    logger.warning(f"  ❌ Job failed: {data}")
-                    continue
-                job_id = data["data"]["id"]
-                logger.debug(f"  ✅ Job: {job_id}")
-                result_url = self.wait_for_job(job_id, max_wait=300)
-                if result_url:
-                    resp = requests.get(result_url, timeout=120)
-                    with open(output_path, "wb") as f:
-                        f.write(resp.content)
-                    return output_path
-            except Exception as e:
-                logger.warning(f"  ❌ LTX error: {e}")
-        return None
+            resp = requests.post(url, headers=headers, json=payload, timeout=30)
+            data = resp.json()
+            if not data.get("data", {}).get("id"):
+                raise ValueError(f"Job failed: {data}")
+            job_id = data["data"]["id"]
+            logger.debug(f"  ✅ Job: {job_id}")
+            result_url = self.wait_for_job(job_id, max_wait=300)
+            if not result_url:
+                raise ValueError("Lipsync job timed out")
+            resp = requests.get(result_url, timeout=120)
+            with open(output_path, "wb") as f:
+                f.write(resp.content)
+            return output_path
+
+        try:
+            return _do_lipsync()
+        except Exception as e:
+            logger.error(f"  ❌ LTX Lipsync failed after 3 attempts: {e}")
+            return None
 
 
 # ==================== KIE.AI INFINITALK ====================

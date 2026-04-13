@@ -100,7 +100,9 @@ class ContentIdeaGenerator:
 
     def _generate_scenes(self, title: str, keywords: List[str], angle: str,
                           num_scenes: int = 3) -> List[Dict]:
-        """Generate scene scripts using LLM provider with retry on parse failure."""
+        """Generate scene scripts using LLM provider with exponential backoff retry."""
+        from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
+
         api_key = self._llm_config.get("api_key", "") if self._llm_config else ""
         if not api_key:
             # Read minimax key from technical config
@@ -120,19 +122,22 @@ class ContentIdeaGenerator:
         )
         prompt = self._build_scene_prompt(title, keywords, angle, num_scenes)
 
-        max_retries = 2
-        for attempt in range(max_retries + 1):
-            try:
-                text = llm.chat(prompt, max_tokens=1536)
-                scenes = self._parse_scenes(text)
-                if scenes:
-                    logger.info(f"Generated {len(scenes)} scenes from LLM (attempt {attempt + 1})")
-                    return scenes
-                logger.warning(f"LLM returned invalid format (attempt {attempt + 1}/{max_retries + 1})")
-            except Exception as e:
-                logger.warning(f"LLM call failed: {e} (attempt {attempt + 1}/{max_retries + 1})")
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=1, max=10),
+            before_sleep=before_sleep_log(logger, logging.WARNING),
+            reraise=True,
+        )
+        def _call_llm():
+            text = llm.chat(prompt, max_tokens=1536)
+            scenes = self._parse_scenes(text)
+            if not scenes:
+                raise ValueError("Invalid scene format")
+            return scenes
 
-        raise RuntimeError(f"LLM failed after {max_retries + 1} attempts for: {title[:30]}")
+        scenes = _call_llm()
+        logger.info(f"Generated {len(scenes)} scenes from LLM")
+        return scenes
 
     def _build_scene_prompt(self, title: str, keywords: List[str], angle: str,
                              num_scenes: int) -> str:

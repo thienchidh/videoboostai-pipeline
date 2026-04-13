@@ -159,7 +159,7 @@ Tiêu đề: {title}
 YÊU CẦU:
 - Lời thoại VIẾT TIẾNG VIỆT CÓ DẤU, tự nhiên như người nói thật
 - KHÔNG dùng tiếng Anh - dùng tiếng Việt tương đương
-- Chọn nhân vật từ danh sách: [{char_list_str}] cho mỗi scene
+- Chỉ chọn MỘT nhân vật duy nhất từ danh sách: [{char_list_str}] cho mỗi scene
 
 CẤU TRÚC SCENE:
 - Scene 1 (MÓC HÓI): Mở đầu bằng statement táo bạo, câu hỏi gây sốc, hoặc số liệu bất ngờ. KHÔNG giới thiệu chủ đề — nhảy thẳng vào nội dung.
@@ -170,7 +170,7 @@ MỖI SCENE CẦN CÓ:
 - id: số nguyên (1, 2, 3...)
 - script: lời thoại tiếng Việt có dấu, mỗi scene 3-8 câu
 - background: mô tả cảnh nền 5-15 từ (ví dụ: "văn phòng hiện đại, ánh sáng ấm, 3D render")
-- characters: mảng tên nhân vật được chọn từ [{char_list_str}]
+- character: tên MỘT nhân vật duy nhất được chọn từ [{char_list_str}]
 
 Trả về CHỈ JSON array, không kèm markdown."""
 

@@ -142,7 +142,7 @@ class SceneProcessor:
             result = subprocess.run(
                 [str(get_whisper()), audio_path, "--model", "small", "--word_timestamps", "True",
                  "--output_format", "json", "--output_dir", str(output_dir)],
-                capture_output=True, text=True, timeout=120
+                capture_output=True, encoding="utf-8", errors="replace", timeout=120
             )
             json_path = output_dir / f"{Path(audio_path).stem}.json"
             if json_path.exists():

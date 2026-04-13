@@ -59,11 +59,13 @@ class VideoPipelineRunner:
             dry_run_images: Mock image gen only
             stop_before_lipsync: If True, stop after TTS+Image to save credit
         """
-        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START, STOP_BEFORE_LIPSYNC
+        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START
         DRY_RUN = dry_run
         DRY_RUN_TTS = dry_run_tts
         DRY_RUN_IMAGES = dry_run_images
-        STOP_BEFORE_LIPSYNC = stop_before_lipsync
+        FORCE_START = FORCE_START  # keep existing global
+        # Store stop_before_lipsync as instance attribute (NOT global to avoid shadowing issues)
+        self._stop_before_lipsync = stop_before_lipsync
 
         self.config = config
         self.timestamp = int(time.time())
@@ -210,9 +212,10 @@ class VideoPipelineRunner:
         lipsync_prefix = f"lipsync/{self.config.timestamp}/scene_{scene_id}"
         self.lipsync_provider.upload_func = lambda fp: s3_upload_file(fp, lipsync_prefix)
 
-        lipsync_cfg = self.config.get('lipsync')
+        # Check both 'generation.lipsync' (channel config style) and 'lipsync' (legacy)
+        lipsync_cfg = self.config.get('generation', {}).get('lipsync') or self.config.get('lipsync')
         if not lipsync_cfg:
-            raise MissingConfigError("config.lipsync is required")
+            raise MissingConfigError("config.lipsync or config.generation.lipsync is required")
         prompt_val = lipsync_cfg.get('prompt')
         if not prompt_val:
             raise MissingConfigError("config.lipsync.prompt is required")
@@ -230,10 +233,10 @@ class VideoPipelineRunner:
     def _make_lipsync_wrapper(self):
         """Create a lipsync wrapper that respects STOP_BEFORE_LIPSYNC flag."""
         real_lipsync = self.lipsync_generate
+        stop_flag = self._stop_before_lipsync
 
         def lipsync_wrapper(image_path, audio_path, output_path, scene_id=0, prompt=None):
-            global STOP_BEFORE_LIPSYNC
-            if STOP_BEFORE_LIPSYNC:
+            if stop_flag:
                 log(f"  ⏭️ STOP_BEFORE_LIPSYNC: skipping lipsync (image={Path(image_path).name})")
                 return None
             return real_lipsync(image_path, audio_path, output_path, scene_id=scene_id, prompt=prompt)
@@ -247,11 +250,11 @@ class VideoPipelineRunner:
         Returns:
             Tuple of (final_video_path, combined_word_timestamps)
         """
-        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START, STOP_BEFORE_LIPSYNC
+        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START
 
         log(f"\n{'='*60}")
         log(f"🎬 VIDEO PIPELINE RUNNER")
-        if STOP_BEFORE_LIPSYNC:
+        if self._stop_before_lipsync:
             log(f"⏭️  STOP_BEFORE_LIPSYNC mode: will stop after TTS+Image")
         log(f"{'='*60}")
 

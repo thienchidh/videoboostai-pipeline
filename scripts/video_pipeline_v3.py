@@ -36,9 +36,9 @@ class VideoPipelineV3:
 
     def __init__(self, config_path):
         from modules.pipeline.config_loader import ConfigLoader
-        from modules.pipeline.pipeline_runner import VideoPipelineRunner, STOP_BEFORE_LIPSYNC
+        from modules.pipeline.pipeline_runner import VideoPipelineRunner
 
-        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START
+        global DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, FORCE_START, STOP_BEFORE_LIPSYNC
 
         config_path = Path(config_path)
 

@@ -6,7 +6,6 @@ Logs stub behavior if token is placeholder or missing.
 """
 
 import logging
-import time
 import requests
 from pathlib import Path
 from typing import Optional
@@ -118,41 +117,35 @@ class TikTokPublisher:
     def _retry_request(self, method: str, url: str,
                        data: dict = None, files: dict = None, retries: int = 3) -> Optional[dict]:
         """Make HTTP request with exponential backoff for rate limits."""
-        for attempt in range(retries):
-            try:
-                kwargs = {"timeout": 120}
-                if files:
-                    kwargs["files"] = files
-                    # For multipart, don't set Content-Type header manually
-                    headers = {}
-                    self._session.headers.pop("Content-Type", None)
-                else:
-                    kwargs["json"] = data
-                    headers = {"Content-Type": "application/json"}
-                    self._session.headers.update(headers)
+        from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 
-                resp = self._session.request(method, url, **kwargs)
+        @retry(
+            stop=stop_after_attempt(retries),
+            wait=wait_exponential(multiplier=1, min=1, max=60),
+            before_sleep=before_sleep_log(logger, logging.WARNING),
+            reraise=True,
+        )
+        def _call():
+            kwargs = {"timeout": 120}
+            if files:
+                kwargs["files"] = files
+                headers = {}
+                self._session.headers.pop("Content-Type", None)
+            else:
+                kwargs["json"] = data
+                headers = {"Content-Type": "application/json"}
+                self._session.headers.update(headers)
+            resp = self._session.request(method, url, **kwargs)
+            if resp.status_code == 429:
+                raise Exception("rate_limit")
+            if resp.status_code >= 400:
+                raise Exception(f"api_error_{resp.status_code}")
+            return resp.json()
 
-                if resp.status_code == 429:
-                    wait = (2 ** attempt) * 30
-                    logger.warning(f"   TikTok rate limited, waiting {wait}s...")
-                    time.sleep(wait)
-                    continue
-
-                if resp.status_code >= 400:
-                    logger.error(f"   TikTok API error {resp.status_code}: {resp.text[:300]}")
-                    return None
-
-                return resp.json()
-
-            except requests.exceptions.RequestException as e:
-                logger.error(f"   Request error (attempt {attempt+1}): {e}")
-                if attempt < retries - 1:
-                    time.sleep(2 ** attempt)
-                else:
-                    return None
-
-        return None
+        try:
+            return _call()
+        except Exception:
+            return None
 
     def post_text(self, text: str) -> Optional[str]:
         """Post a text-only update (if TikTok supports it)."""

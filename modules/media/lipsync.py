@@ -197,13 +197,23 @@ class KieAIInfinitalkProvider(LipsyncProvider):
             )
             return None
 
-        # Submit task
-        result = self._client.infinitalk(
-            image_url=image_url,
-            audio_url=audio_url,
-            prompt=prompt,
-            resolution=resolution,
+        from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
+
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=60),
+            before_sleep=before_sleep_log(logger, logging.WARNING),
+            reraise=True,
         )
+        def _submit_task():
+            return self._client.infinitalk(
+                image_url=image_url,
+                audio_url=audio_url,
+                prompt=prompt,
+                resolution=resolution,
+            )
+
+        result = _submit_task()
         if not result.get("success"):
             logger.error(f"Kie.ai Infinitalk submit failed: {result.get('error')}")
             return None
@@ -211,8 +221,16 @@ class KieAIInfinitalkProvider(LipsyncProvider):
         task_id = result["task_id"]
         logger.info(f"Kie.ai Infinitalk task: {task_id}")
 
-        # Poll for completion
-        poll_result = self._client.poll_task(task_id, max_wait=max_wait)
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=60),
+            before_sleep=before_sleep_log(logger, logging.WARNING),
+            reraise=True,
+        )
+        def _poll_task():
+            return self._client.poll_task(task_id, max_wait=max_wait)
+
+        poll_result = _poll_task()
         if not poll_result.get("success"):
             logger.error(f"Kie.ai Infinitalk failed: {poll_result.get('error')}")
             return None

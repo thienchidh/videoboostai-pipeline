@@ -78,5 +78,7 @@ class MiniMaxLLMProvider(LLMProvider):
 
         content = data.get("content", [])
         if isinstance(content, list) and content:
-            return content[0].get("text", "")
+            for block in content:
+                if block.get("type") == "text":
+                    return block.get("text", "")
         return ""

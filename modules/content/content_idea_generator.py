@@ -89,20 +89,15 @@ class ContentIdeaGenerator:
         """Generate scene scripts using LLM provider with retry on parse failure."""
         api_key = self._llm_config.get("api_key", "") if self._llm_config else ""
         if not api_key:
-            # Resolve from technical config directly
-            from pathlib import Path
+            # Read minimax key from technical config
             import yaml
             from core.paths import PROJECT_ROOT
             tech_cfg_path = PROJECT_ROOT / "configs" / "technical" / "config_technical.yaml"
-            if not tech_cfg_path.exists():
-                logger.warning("Technical config not found, using fallback scenes")
-                return self._fallback_scenes(title, keywords, angle, num_scenes)
             with open(tech_cfg_path, encoding="utf-8") as f:
                 tech_cfg = yaml.safe_load(f)
             api_key = tech_cfg.get("api", {}).get("keys", {}).get("minimax", "")
             if not api_key:
-                logger.warning("minimax API key not found, using fallback scenes")
-                return self._fallback_scenes(title, keywords, angle, num_scenes)
+                raise RuntimeError("minimax API key not found in config")
 
         llm = get_llm_provider(
             name=self._llm_config.get("provider", "minimax") if self._llm_config else "minimax",
@@ -123,8 +118,7 @@ class ContentIdeaGenerator:
             except Exception as e:
                 logger.warning(f"LLM call failed: {e} (attempt {attempt + 1}/{max_retries + 1})")
 
-        logger.warning(f"LLM failed after {max_retries + 1} attempts, using fallback scenes")
-        return self._fallback_scenes(title, keywords, angle, num_scenes)
+        raise RuntimeError(f"LLM failed after {max_retries + 1} attempts for: {title[:30]}")
 
     def _build_scene_prompt(self, title: str, keywords: List[str], angle: str,
                              num_scenes: int) -> str:
@@ -190,34 +184,6 @@ Trả về CHỈ JSON array, không kèm markdown, không giải thích thêm.""
                 except json.JSONDecodeError:
                     pass
         return []
-
-    def _fallback_scenes(self, title: str, keywords: List[str], angle: str,
-                          num_scenes: int) -> List[Dict]:
-        """Tiny fallback when LLM is unavailable — basic scene structure only."""
-        kw = keywords[0] if keywords else "năng suất"
-        hook = f"Bạn có muốn cải thiện {kw} không? Hãy cùng tôi khám phá những cách đơn giản nhưng hiệu quả!"
-
-        scenes = [
-            {
-                "id": 1,
-                "script": hook,
-                "background": "modern office, bright colorful, Pixar Disney quality",
-                "characters": ["GiaoVien"]
-            },
-            {
-                "id": 2,
-                "script": f"Phương pháp đầu tiên về {kw}: Hãy bắt đầu bằng việc lập kế hoạch cho ngày hôm nay. Viết ra những gì bạn muốn đạt được và theo dõi tiến độ. Đây là cách đơn giản nhưng cực kỳ hiệu quả.",
-                "background": "person planning at desk, organized workspace, Pixar Disney quality",
-                "characters": ["GiaoVien"]
-            },
-            {
-                "id": 3,
-                "script": f"Cuối cùng, hãy nhớ rằng cải thiện {kw} là một hành trình, không phải đích đến. Hãy kiên nhẫn với bản thân và tận hưởng quá trình! Theo dõi @NangSuatThongMinh để biết thêm nhiều mẹo hay!",
-                "background": "motivated professional, sunrise, achievement concept, Pixar Disney quality",
-                "characters": ["GiaoVien"]
-            }
-        ]
-        return scenes[:num_scenes]
 
     def save_ideas_to_db(self, ideas: List[Dict], source_id: int = None) -> List[int]:
         """Save content ideas to DB, return list of idea IDs."""

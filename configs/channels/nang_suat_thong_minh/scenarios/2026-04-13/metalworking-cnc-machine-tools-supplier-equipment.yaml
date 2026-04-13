@@ -1,21 +1,27 @@
 title: Metalworking CNC Machine Tools Supplier & Equipment Distributor ...
 scenes:
 - id: 1
-  script: Bạn có biết 73% doanh nghiệp gặp thất bại vì chọn nhà cung cấp thiết bị
-    CNC sai? Đúng rồi, không phải vì máy kém, mà vì chọn sai nơi mua!
-  background: văn phòng hiện đại với màn hình trưng bày máy CNC, 3D render, warm,
-    eye-level, modern office, professional
+  script: Bạn đang tốn hàng chục triệu đồng mỗi năm chỉ vì chọn sai nhà cung cấp thiết
+    bị gia công kim loại? Đây là điều mà hầu hết các xưởng sản xuất không ai nói với
+    bạn. Sự thật là, một nhà phân phối đúng có thể giúp bạn tiết kiệm đến 30% chi
+    phí vận hành. Vậy bạn đang chọn đúng chưa?
+  background: văn phòng hiện đại chuyên nghiệp, 3D render, warm, eye-level, modern
+    office, professional
   character: Mentor
 - id: 2
-  script: Khi tìm nhà cung cấp thiết bị, điều đầu tiên cần hỏi là họ có hiểu nhu cầu
-    đặc thù của khu vực bạn không. Ví dụ, doanh nghiệp ở Bình Dương cần linh hoạt
-    hơn do đặc thù đơn hàng ngắn hạn, khác với các nhà máy lớn ở Đồng Nai.
-  background: cảnh văn phòng chuyên nghiệp với bản đồ khu vực phía sau, 3D render,
-    warm, eye-level, modern office, professional
+  script: Khi chọn nhà cung cấp thiết bị CNC và dụng cụ gia công kim loại, hãy ưu
+    tiên đơn vị có kho hàng lớn và hỗ trợ kỹ thuật tại chỗ. Ví dụ, một xưởng cơ khí
+    ở miền Trung từng mất cả tuần chờ linh kiện vì chọn nhà phân phối không có sẵn
+    hàng. Nếu đối tác của bạn có kho đủ lớn và đội ngũ kỹ thuật chuyên nghiệp, máy
+    hỏng hôm nay — ngày mai đã chạy lại được rồi.
+  background: bàn làm việc văn phòng hiện đại, 3D render, warm, eye-level, modern
+    office, professional
   character: Mentor
 - id: 3
-  script: Vậy khi bạn đang tìm nhà cung cấp, tiêu chí nào là quan trọng nhất với bạn?
-    Giá cả, chế độ bảo hành, hay dịch vụ hậu mãi? Comment cho mình biết nhé!
-  background: góc văn phòng ấm cúng với ánh sáng tự nhiên, 3D render, warm, eye-level,
-    modern office, professional
-  character: Mentor
+  script: Bạn đang dùng thiết bị gia công kim loại từ nhà cung cấp nào? Và bạn có
+    hài lòng với dịch vụ hỗ trợ của họ không? Comment ngay bên dưới để mình và cộng
+    đồng cùng trao đổi nhé — biết đâu bạn sẽ tìm được đối tác tốt hơn từ chính những
+    chia sẻ này!
+  background: góc văn phòng sáng ấm áp, 3D render, warm, eye-level, modern office,
+    professional
+  character: Student

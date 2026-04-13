@@ -1,0 +1,22 @@
+title: Metalworking CNC Machine Tools Supplier & Equipment Distributor ...
+scenes:
+- id: 1
+  script: Bạn có biết chọn nhà cung cấp dụng cụ cắt CNC không đúng có thể khiến chi
+    phí sản xuất tăng vượt kiểm soát không?
+  background: nhà xưởng CNC hiện đại, máy móc đang vận hành
+  characters:
+  - Mentor
+- id: 2
+  script: 'Nhà cung cấp máy móc CNC chuyên nghiệp cần đảm bảo ba yếu tố: dụng cụ chất
+    lượng cao, giao hàng nhanh, và hỗ trợ kỹ thuật tốt. Ví dụ, dao phay và dao tiện
+    được kiểm nghiệm kỹ sẽ giúp bạn tiết kiệm đáng kể chi phí.'
+  background: kho hàng dụng cụ CNC, giá sắp xếp gọn gàng
+  characters:
+  - Mentor
+- id: 3
+  script: Chọn đúng nhà cung cấp sẽ bảo vệ khoản đầu tư và nâng cao năng suất của
+    bạn. Nếu bạn thấy thông tin này hữu ích, hãy like và follow kênh để xem thêm các
+    tips sản xuất thông minh.
+  background: văn phòng hiện đại, ánh sáng ấm, phong cách chuyên nghiệp
+  characters:
+  - Mentor

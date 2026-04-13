@@ -8,6 +8,7 @@ Orchestrates scene processing via SingleCharSceneProcessor / MultiCharSceneProce
 import json
 import shutil
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -286,47 +287,71 @@ class VideoPipelineRunner:
         # Build wrapped lipsync function
         lipsync_fn = self._make_lipsync_wrapper()
 
-        for scene in scenes:
-            scene_id = scene.get("id", 0)
-            tts_text = scene.get("tts", scene.get("script", ""))
-            chars = scene.get("characters", [])
-            scene_output = self.run_dir / f"scene_{scene_id}"
-
-            log(f"\n{'='*40}")
-            log(f"🎬 SCENE {scene_id}: {tts_text[:50]}...")
-            log(f"   Characters: {chars}")
-            log(f"{'='*40}")
-
+        # Helper function to process a single scene (for parallel execution)
+        def process_single_scene(scene: Dict, scene_id: int, tts_text: str, chars: list, scene_output: Path):
+            """Process a single scene. Returns (video_path, timestamps, tts_text) or None."""
             scene_output.mkdir(exist_ok=True)
 
             # Skip if already processed
             existing = scene_output / "video_9x16.mp4"
             if existing.exists():
                 log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping")
-                scene_videos.append(str(existing))
-                scene_scripts.append(tts_text)
-                continue
+                return (str(existing), [], tts_text)
 
             if len(chars) == 1:
-                video_path, timestamps = self.single_processor.process(
+                return self.single_processor.process(
                     scene, scene_output,
                     tts_fn=self.tts_generate,
                     image_fn=self.image_generate,
                     lipsync_fn=lipsync_fn,
-                )
-                if video_path:
-                    scene_videos.append(video_path)
-                    scene_scripts.append(tts_text)
+                ) + (tts_text,)
             elif len(chars) == 2:
-                video_path, timestamps = self.multi_processor.process(
+                return self.multi_processor.process(
                     scene, scene_output,
                     tts_fn=self.tts_generate,
                     image_fn=self.image_generate,
                     lipsync_fn=lipsync_fn,
-                )
-                if video_path:
-                    scene_videos.append(video_path)
-                    scene_scripts.append(tts_text)
+                ) + (tts_text,)
+            return None
+
+        # Process scenes in parallel using ThreadPoolExecutor
+        log(f"\n🔄 Processing {len(scenes)} scenes in parallel...")
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {}
+            for scene in scenes:
+                scene_id = scene.get("id", 0)
+                tts_text = scene.get("tts", scene.get("script", ""))
+                chars = scene.get("characters", [])
+                scene_output = self.run_dir / f"scene_{scene_id}"
+
+                log(f"\n{'='*40}")
+                log(f"🎬 SCENE {scene_id}: {tts_text[:50]}...")
+                log(f"   Characters: {chars}")
+                log(f"{'='*40}")
+
+                future = executor.submit(process_single_scene, scene, scene_id, tts_text, chars, scene_output)
+                futures[future] = scene_id
+
+            # Collect results as they complete (store by scene_id for ordering)
+            results_by_scene = {}  # scene_id -> (video_path, timestamps, tts_text) or None
+            for future in as_completed(futures):
+                scene_id = futures[future]
+                try:
+                    result = future.result()
+                    results_by_scene[scene_id] = result
+                except Exception as e:
+                    log(f"  ❌ Scene {scene_id} failed: {e}")
+                    results_by_scene[scene_id] = None
+
+            # Rebuild scene_videos and scene_scripts in original scene order
+            for scene in scenes:
+                scene_id = scene.get("id", 0)
+                result = results_by_scene.get(scene_id)
+                if result:
+                    video_path, timestamps, tts_text = result
+                    if video_path:
+                        scene_videos.append(video_path)
+                        scene_scripts.append(tts_text)
 
         if not scene_videos:
             log(f"\n❌ No scene videos generated")

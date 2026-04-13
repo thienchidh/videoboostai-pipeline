@@ -33,6 +33,7 @@ from modules.pipeline.scene_processor import SingleCharSceneProcessor, MultiChar
 from modules.media.tts import MiniMaxTTSProvider, EdgeTTSProvider  # noqa: F401
 from modules.media.image_gen import MiniMaxImageProvider, WaveSpeedImageProvider  # noqa: F401
 from modules.media.lipsync import WaveSpeedLipsyncProvider, KieAIInfinitalkProvider  # noqa: F401
+from modules.media.music_gen import MiniMaxMusicProvider  # noqa: F401
 from modules.llm.minimax import MiniMaxLLMProvider  # noqa: F401
 
 
@@ -94,6 +95,7 @@ class VideoPipelineRunner:
         self.tts_provider = self._build_tts_provider()
         self.image_provider = self._build_image_provider()
         self.lipsync_provider = self._build_lipsync_provider()
+        self.music_provider = self._build_music_provider()
 
         # Scene processors
         self.single_processor = SingleCharSceneProcessor(config, self.run_dir)
@@ -157,6 +159,16 @@ class VideoPipelineRunner:
                 upload_func=upload_fn,
             )
         return provider_cls(api_key=self.config.wavespeed_key, upload_func=upload_fn)
+
+    def _build_music_provider(self):
+        """Instantiate music provider if configured for MiniMax generation."""
+        bg_cfg = self.config.get("background_music", {})
+        provider_name = bg_cfg.get("provider", "")
+        if provider_name == "minimax":
+            provider_cls = get_provider("music", "minimax")
+            if provider_cls:
+                return provider_cls(api_key=self.config.minimax_key)
+        return None
 
     # ---- TTS/Image/Lipsync wrappers (with dry-run support) ----
 
@@ -385,14 +397,23 @@ class VideoPipelineRunner:
                      str(subtitled_video), font_size=self.config.get("subtitle", {}).get("font_size", 60), run_dir=self.run_dir)
 
         # Add background music
-        music_enabled = self.config.get("background_music", {}).get("enable", True)
+        bg_cfg = self.config.get("background_music", {})
+        music_enabled = bg_cfg.get("enable", True)
         final_output = str(subtitled_video)
         if music_enabled and Path(subtitled_video).exists():
             final_with_music = self.media_dir / f"video_v3_{self.timestamp}_with_music.mp4"
             log(f"\n{'='*60}")
             log(f"🎵 ADDING BACKGROUND MUSIC...")
             log(f"{'='*60}")
-            music_result = add_background_music(str(subtitled_video), str(final_with_music))
+            music_result = add_background_music(
+                str(subtitled_video), str(final_with_music),
+                music_file=bg_cfg.get("file"),
+                volume=bg_cfg.get("volume", 0.15),
+                fade_duration=bg_cfg.get("fade_duration", 2.0),
+                music_provider=self.music_provider,
+                music_prompt=bg_cfg.get("prompt"),
+                music_duration=bg_cfg.get("duration", 30),
+            )
             final_output = music_result if Path(music_result).exists() else str(subtitled_video)
 
         log(f"\n✅ DONE: {final_output}")

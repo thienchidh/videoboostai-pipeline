@@ -303,7 +303,10 @@ def add_background_music(video_path: str,
                          music_file: Optional[str] = None,
                          music_dir: Optional[str] = None,
                          volume: float = 0.15,
-                         fade_duration: float = 2.0) -> str:
+                         fade_duration: float = 2.0,
+                         music_provider: Optional[Any] = None,
+                         music_prompt: Optional[str] = None,
+                         music_duration: int = 30) -> str:
     """Add background music to video.
 
     Args:
@@ -313,7 +316,21 @@ def add_background_music(video_path: str,
         music_dir: directory to pick random music from
         volume: music volume 0.0-1.0 (default 0.15 = 15%)
         fade_duration: fade in/out seconds (default 2.0)
+        music_provider: MusicProvider instance for generated music (e.g. MiniMaxMusicProvider)
+        music_prompt: text prompt for music generation (used with music_provider)
+        music_duration: duration in seconds for generated music (default 30)
     """
+    # Try provider-based music generation first
+    if music_provider and music_prompt:
+        import tempfile
+        tmp_music = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False).name
+        generated = music_provider.generate(music_prompt, duration=music_duration, output_path=tmp_music)
+        if generated and Path(generated).exists():
+            music_file = generated
+            log(f"  🎵 Generated music from prompt: {music_prompt[:60]}")
+        else:
+            log(f"  ⚠️ Music generation failed, falling back to local files")
+
     if not music_file or music_file == "random":
         if music_dir is None:
             music_dir = str(PROJECT_ROOT / "music")
@@ -452,6 +469,12 @@ def add_static_watermark(video_path: str, output_path: str,
     return video_path
 
 
+# ==================== DRY RUN FLAGS (shared global) ====================
+DRY_RUN = False
+DRY_RUN_TTS = False
+DRY_RUN_IMAGES = False
+
+
 # ==================== DRY RUN MOCK FUNCTIONS ====================
 
 def mock_generate_tts(text: str, voice: str = "female_voice",
@@ -511,18 +534,72 @@ def mock_generate_image(prompt: str, output_path: str) -> Optional[str]:
     return None
 
 
-def create_static_video(image_path: str, audio_path: str, output_path: str,
-                       dry_run: bool = False) -> Optional[str]:
-    """Create a video from a static image and audio using ffmpeg.
+# ==================== LIPSYNC QUOTA ERROR ====================
+
+class LipsyncQuotaError(Exception):
+    """Raised when lipsync API runs out of quota/credits."""
+    pass
+
+
+# ==================== CREATE STATIC VIDEO WITH AUDIO ====================
+
+def create_static_video_with_audio(
+    image_path: str,
+    audio_path: str,
+    output_path: str,
+    resolution: str = "480p",
+) -> Optional[str]:
+    """
+    Create a static image video with audio track using ffmpeg.
+    Used as fallback when lipsync API quota is exhausted.
 
     Args:
-        image_path: Path to the image file
-        audio_path: Path to the audio file
-        output_path: Path for the output video
-        dry_run: If True, log as DRY RUN; if False, log as fallback from lipsync failure
+        image_path: Path to source image (jpg/png)
+        audio_path: Path to audio file (mp3/wav)
+        output_path: Path to save output video
+        resolution: "480p" (1080x1920) or "720p" (1280x1920)
+
+
+    Returns:
+        Path to output video, or None on failure.
     """
-    log(f"  🔴 DRY RUN: create_static_video - using placeholder video" if dry_run else
-        f"  ⚠️ Lipsync failed - falling back to static image + audio video")
+    res_map = {
+        "480p": "1080:1920",
+        "720p": "1280:1920",
+        "540p": "1080:1920",  # treat 540p same as 480p
+    }
+    scale = res_map.get(resolution, "1080:1920")
+
+    log(f"  📸 Creating static video (image + TTS audio) → {Path(output_path).name}")
+    cmd = [
+        str(get_ffmpeg()), "-y",
+        "-loop", "1", "-i", image_path,
+        "-i", audio_path,
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-vf", f"scale={scale},setsar=1:1",
+        "-c:a", "aac", "-b:a", "128k",
+        "-shortest",
+        "-pix_fmt", "yuv420p",
+        output_path,
+    ]
+    try:
+        subprocess.run(cmd, capture_output=True, timeout=300)
+        if Path(output_path).exists():
+            size_mb = Path(output_path).stat().st_size / 1024 / 1024
+            log(f"  ✅ Static video created: {size_mb:.1f}MB")
+            return output_path
+        else:
+            log(f"  ❌ Static video not created")
+    except Exception as e:
+        log(f"  ❌ Static video error: {e}")
+    return None
+
+
+# ==================== MOCK LIPSYNC VIDEO ====================
+
+def mock_lipsync_video(image_path: str, audio_path: str, output_path: str) -> Optional[str]:
+    """Generate fake lipsync video using ffmpeg (static image + audio)."""
+    log(f"  🔴 DRY RUN: mock_lipsync_video - using placeholder video")
 
     result = subprocess.run(
         [str(get_ffprobe()), "-v", "quiet", "-show_entries", "format=duration",

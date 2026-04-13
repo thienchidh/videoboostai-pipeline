@@ -58,11 +58,11 @@ class SceneProcessor:
                 return voice
         return None
 
-    def resolve_voice(self, character, scene: Dict[str, Any]) -> Tuple[str, str, float]:
-        """Resolve (provider, model, speed) from voice_id or fallback to character tts_voice.
+    def resolve_voice(self, character, scene: Dict[str, Any]) -> Tuple[str, str, float, str]:
+        """Resolve (provider, model, speed, gender) from voice_id or fallback to character tts_voice.
 
         Returns:
-            (provider_name, model_name, speed)
+            (provider_name, model_name, speed, gender)
         """
         voice_id = character.voice_id
         voice = self.get_voice(voice_id) if voice_id else None
@@ -74,11 +74,12 @@ class SceneProcessor:
                 return (
                     primary.provider,
                     primary.model,
-                    primary.speed
+                    primary.speed,
+                    voice.gender or "female",
                 )
 
         # Fallback: use character tts_voice/tts_speed directly (backward compat)
-        return "edge", getattr(character, 'tts_voice', "female_voice"), getattr(character, 'tts_speed', 1.0)
+        return "edge", getattr(character, 'tts_voice', "female_voice"), getattr(character, 'tts_speed', 1.0), "female"
 
     def get_video_prompt(self, scene: SceneConfig) -> str:
         """Get video prompt from scene config, with image_style appended from channel config."""
@@ -193,7 +194,7 @@ class SingleCharSceneProcessor(SceneProcessor):
         if not char_cfg:
             log(f"  ❌ Character '{chars[0]}' not found")
             return None, []
-        provider, voice, speed = self.resolve_voice(char_cfg, scene)
+        provider, voice, speed, gender = self.resolve_voice(char_cfg, scene)
 
         # Per-scene character override (speed)
         if isinstance(chars[0], dict) and chars[0].get("speed"):
@@ -202,8 +203,8 @@ class SingleCharSceneProcessor(SceneProcessor):
         prompt = self.get_video_prompt(scene)
         log(f"  📝 Prompt: {prompt[:80]}...")
 
-        # Build image prompt: prepend character name so image gen includes the person
-        img_prompt = f"{char_name} in {prompt}"
+        # Build image prompt: include character name + gender so image matches TTS voice
+        img_prompt = f"{gender} {char_name}, {prompt}"
 
         # 1. TTS and Image in PARALLEL
         audio_output = scene_output / f"audio_tts_{self.timestamp}.mp3"

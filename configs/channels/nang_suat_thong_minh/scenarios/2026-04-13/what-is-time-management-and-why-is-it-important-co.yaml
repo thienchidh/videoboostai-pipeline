@@ -1,0 +1,27 @@
+title: What Is Time Management and Why Is It Important? | Coursera
+scenes:
+- id: 1
+  script: Bạn có biết mình lãng phí bao nhiêu giờ mỗi ngày không? Nghiên cứu chỉ ra
+    rằng trung bình một người mất hơn 2 tiếng chỉ vì không biết sắp xếp công việc.
+    Đó không phải lười biếng — đó là thiếu kỹ năng quản lý thời gian. Và tin vui là
+    kỹ năng này hoàn toàn có thể học được.
+  background: 3D render, warm, eye-level, modern office, professional, bàn làm việc
+    ngổn ngang hồ sơ và đồng hồ
+  character: Mentor
+- id: 2
+  script: Quản lý thời gian tốt giúp bạn làm được nhiều hơn mà lại ít căng thẳng hơn.
+    Thử nghĩ xem — khi bạn lên danh sách việc cần làm trước 8 giờ sáng, não bạn không
+    còn phải lo lắng sẽ quên gì nữa. Mình từng áp dụng quy tắc ưu tiên 3 việc quan
+    trọng nhất mỗi sáng, và năng suất tăng rõ rệt chỉ sau một tuần. Bớt stress, làm
+    việc thông minh hơn — đó chính là sức mạnh của quản lý thời gian.
+  background: 3D render, warm, eye-level, modern office, professional, màn hình hiển
+    thị lịch kế hoạch gọn gàng
+  character: Mentor
+- id: 3
+  script: Vậy bạn đã thử cách nào để quản lý thời gian của mình chưa? Dù là ghi chú
+    giấy hay dùng ứng dụng, mỗi người có một cách riêng phù hợp. Comment xuống bên
+    dưới cho mình biết bạn đang dùng phương pháp gì nhé — biết đâu mình học được thêm
+    từ bạn đấy!
+  background: 3D render, warm, eye-level, modern office, professional, góc văn phòng
+    thoáng sáng với cây xanh nhỏ
+  character: Mentor

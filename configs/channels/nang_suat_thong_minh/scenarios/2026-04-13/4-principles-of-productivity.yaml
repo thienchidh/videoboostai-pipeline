@@ -1,0 +1,18 @@
+title: 4 Principles of Productivity
+scenes:
+- id: 1
+  script: Bạn có biết 90% người đi làm đang lãng phí thời gian mà không hề hay biết
+    không? Nghiên cứu đã chứng minh điều đó rồi đấy!
+  background: văn phòng hiện đại, 3D render, warm, eye-level, modern office, professional
+  character: Mentor
+- id: 2
+  script: Nguyên tắc đầu tiên là tập trung vào một việc duy nhất. Tôi đã thử làm nhiều
+    việc cùng lúc trước đây, kết quả là không việc nào thật sự excel được cả. Từ khi
+    áp dụng phương pháp này, hiệu suất của tôi đã tăng vọt lên gấp ba lần!
+  background: văn phòng hiện đại, 3D render, warm, eye-level, modern office, professional
+  character: Mentor
+- id: 3
+  script: Bạn đã thử áp dụng nguyên tắc nào trong số này rồi? Comment cho mình biết
+    cách nào hiệu quả nhất với bạn nhé!
+  background: văn phòng hiện đại, 3D render, warm, eye-level, modern office, professional
+  character: Student

@@ -156,55 +156,6 @@ class TestConcatVideos:
         assert Path(output).exists()
 
 
-class TestExpandScript:
-    """Tests for expand_script()."""
-
-    def test_short_script_gets_expanded(self):
-        """Script shorter than min_duration gets expanded."""
-        from core.video_utils import expand_script
-
-        short_script = "Xin chào"
-        result = expand_script(short_script, min_duration=5.0, max_duration=15.0)
-
-        # Should have more words now
-        assert len(result.split()) >= len(short_script.split())
-
-    def test_long_script_gets_truncated(self):
-        """Script longer than max_duration gets truncated."""
-        from core.video_utils import expand_script
-
-        # 100 words should exceed max_duration=15s at 2.5 words/sec
-        long_script = " ".join(["word"] * 100)
-        result = expand_script(long_script, min_duration=5.0, max_duration=15.0)
-
-        # Should be truncated
-        word_count = len(result.split())
-        assert word_count <= 100
-
-    def test_optimal_script_unchanged(self):
-        """Script already in range stays unchanged."""
-        from core.video_utils import expand_script
-
-        script = "Xin chào tôi là AI"  # ~5 words, ~2 sec at 2.5 wps
-        result = expand_script(script, min_duration=5.0, max_duration=15.0)
-
-        # Should be close to original
-        assert "Xin chào" in result
-
-    def test_expand_script_with_sentence_boundary(self):
-        """Truncated script tries to end at sentence boundary."""
-        from core.video_utils import expand_script
-
-        # Use text that ends with punctuation
-        script = " ".join(["word"] * 50) + " Goodbye."
-        result = expand_script(script, min_duration=5.0, max_duration=15.0)
-
-        # Should not end mid-sentence awkwardly
-        # (Current implementation truncates, may or may not hit sentence boundary)
-        assert len(result.split()) <= 50
-        assert len(result) > 0
-
-
 class TestMockGenerateTTS:
     """Tests for mock_generate_tts()."""
 

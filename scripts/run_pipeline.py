@@ -143,13 +143,15 @@ def run_video_pipeline(channel_id: str, scenario_path: str,
 
 # ==================== FULL PIPELINE ====================
 
-def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = True) -> dict:
+def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = True,
+                       skip_lipsync: bool = False) -> dict:
     """Run full pipeline: content generation + video production.
 
     Args:
         channel_id: Channel identifier
         ideas_count: Number of ideas to generate
         produce: If True, run video production after content generation
+        skip_lipsync: If True, use static image + audio (skip lipsync API to save costs)
 
     Returns:
         Dict with:
@@ -163,6 +165,7 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
         config=None,
         dry_run=False,
         channel_id=channel_id,
+        skip_lipsync=skip_lipsync,
     )
 
     logger.info("=" * 60)
@@ -171,6 +174,8 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
     logger.info(f"  Channel: {channel_id}")
     logger.info(f"  Ideas count: {ideas_count}")
     logger.info(f"  Produce: {produce}")
+    if skip_lipsync:
+        logger.info(f"  ⚠️  SKIP LIPSYNC: using static image + audio (saves API costs)")
 
     # Step 1: Content Generation + Production
     logger.info("")
@@ -224,6 +229,7 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", action="store_true", help="Dry run mode")
     parser.add_argument("--dry-run-tts", action="store_true", help="Dry run TTS")
     parser.add_argument("--dry-run-images", action="store_true", help="Dry run images")
+    parser.add_argument("--skip-lipsync", action="store_true", help="Skip lipsync (use static image + audio to save API costs)")
 
     args = parser.parse_args()
 
@@ -232,6 +238,7 @@ if __name__ == "__main__":
             channel_id=args.channel,
             ideas_count=args.ideas,
             produce=True,
+            skip_lipsync=args.skip_lipsync,
         )
         print(f"\nResult: {result}")
     else:

@@ -36,8 +36,8 @@ generation:
     max_tokens: 1536
     timeout: 60
   image:
-    provider: "minimax"
-    fallback_providers: []
+    provider: "kieai"
+    fallback_providers: ["minimax"]
     aspect_ratio: "9:16"  # TikTok/Reels format
     timeout: 120
   tts:

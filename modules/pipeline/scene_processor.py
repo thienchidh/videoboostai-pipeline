@@ -16,7 +16,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.paths import PROJECT_ROOT, get_whisper, get_ffmpeg, get_ffprobe
 from core.video_utils import (
     log,
-    expand_script,
     get_audio_duration,
     crop_to_9x16,
     add_subtitles,
@@ -25,6 +24,7 @@ from core.video_utils import (
     wait_for_job,
     create_static_video_with_audio,
 )
+from core.video_utils import LipsyncQuotaError  # noqa: F401
 from modules.pipeline.config import PipelineContext
 from modules.pipeline.models import SceneConfig
 
@@ -152,7 +152,7 @@ class SingleCharSceneProcessor(SceneProcessor):
     """Processes a single-character scene.
 
     Flow per scene:
-    1. expand_script → TTS → validate duration → Whisper timestamps
+    1. TTS → validate duration → Whisper timestamps
     2. image gen → lipsync → crop to 9:16
     3. Return (video_path, timestamps)
     """
@@ -202,25 +202,18 @@ class SingleCharSceneProcessor(SceneProcessor):
         prompt = self.get_video_prompt(scene)
         log(f"  📝 Prompt: {prompt[:80]}...")
 
-        # 1. Expand script
-        tts_cfg = self.get_tts_config()
-        if not tts_cfg:
-            raise ValueError("channel.tts config is required")
-        min_dur = tts_cfg.min_duration
-        max_dur = tts_cfg.max_duration
-        # words_per_second from technical generation config
-        wps = self.ctx.technical.generation.tts.words_per_second
-        tts_text = expand_script(tts_text, min_duration=min_dur, max_duration=max_dur, words_per_second=wps)
+        # Build image prompt: prepend character name so image gen includes the person
+        img_prompt = f"{char_name} in {prompt}"
 
-        # 2. TTS and Image in PARALLEL (both independent after expand_script)
+        # 1. TTS and Image in PARALLEL
         audio_output = scene_output / f"audio_tts_{self.timestamp}.mp3"
         scene_img = scene_output / "scene.png"
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             # Submit TTS task
             tts_future = executor.submit(self._run_tts, tts_fn, tts_text, voice, speed, str(audio_output))
-            # Submit Image task (if not exists)
-            img_future = executor.submit(image_fn, prompt, str(scene_img)) if not scene_img.exists() else None
+            # Submit Image task (if not exists) - use img_prompt with character
+            img_future = executor.submit(image_fn, img_prompt, str(scene_img)) if not scene_img.exists() else None
 
             # Wait for TTS first to validate
             audio_result = tts_future.result()
@@ -261,8 +254,12 @@ class SingleCharSceneProcessor(SceneProcessor):
         video_raw = scene_output / "video_raw.mp4"
         if not video_raw.exists():
             log(f"  🎬 Generating lipsync video...")
-            lipsync_result = lipsync_fn(str(scene_img), audio, str(video_raw),
-                                         scene_id=scene_id, prompt=prompt)
+            try:
+                lipsync_result = lipsync_fn(str(scene_img), audio, str(video_raw),
+                                             scene_id=scene_id, prompt=prompt)
+            except LipsyncQuotaError as e:
+                log(f"  ⚠️ Lipsync quota exceeded: {e} — falling back to static image + audio")
+                lipsync_result = None
             if not lipsync_result:
                 log(f"  ⚠️ Lipsync failed - falling back to static image + audio")
                 lipsync_result = create_static_video_with_audio(str(scene_img), audio, str(video_raw))

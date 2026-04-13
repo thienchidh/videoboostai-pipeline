@@ -5,7 +5,7 @@ Provides common methods for scene processing, concatenation,
 watermark, and subtitle steps. DRY_RUN flags are shared here.
 
 NOTE: All video processing utilities (crop_to_9x16, concat_videos, add_subtitles,
-add_background_music, expand_script, etc.) have been consolidated into
+add_background_music) have been consolidated into
 core/video_utils.py. This module re-exports them for backward compatibility.
 """
 
@@ -26,7 +26,6 @@ from core.video_utils import (
     add_subtitles,
     add_background_music,
     add_static_watermark,
-    expand_script,
     get_video_duration,
     get_audio_duration,
     get_video_info,
@@ -49,7 +48,7 @@ def get_karaoke_python() -> str:
 __all__ = [
     "get_karaoke_python", "log", "deep_merge",
     "crop_to_9x16", "concat_videos", "add_subtitles",
-    "add_background_music", "expand_script",
+    "add_background_music",
     "get_video_duration", "get_audio_duration",
     "upload_file", "wait_for_job",
     "mock_generate_tts", "mock_generate_image", "create_static_video_with_audio",

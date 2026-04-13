@@ -282,7 +282,7 @@ class KieImageProvider(ImageProvider):
 def register_image_providers():
     register_provider("image", "minimax", MiniMaxImageProvider)
     register_provider("image", "wavespeed", WaveSpeedImageProvider)
-    register_provider("image", "kie", KieImageProvider)
+    register_provider("image", "kieai", KieImageProvider)
 
 
 register_image_providers()

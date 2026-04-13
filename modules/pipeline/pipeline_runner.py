@@ -147,7 +147,7 @@ class VideoPipelineRunner:
         # Use minimax_key for MiniMax, kie_key for Kie, wavespeed_key for WaveSpeed
         if img_name == "minimax":
             return provider_cls(api_key=self.ctx.technical.api_keys.minimax)
-        if img_name == "kie":
+        if img_name == "kieai":
             return provider_cls(api_key=self.ctx.technical.api_keys.kie_ai)
         return provider_cls(api_key=self.ctx.technical.api_keys.wavespeed)
 
@@ -187,10 +187,11 @@ class VideoPipelineRunner:
         return self.tts_provider.generate(text, voice, speed, output_path)
 
     def image_generate(self, prompt: str, output_path: str):
-        """Generate image with MiniMax → Kie fallback."""
+        """Generate image with primary provider, then fallback providers from config."""
         if self._dry_run or self._dry_run_images:
             return mock_generate_image(prompt, output_path)
 
+        # Primary provider
         try:
             result = self.image_provider.generate(prompt, output_path, aspect_ratio="9:16")
         except Exception as e:
@@ -200,19 +201,38 @@ class VideoPipelineRunner:
         if result:
             return result
 
-        # Fallback: if primary is minimax and failed, try Kie
-        img_name = self._get_models().get("image", "")
-        if img_name == "minimax":
-            log(f"  ⚠️ MiniMax image failed, trying Kie Z Image fallback...")
+        # Fallback: read from ctx.technical.generation.image.fallback_providers
+        fallback_providers = []
+        if self.ctx.technical and self.ctx.technical.generation and self.ctx.technical.generation.image:
+            fallback_providers = self.ctx.technical.generation.image.fallback_providers
+        if not fallback_providers:
+            return result
+
+        log(f"  ⚠️ Primary image failed, trying fallback providers: {fallback_providers}")
+        for fb_name in fallback_providers:
+            fb_name = fb_name.strip()
+            if not fb_name:
+                continue
+            fb_cls = get_provider("image", fb_name)
+            if not fb_cls:
+                log(f"  ⚠️ Fallback provider '{fb_name}' not registered")
+                continue
+            # Pick API key
+            if fb_name == "minimax":
+                fb_provider = fb_cls(api_key=self.ctx.technical.api_keys.minimax)
+            elif fb_name == "kieai":
+                fb_provider = fb_cls(api_key=self.ctx.technical.api_keys.kie_ai)
+            else:
+                fb_provider = fb_cls(api_key=self.ctx.technical.api_keys.wavespeed)
+            log(f"  → Trying fallback provider: {fb_name}")
             try:
-                kie_cls = get_provider("image", "kie")
-                if kie_cls:
-                    kie_provider = kie_cls(api_key=self.ctx.technical.api_keys.kie_ai)
-                    return kie_provider.generate(prompt, output_path, aspect_ratio="9:16")
-                else:
-                    log(f"  ⚠️ Kie provider not registered")
+                fb_result = fb_provider.generate(prompt, output_path, aspect_ratio="9:16")
             except Exception as e:
-                log(f"  ⚠️ Kie fallback error: {type(e).__name__}: {e}")
+                log(f"  ⚠️ Fallback '{fb_name}' error: {type(e).__name__}: {e}")
+                fb_result = None
+            if fb_result:
+                log(f"  ✓ Fallback provider '{fb_name}' succeeded")
+                return fb_result
 
         return result
 

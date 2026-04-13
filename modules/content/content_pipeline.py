@@ -40,7 +40,8 @@ class ContentPipeline:
 
     def __init__(self, project_id: int, config: Dict = None, config_path: str = None,
                  dry_run: bool = True,
-                 channel_id: str = "nang_suat_thong_minh"):
+                 channel_id: str = "nang_suat_thong_minh",
+                 skip_lipsync: bool = False):
         """
         Args:
             project_id: project ID
@@ -48,11 +49,13 @@ class ContentPipeline:
             config_path: path to config JSON file
             dry_run: if True, don't actually produce/upload videos
             channel_id: channel ID for scenario output (default: nang_suat_thong_minh)
+            skip_lipsync: if True, use static image + audio instead of lipsync (saves API costs)
         """
         self.project_id = project_id
         self.dry_run = dry_run
         self.project_root = PROJECT_ROOT
         self.channel_id = channel_id
+        self.skip_lipsync = skip_lipsync
 
         # Load config
         if config_path:
@@ -345,6 +348,7 @@ class ContentPipeline:
             vp_module.DRY_RUN_TTS = False
             vp_module.DRY_RUN_IMAGES = False
             vp_module.UPLOAD_TO_SOCIALS = False
+            vp_module.USE_STATIC_LIPSYNC = self.skip_lipsync
 
             # Extract channel_id from path: configs/channels/{channel_id}/scenarios/...
             config_path_obj = Path(config_path)

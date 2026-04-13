@@ -11,6 +11,8 @@ import requests
 from pathlib import Path
 from typing import Optional
 
+from modules.pipeline.models import SocialPlatformConfig
+
 logger = logging.getLogger(__name__)
 
 GRAPH_API = "https://graph.facebook.com/v19.0"
@@ -19,11 +21,12 @@ GRAPH_API = "https://graph.facebook.com/v19.0"
 class FacebookPublisher:
     """Publish videos to Facebook Page via Graph API."""
 
-    def __init__(self, config: Optional[dict] = None):
-        self.config = config or {}
-        self.page_id = self.config.get("page_id", "")
-        self.access_token = self.config.get("access_token", "")
-        self.auto_publish = self.config.get("auto_publish", False)
+    def __init__(self, config: SocialPlatformConfig):
+        self.config = config
+        # page_id and access_token may come from secrets, not in SocialPlatformConfig
+        self.page_id = getattr(config, 'page_id', None) or ""
+        self.access_token = getattr(config, 'access_token', None) or ""
+        self.auto_publish = config.auto_publish
         self._session = requests.Session()
 
     @property

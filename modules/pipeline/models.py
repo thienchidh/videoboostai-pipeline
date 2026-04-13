@@ -4,10 +4,14 @@ modules/pipeline/models.py — Pydantic models for configuration validation.
 Provides validated config models for:
 - TechnicalConfig: API keys, URLs, generation params
 - ChannelConfig: per-channel settings, content research
-- PipelineConfig: merged pipeline config
+- ScenarioConfig: scenes and title from scenario files
 """
 from pydantic import BaseModel
-from typing import Optional, Any
+from typing import Optional, Any, List, Dict
+import yaml
+from pathlib import Path
+
+from core.paths import PROJECT_ROOT
 
 
 # ─── Technical Config ───────────────────────────────────────
@@ -102,6 +106,21 @@ class TechnicalConfig(BaseModel):
     models: GenerationModels
     generation: GenerationConfig
     storage: StorageConfig
+
+    @classmethod
+    def load(cls) -> "TechnicalConfig":
+        path = PROJECT_ROOT / "configs" / "technical" / "config_technical.yaml"
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        # Restructure nested YAML structure to match Pydantic model
+        restructured = {
+            'api_keys': data.get('api', {}).get('keys', {}),
+            'api_urls': data.get('api', {}).get('urls', {}),
+            'models': data.get('api', {}).get('models', {}),
+            'generation': data.get('generation', {}),
+            'storage': data.get('storage', {}),
+        }
+        return cls(**restructured)
 
 
 # ─── Channel Config ─────────────────────────────────────────
@@ -233,49 +252,24 @@ class ChannelConfig(BaseModel):
     llm: Optional[LLMConfig] = None
     social: Optional[SocialConfig] = None
 
-
-# ─── Pipeline Config ────────────────────────────────────────
-
-class PipelineConfigData(BaseModel):
-    """Merged data dict from all config sources."""
-    data: dict
-    # Resolved API keys
-    wavespeed_key: str
-    wavespeed_base: str
-    minimax_key: str
-    kieai_key: str
-    # Provider preference
-    lipsync_provider: str
-    # S3 config
-    s3_endpoint: str
-    s3_access_key: str
-    s3_secret_key: str
-    s3_bucket: str
-    s3_region: str
-    s3_public_url_base: str
-    # Paths (stored as strings, converted by callers as needed)
-    output_dir: str
-    avatars_dir: str
-    # Run metadata
-    timestamp: int = 0
-    run_id: str = ""
-    run_dir: str = "."
-    media_dir: str = "."
-
-    def get(self, key: str, default=None):
-        return self.data.get(key, default)
-
-    def get_nested(self, *keys, default=None):
-        val = self.data
-        for k in keys:
-            if isinstance(val, dict):
-                val = val.get(k)
-            else:
-                return default
-        return val if val is not None else default
+    @classmethod
+    def load(cls, channel_id: str) -> "ChannelConfig":
+        path = PROJECT_ROOT / "configs" / "channels" / channel_id / "config.yaml"
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        return cls(**data)
 
 
-# Re-export for backward compatibility
-# (existing code uses PipelineConfig from config_loader, not this Pydantic model)
-# When ConfigLoader is fully Pydantic-ified, this will replace the dataclass.
-PipelineConfig = PipelineConfigData
+# ─── Scenario Config ────────────────────────────────────────
+
+class ScenarioConfig(BaseModel):
+    """Scenes and title from scenario YAML files."""
+    scenes: List[Dict[str, Any]]
+    title: str = ""
+
+    @classmethod
+    def load(cls, path: str | Path) -> "ScenarioConfig":
+        path = Path(path)
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        return cls(**data)

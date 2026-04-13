@@ -12,7 +12,7 @@ Options:
   --ideas N              Number of ideas to generate (default: 3)
   --produce              Run video production after content cycle
   --upload               Upload to socials after production
-  --skip-research        Skip research step (use existing ideas)
+  --force                Force regenerate content from research (default: reuse existing ideas)
 """
 import os
 import sys
@@ -48,8 +48,13 @@ def load_content_config(channel_id: str):
     return {}
 
 
-def run_content_cycle(channel_id: str, num_ideas: int, dry_run: bool, skip_research: bool):
-    """Run content generation cycle: research → ideas → scripts → schedule."""
+def run_content_cycle(channel_id: str, num_ideas: int, dry_run: bool, force_research: bool):
+    """Run content generation cycle: research → ideas → scripts → schedule.
+
+    Args:
+        force_research: if True, run full cycle from research (regenerate).
+                       if False, reuse existing script_ready ideas.
+    """
     from modules.content.content_pipeline import ContentPipeline
 
     config = load_content_config(channel_id)
@@ -65,15 +70,15 @@ def run_content_cycle(channel_id: str, num_ideas: int, dry_run: bool, skip_resea
     logger.info("CONTENT CYCLE — Content Generation")
     logger.info("=" * 60)
 
-    if skip_research:
-        logger.info("⏭️  SKIP RESEARCH: Getting existing ideas with scripts...")
-        ideas = pipeline.idea_gen.get_ideas_by_status(status="script_ready", limit=num_ideas)
-        logger.info(f"  Found {len(ideas)} script-ready ideas")
-    else:
+    if force_research:
+        logger.info("🔄 FORCE REGENERATE: Running full content cycle from research...")
         results = pipeline.run_full_cycle(num_ideas=num_ideas)
         logger.info(f"Content cycle results: {json.dumps(results, indent=2)}")
-        # After run_full_cycle, ideas are saved as "script_ready"
         ideas = pipeline.idea_gen.get_ideas_by_status(status="script_ready", limit=num_ideas)
+    else:
+        logger.info("♻️  REUSE MODE: Getting existing ideas with scripts...")
+        ideas = pipeline.idea_gen.get_ideas_by_status(status="script_ready", limit=num_ideas)
+        logger.info(f"  Found {len(ideas)} script-ready ideas")
     logger.info(f"📋 Ideas ready for production: {len(ideas)}")
 
     return pipeline, ideas
@@ -165,8 +170,8 @@ def main():
             i += 1
         elif arg == "--produce":
             run_production = True
-        elif arg == "--skip-research":
-            skip_research = True
+        elif arg == "--force":
+            skip_research = True  # becomes force_research=True in call
         i += 1
 
     if not run_production:
@@ -177,11 +182,11 @@ def main():
         channel_id=channel_id,
         num_ideas=num_ideas,
         dry_run=DRY_RUN,
-        skip_research=skip_research,
+        force_research=bool(skip_research),
     )
 
     if not ideas:
-        logger.warning("No ideas found for production. Run without --skip-research first.")
+        logger.warning("No script-ready ideas found. Use --force to regenerate content from research.")
         return
 
     # ── Step 2: Video Production ───────────────────────────────────

@@ -23,7 +23,7 @@ import requests
 from typing import Optional, Dict, Any
 from pathlib import Path
 
-from modules.pipeline.config_loader import MissingConfigError
+from modules.pipeline.exceptions import MissingConfigError
 
 logger = logging.getLogger(__name__)
 

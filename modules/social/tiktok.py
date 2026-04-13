@@ -11,6 +11,8 @@ import requests
 from pathlib import Path
 from typing import Optional
 
+from modules.pipeline.models import SocialPlatformConfig
+
 logger = logging.getLogger(__name__)
 
 TIKTOK_API_BASE = "https://open.tiktokapis.com/v2"
@@ -19,11 +21,12 @@ TIKTOK_API_BASE = "https://open.tiktokapis.com/v2"
 class TikTokPublisher:
     """Publish videos to TikTok via Marketing API."""
 
-    def __init__(self, config: Optional[dict] = None):
-        self.config = config or {}
-        self.advertiser_id = self.config.get("advertiser_id", "")
-        self.access_token = self.config.get("access_token", "")
-        self.auto_publish = self.config.get("auto_publish", False)
+    def __init__(self, config: SocialPlatformConfig):
+        self.config = config
+        # advertiser_id and access_token may come from secrets, not in SocialPlatformConfig
+        self.advertiser_id = getattr(config, 'advertiser_id', None) or ""
+        self.access_token = getattr(config, 'access_token', None) or ""
+        self.auto_publish = config.auto_publish
         self._session = requests.Session()
         self._session.headers.update({
             "Authorization": f"Bearer {self.access_token}" if self.access_token else "",

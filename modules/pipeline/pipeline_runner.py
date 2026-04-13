@@ -26,7 +26,8 @@ from core.video_utils import (
     create_static_video,
 )
 from core.plugins import get_provider
-from modules.pipeline.config_loader import PipelineConfig, MissingConfigError
+from core.paths import PROJECT_ROOT
+from modules.pipeline.config import PipelineContext
 from modules.pipeline.scene_processor import SingleCharSceneProcessor
 
 # Import providers to trigger registration
@@ -43,12 +44,12 @@ class VideoPipelineRunner:
     provider.generate() calls via PluginRegistry.
     """
 
-    def __init__(self, config: PipelineConfig, dry_run: bool = False,
+    def __init__(self, ctx: PipelineContext, dry_run: bool = False,
                  dry_run_tts: bool = False, dry_run_images: bool = False,
                  use_static_lipsync: bool = False, timestamp: Optional[int] = None):
         """
         Args:
-            config: Loaded PipelineConfig from ConfigLoader
+            ctx: PipelineContext with loaded technical, channel, and scenario configs
             dry_run: Mock all API calls
             dry_run_tts: Mock TTS only
             dry_run_images: Mock image gen only
@@ -61,33 +62,39 @@ class VideoPipelineRunner:
         self._dry_run_images = dry_run_images
         self._force_start = False  # CLI must call runner.run(force_start=True) to enable
         self._use_static_lipsync = use_static_lipsync
+        self.ctx = ctx
 
-        self.config = config
         self.timestamp = timestamp if timestamp is not None else int(time.time())
-        self.config.timestamp = self.timestamp  # sync to config for S3 key uniqueness
 
-        # Setup directories
-        self.output_dir = config.output_dir
+        # Setup directories (runtime, not from config)
+        self.output_dir = PROJECT_ROOT / "output"
         self.output_dir.mkdir(parents=True, exist_ok=True)
         date_str = time.strftime("%Y%m%d")
-        self.run_dir = self.output_dir / date_str / f"{self.timestamp}_{config.run_id}"
+        self.run_dir = self.output_dir / date_str / f"{self.timestamp}_{ctx.channel_id}"
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.media_dir = self.run_dir / "final"
         self.media_dir.mkdir(parents=True, exist_ok=True)
 
         # Configure database if database section is present in config
-        db_cfg = self.config.data.get("storage", {}).get("database")
+        db_cfg = ctx.technical.storage.database
         if db_cfg:
-            db.configure(db_cfg)
+            db.configure({
+                'host': db_cfg.host,
+                'port': db_cfg.port,
+                'name': db_cfg.name,
+                'user': db_cfg.user,
+                'password': db_cfg.password,
+            })
 
         # Configure S3 once (used by lipsync provider for media uploads)
+        s3 = ctx.technical.storage.s3
         configure_s3({
-            'endpoint': self.config.s3_endpoint,
-            'access_key': self.config.s3_access_key,
-            'secret_key': self.config.s3_secret_key,
-            'bucket': self.config.s3_bucket,
-            'region': self.config.s3_region,
-            'public_url_base': self.config.s3_public_url_base,
+            'endpoint': s3.endpoint,
+            'access_key': s3.access_key,
+            'secret_key': s3.secret_key,
+            'bucket': s3.bucket,
+            'region': s3.region,
+            'public_url_base': s3.public_url_base,
         })
 
         # Instantiate providers via PluginRegistry
@@ -96,66 +103,74 @@ class VideoPipelineRunner:
         self.lipsync_provider = self._build_lipsync_provider()
 
         # Scene processors
-        self.single_processor = SingleCharSceneProcessor(config, self.run_dir)
+        self.single_processor = SingleCharSceneProcessor(ctx, self.run_dir)
 
     # ---- Provider builders ----
 
     def _get_models(self) -> dict:
-        """Get models config, checking generation.models first then default_models."""
-        models = self.config.get_nested("generation", "models")
-        if not models:
-            models = self.config.get("default_models", {})
-        return models or {}
+        """Get models config, preferring channel override then technical base."""
+        # Channel override (dict format)
+        if self.ctx.channel.generation and self.ctx.channel.generation.models:
+            return self.ctx.channel.generation.models
+        # Technical base (Pydantic format)
+        if self.ctx.technical.generation.models:
+            tm = self.ctx.technical.generation.models
+            return {"tts": tm.tts, "image": tm.image, "video": tm.video}
+        # Fallback to channel default_models
+        if self.ctx.channel.default_models:
+            dm = self.ctx.channel.default_models
+            return {"tts": dm.tts, "image": dm.image, "video": dm.video}
+        return {}
 
     def _build_tts_provider(self):
         """Instantiate TTS provider via PluginRegistry."""
         models = self._get_models()
         tts_name = models.get("tts")
         if not tts_name:
-            tts_fallback = self.config.get("generation", {}).get("tts", {}).get("provider")
-            if tts_fallback:
-                tts_name = tts_fallback
-        if not tts_name:
-            raise MissingConfigError("models.tts provider must be configured")
+            raise ValueError("models.tts provider must be configured")
         provider_cls = get_provider("tts", tts_name)
         if provider_cls is None:
             raise ValueError(f"Unknown TTS provider: {tts_name}")
 
         if tts_name == "edge":
             return provider_cls(upload_func=None)
-        return provider_cls(api_key=self.config.minimax_key)
+        return provider_cls(api_key=self.ctx.technical.api_keys.minimax)
 
     def _build_image_provider(self):
         """Instantiate image provider via PluginRegistry."""
         models = self._get_models()
-        img_name = models.get("image") or self.config.get("generation", {}).get("image", {}).get("provider")
+        img_name = models.get("image")
         if not img_name:
-            raise MissingConfigError("models.image provider must be configured")
+            raise ValueError("models.image provider must be configured")
         provider_cls = get_provider("image", img_name)
         if provider_cls is None:
             raise ValueError(f"Unknown image provider: {img_name}")
         # Use minimax_key for MiniMax provider, wavespeed_key for WaveSpeed provider
         if img_name == "minimax":
-            return provider_cls(api_key=self.config.minimax_key)
-        return provider_cls(api_key=self.config.wavespeed_key)
+            return provider_cls(api_key=self.ctx.technical.api_keys.minimax)
+        return provider_cls(api_key=self.ctx.technical.api_keys.wavespeed)
 
     def _build_lipsync_provider(self):
         """Instantiate lipsync provider via PluginRegistry."""
-        lipsync_name = self.config.lipsync_provider
+        # Prefer channel lipsync config, fall back to technical
+        if self.ctx.channel.lipsync:
+            lipsync_name = self.ctx.channel.lipsync.provider
+        else:
+            lipsync_name = self.ctx.technical.generation.lipsync.provider
         provider_cls = get_provider("lipsync", lipsync_name)
         if provider_cls is None:
             raise ValueError(f"Unknown lipsync provider: {lipsync_name}")
 
         # S3 is already configured in __init__; use timestamp-based prefix to avoid collisions
-        lipsync_prefix = f"lipsync/{self.config.timestamp}"
+        lipsync_prefix = f"lipsync/{self.timestamp}"
         upload_fn = lambda fp: s3_upload_file(fp, lipsync_prefix)
 
         if lipsync_name == "kieai":
             return provider_cls(
-                api_key=self.config.kieai_key,
+                api_key=self.ctx.technical.api_keys.kie_ai,
                 upload_func=upload_fn,
             )
-        return provider_cls(api_key=self.config.wavespeed_key, upload_func=upload_fn)
+        return provider_cls(api_key=self.ctx.technical.api_keys.wavespeed, upload_func=upload_fn)
 
     # ---- TTS/Image/Lipsync wrappers (with dry-run support) ----
 
@@ -183,23 +198,18 @@ class VideoPipelineRunner:
             return create_static_video(image_path, audio_path, output_path, dry_run=True)
 
         # S3 upload with scene-specific prefix (upload_fn is per-call, thread-safe)
-        lipsync_prefix = f"lipsync/{self.config.timestamp}/scene_{scene_id}"
+        lipsync_prefix = f"lipsync/{self.timestamp}/scene_{scene_id}"
         upload_fn = lambda fp: s3_upload_file(fp, lipsync_prefix)
 
-        # Check both 'generation.lipsync' (channel config style) and 'lipsync' (legacy)
-        lipsync_cfg = self.config.get('generation', {}).get('lipsync') or self.config.get('lipsync')
+        # Get lipsync config from channel (preferred) or technical
+        lipsync_cfg = self.ctx.channel.lipsync
         if not lipsync_cfg:
-            raise MissingConfigError("config.lipsync or config.generation.lipsync is required")
-        prompt_val = lipsync_cfg.get('prompt')
-        if not prompt_val:
-            raise MissingConfigError("config.lipsync.prompt is required")
-        resolution_val = lipsync_cfg.get('resolution')
-        if not resolution_val:
-            raise MissingConfigError("config.lipsync.resolution is required")
+            lipsync_cfg = self.ctx.technical.generation.lipsync
+
         config = {
-            'prompt': prompt_val,
-            'resolution': resolution_val,
-            'max_wait': lipsync_cfg.get('max_wait', 300),
+            'prompt': lipsync_cfg.prompt,
+            'resolution': lipsync_cfg.resolution,
+            'max_wait': lipsync_cfg.max_wait,
         }
 
         return self.lipsync_provider.generate(image_path, audio_path, output_path, config=config, upload_func=upload_fn)
@@ -230,11 +240,9 @@ class VideoPipelineRunner:
             log(f"🖼️  USE_STATIC_LIPSYNC mode: using static image + TTS for video")
         log(f"{'='*60}")
 
-        scenes = self.config.get("scenes")
-        if scenes is None:
-            raise MissingConfigError("config.scenes is required")
+        scenes = self.ctx.scenario.scenes
         if not scenes:
-            raise MissingConfigError("config.scenes is empty — at least one scene is required")
+            raise ValueError("Scenario has no scenes — at least one scene is required")
         log(f"📋 {len(scenes)} scenes loaded")
 
         if force_start:
@@ -357,8 +365,8 @@ class VideoPipelineRunner:
 
         # Add watermark
         video_for_subtitles = str(final_video)
-        wm_cfg = self.config.get("watermark", {})
-        if wm_cfg.get("enable", False):
+        wm_cfg = self.ctx.channel.watermark
+        if wm_cfg and wm_cfg.enable:
             watermarked_base = self.media_dir / f"video_v3_{self.timestamp}_watermarked_base.mp4"
             log(f"\n{'='*60}")
             log(f"💧 ADDING WATERMARK...")
@@ -374,11 +382,13 @@ class VideoPipelineRunner:
         log(f"📝 ADDING SUBTITLES...")
         log(f"{'='*60}")
 
+        subtitle_cfg = self.ctx.channel.subtitle
         add_subtitles(video_for_subtitles, full_script, combined_timestamps or None,
-                     str(subtitled_video), font_size=self.config.get("subtitle", {}).get("font_size", 60), run_dir=self.run_dir)
+                     str(subtitled_video), font_size=subtitle_cfg.font_size if subtitle_cfg else 60, run_dir=self.run_dir)
 
         # Add background music
-        music_enabled = self.config.get("background_music", {}).get("enable", True)
+        bg_music = self.ctx.channel.background_music
+        music_enabled = bg_music.enable if bg_music else True
         final_output = str(subtitled_video)
         if music_enabled and Path(subtitled_video).exists():
             final_with_music = self.media_dir / f"video_v3_{self.timestamp}_with_music.mp4"
@@ -397,28 +407,29 @@ class VideoPipelineRunner:
 
     def _add_watermark(self, video_path: str, output_path: str) -> str:
         """Add watermark (static or bounce mode)."""
-        wm_cfg = self.config.get("watermark", {})
-        if not wm_cfg.get("enable", False):
+        wm_cfg = self.ctx.channel.watermark
+        if not wm_cfg or not wm_cfg.enable:
             return video_path
 
-        text = wm_cfg.get("text")
+        text = wm_cfg.text
         if not text:
-            raise MissingConfigError("config.watermark.text is required when watermark is enabled")
-        font_size = wm_cfg.get("font_size")
+            raise ValueError("watermark.text is required when watermark is enabled")
+        font_size = wm_cfg.font_size
         if not font_size:
-            raise MissingConfigError("config.watermark.font_size is required when watermark is enabled")
-        opacity = wm_cfg.get("opacity")
+            raise ValueError("watermark.font_size is required when watermark is enabled")
+        opacity = wm_cfg.opacity
         if not (isinstance(opacity, (int, float)) and opacity >= 0):
-            raise MissingConfigError("config.watermark.opacity is required when watermark is enabled")
-        motion = wm_cfg.get("motion", "bounce")
+            raise ValueError("watermark.opacity is required when watermark is enabled")
+        motion = wm_cfg.motion or "bounce"
 
         log(f"  💧 Adding watermark: '{text}' (motion={motion})")
 
         if motion == "bounce":
             from scripts.bounce_watermark import add_bounce_watermark
-            font_path = self.config.get("fonts", {}).get("watermark")
+            fonts_cfg = self.ctx.channel.fonts
+            font_path = fonts_cfg.watermark if fonts_cfg else None
             if not font_path:
-                raise MissingConfigError("config.fonts.watermark is required for bounce watermark")
+                raise ValueError("fonts.watermark is required for bounce watermark")
             success = add_bounce_watermark(
                 str(video_path),
                 str(output_path),
@@ -426,8 +437,8 @@ class VideoPipelineRunner:
                 font=font_path,
                 font_size=font_size,
                 opacity=opacity,
-                speed=wm_cfg.get("bounce_speed", 120),
-                padding=wm_cfg.get("bounce_padding", 15),
+                speed=wm_cfg.bounce_speed or 80,
+                padding=wm_cfg.bounce_padding or 20,
             )
             if success:
                 log(f"  ✅ Watermark added (bounce)")
@@ -436,7 +447,8 @@ class VideoPipelineRunner:
                 log(f"  ⚠️ Bounce watermark failed")
 
         # Static fallback
-        font_path = self.config.get("fonts", {}).get("watermark")
+        fonts_cfg = self.ctx.channel.fonts
+        font_path = fonts_cfg.watermark if fonts_cfg else None
         result = add_static_watermark(
             video_path, output_path,
             text=text, font_size=font_size, opacity=opacity,

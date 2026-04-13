@@ -6,7 +6,7 @@ Uploads local files to MinIO/S3 and returns public URL.
 import boto3
 from pathlib import Path
 
-from modules.pipeline.config_loader import MissingConfigError
+from modules.pipeline.exceptions import MissingConfigError
 
 
 _s3_config = None

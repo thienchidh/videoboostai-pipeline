@@ -18,6 +18,7 @@ from core.paths import PROJECT_ROOT, get_font_path
 from modules.content.topic_researcher import TopicResearcher
 from modules.content.content_idea_generator import ContentIdeaGenerator
 from modules.content.content_calendar import ContentCalendar
+from modules.pipeline.models import ChannelConfig
 
 
 class ContentPipeline:
@@ -79,14 +80,15 @@ class ContentPipeline:
             with open(channel_cfg_path, encoding="utf-8") as f:
                 channel_cfg = yaml.safe_load(f) or {}
 
-        # Read content research params from channel config (no hardcoded defaults)
-        research_cfg = channel_cfg.get("research", {})
-        self.niche_keywords = research_cfg.get("niche_keywords", [])
-        self.content_angle = research_cfg.get("content_angle", "tips")
-        self.target_platform = research_cfg.get("target_platform", "both")
+        # Validate and read content research params from channel config
+        validated_channel = ChannelConfig(**channel_cfg) if channel_cfg else None
+        research = validated_channel.research if validated_channel else None
+        self.niche_keywords = research.niche_keywords if research else []
+        self.content_angle = research.content_angle if research else "tips"
+        self.target_platform = research.target_platform if research else "both"
 
         # Store channel name for social upload fallback
-        self.channel_name = channel_cfg.get("name", "")
+        self.channel_name = validated_channel.name if validated_channel else ""
 
         # Initialize components
         self.researcher = TopicResearcher(

@@ -25,13 +25,14 @@ from core.video_utils import (
     wait_for_job,
     create_static_video,
 )
+from modules.pipeline.config import PipelineContext
 
 
 class SceneProcessor:
     """Base class for scene processors."""
 
-    def __init__(self, config: "PipelineConfig", run_dir: Path):
-        self.config = config
+    def __init__(self, ctx: PipelineContext, run_dir: Path):
+        self.ctx = ctx
         self.run_dir = run_dir
         self.project_root = PROJECT_ROOT
         self.timestamp = int(time.time())
@@ -42,39 +43,41 @@ class SceneProcessor:
         return tts_fn(tts_text, voice, speed, audio_output)
 
     def get_character(self, name: str) -> Optional[Dict[str, Any]]:
-        for char in self.config.get("characters", []):
-            if char["name"] == name:
+        chars = self.ctx.channel.characters or []
+        for char in chars:
+            if char.name == name:
                 return char
         return None
 
     def get_voice(self, voice_id: str) -> Optional[Dict[str, Any]]:
         """Get voice config by id from voices catalog."""
-        for voice in self.config.get("voices", []):
-            if voice["id"] == voice_id:
+        voices = self.ctx.channel.voices or []
+        for voice in voices:
+            if voice.id == voice_id:
                 return voice
         return None
 
-    def resolve_voice(self, character: Dict[str, Any], scene: Dict[str, Any]) -> Tuple[str, str, float]:
+    def resolve_voice(self, character, scene: Dict[str, Any]) -> Tuple[str, str, float]:
         """Resolve (provider, model, speed) from voice_id or fallback to character tts_voice.
 
         Returns:
             (provider_name, model_name, speed)
         """
-        voice_id = character.get("voice_id")
+        voice_id = character.voice_id
         voice = self.get_voice(voice_id) if voice_id else None
 
         if voice:
-            providers = voice.get("providers", [])
+            providers = voice.providers or []
             if providers:
                 primary = providers[0]
                 return (
-                    primary.get("provider", "edge"),
-                    primary.get("model", ""),
-                    primary.get("speed", 1.0)
+                    primary.provider,
+                    primary.model,
+                    primary.speed
                 )
 
         # Fallback: use character tts_voice/tts_speed directly (backward compat)
-        return "edge", character.get("tts_voice", "female_voice"), character.get("tts_speed", 1.0)
+        return "edge", getattr(character, 'tts_voice', "female_voice"), getattr(character, 'tts_speed', 1.0)
 
     def get_video_prompt(self, scene: Dict[str, Any]) -> str:
         """Get video prompt from scene config, with image_style appended from channel config."""
@@ -84,14 +87,14 @@ class SceneProcessor:
             explicit = self.build_scene_prompt(scene)
 
         # Append image_style from channel config for consistent visual style
-        image_style = self.config.get("image_style", {})
+        image_style = self.ctx.channel.image_style
         if image_style:
             style_parts = [
-                image_style.get("lighting", ""),
-                image_style.get("camera", ""),
-                image_style.get("art_style", ""),
-                image_style.get("environment", ""),
-                image_style.get("composition", ""),
+                image_style.lighting or "",
+                image_style.camera or "",
+                image_style.art_style or "",
+                image_style.environment or "",
+                image_style.composition or "",
             ]
             style_str = ", ".join(part for part in style_parts if part)
             if style_str:
@@ -100,39 +103,13 @@ class SceneProcessor:
         return explicit
 
     def build_scene_prompt(self, scene: Dict[str, Any]) -> str:
-        cfg = self.config.get("prompt", {})
-        style = cfg.get("style")
-        if not style:
-            raise MissingConfigError("config.prompt.style is required")
+        """Build scene prompt from scene background and channel prompt config."""
+        # prompt config is not in standard config - use scene background directly
         background = scene.get("background", "")
-        hints = cfg.get("script_hints", {})
+        return background or "a person talking"
 
-        script_hint = ""
-        for key, hint in hints.items():
-            if key != "default" and key in background.lower():
-                script_hint = hint
-                break
-        if not script_hint:
-            script_hint = hints.get("default")
-            if not script_hint:
-                raise MissingConfigError("config.prompt.script_hints.default is required")
-
-        prompt = f"{style}, {script_hint}"
-
-        chars = scene.get("characters", [])
-        if chars:
-            char_prompts = []
-            for char_name in chars:
-                char = self.get_character(char_name)
-                if char and char.get("prompt"):
-                    char_prompts.append(char["prompt"])
-            if char_prompts:
-                prompt = f"{prompt}, featuring: {' '.join(char_prompts)}"
-
-        return prompt
-
-    def get_tts_config(self) -> Dict[str, Any]:
-        return self.config.get("tts", {})
+    def get_tts_config(self):
+        return self.ctx.channel.tts
 
     def get_whisper_timestamps(self, audio_path: str, output_dir: Optional[Path] = None) -> Optional[List[Dict]]:
         """Get word timestamps from audio using Whisper."""
@@ -224,11 +201,12 @@ class SingleCharSceneProcessor(SceneProcessor):
 
         # 1. Expand script
         tts_cfg = self.get_tts_config()
-        min_dur = tts_cfg.get("min_duration")
-        max_dur = tts_cfg.get("max_duration")
-        wps = tts_cfg.get("words_per_second")
-        if min_dur is None or max_dur is None or wps is None:
-            raise MissingConfigError("config.tts.min_duration, max_duration, and words_per_second are all required")
+        if not tts_cfg:
+            raise ValueError("channel.tts config is required")
+        min_dur = tts_cfg.min_duration
+        max_dur = tts_cfg.max_duration
+        # words_per_second from technical generation config
+        wps = self.ctx.technical.generation.tts.words_per_second
         tts_text = expand_script(tts_text, min_duration=min_dur, max_duration=max_dur, words_per_second=wps)
 
         # 2. TTS and Image in PARALLEL (both independent after expand_script)
@@ -259,7 +237,7 @@ class SingleCharSceneProcessor(SceneProcessor):
                 log(f"  ✅ Image done: {scene_img.stat().st_size/1024:.1f}KB")
 
         # 3. Validate duration
-        max_tts = self.get_tts_config().get("max_duration", 15.0)
+        max_tts = self.get_tts_config().max_duration
         actual_duration = get_audio_duration(str(audio))
         if actual_duration > max_tts:
             log(f"  ❌ TTS duration {actual_duration:.1f}s > {max_tts}s limit!")

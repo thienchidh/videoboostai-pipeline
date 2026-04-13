@@ -11,6 +11,7 @@ from typing import Optional, List, Dict, Any
 
 from modules.social.facebook import FacebookPublisher
 from modules.social.tiktok import TikTokPublisher
+from modules.pipeline.models import SocialConfig
 
 logger = logging.getLogger(__name__)
 
@@ -41,19 +42,12 @@ class PublishResult:
 class SocialPublisher:
     """Unified social publisher wrapping Facebook and TikTok publishers."""
 
-    def __init__(self, config: dict, dry_run: bool = False,
+    def __init__(self, social: SocialConfig, dry_run: bool = False,
                  video_run_id: str = None):
-        self.config = config or {}
         self.dry_run = dry_run
         self.video_run_id = video_run_id
-
-        # Get social config from channel config
-        social_cfg = self.config.get("social", {})
-        fb_cfg = social_cfg.get("facebook", {}) if isinstance(social_cfg, dict) else {}
-        tt_cfg = social_cfg.get("tiktok", {}) if isinstance(social_cfg, dict) else {}
-
-        self.fb_publisher = FacebookPublisher(config=fb_cfg)
-        self.tt_publisher = TikTokPublisher(config=tt_cfg)
+        self.fb_publisher = FacebookPublisher(config=social.facebook)
+        self.tt_publisher = TikTokPublisher(config=social.tiktok)
 
     def upload_to_socials(self, video_path: str, script: str = "",
                           word_timestamps: list = None,
@@ -115,17 +109,17 @@ class SocialPublisher:
         return PublishResult(results)
 
 
-def get_publisher(dry_run: bool = False, video_run_id: str = None,
-                  config: dict = None) -> SocialPublisher:
+def get_publisher(social: SocialConfig, dry_run: bool = False,
+                  video_run_id: str = None) -> SocialPublisher:
     """
     Factory function to create a SocialPublisher.
 
     Args:
+        social: SocialConfig with facebook and tiktok platform configs
         dry_run: If True, simulate uploads without actually posting
         video_run_id: Video run ID for logging/tracking
-        config: Full pipeline config dict (should contain 'social' key)
 
     Returns:
         SocialPublisher instance
     """
-    return SocialPublisher(config=config, dry_run=dry_run, video_run_id=video_run_id)
+    return SocialPublisher(social=social, dry_run=dry_run, video_run_id=video_run_id)

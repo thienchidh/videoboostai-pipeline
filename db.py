@@ -11,7 +11,7 @@ from datetime import datetime, date, timezone
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-from modules.pipeline.config_loader import MissingConfigError
+from modules.pipeline.exceptions import MissingConfigError
 import db_models as models
 
 # Database connection config (updated by configure())

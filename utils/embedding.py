@@ -10,6 +10,7 @@ import re
 from typing import List, Dict, Optional
 
 from modules.llm import get_llm_provider
+from modules.pipeline.models import TechnicalConfig
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +34,8 @@ def _get_model():
 def translate_to_english(text: str) -> str:
     """Translate Vietnamese text to English for better embedding quality."""
     try:
-        import yaml
-        from core.paths import PROJECT_ROOT
-
-        tech_cfg_path = PROJECT_ROOT / "configs" / "technical" / "config_technical.yaml"
-        with open(tech_cfg_path, encoding="utf-8") as f:
-            cfg = yaml.safe_load(f)
-        api_key = cfg.get("api", {}).get("keys", {}).get("minimax", "")
+        cfg = TechnicalConfig.load()
+        api_key = cfg.api_keys.minimax
         if not api_key:
             logger.warning("No MiniMax API key for translation, using original text")
             return text

@@ -119,6 +119,21 @@ class ContentPipeline:
 
         results = {}
 
+        # Check for checkpoint to resume from
+        checkpoint_path = self.project_root / ".content_pipeline_checkpoint.json"
+        checkpoint = None
+        start_idea_index = 0
+        if checkpoint_path.exists():
+            try:
+                with open(checkpoint_path) as f:
+                    checkpoint = json.load(f)
+                last_idx = checkpoint.get("last_processed_idea_index", -1)
+                if last_idx >= 0:
+                    start_idea_index = last_idx + 1
+                    logger.info(f"📍 Resume: found checkpoint, last processed idea index: {last_idx}, starting from {start_idea_index}")
+            except Exception as e:
+                logger.warning(f"Could not load checkpoint: {e}")
+
         # Step 1: Get topics — from pending pool OR fresh research
         from db import get_pending_topic_sources
         pending = get_pending_topic_sources(limit=1)
@@ -222,6 +237,10 @@ class ContentPipeline:
         scheduled = []
 
         for i, idea_id in enumerate(idea_ids):
+            if i < start_idea_index:
+                logger.info(f"  Skipping already processed idea {idea_id} (index {i})")
+                continue
+
             idea = ideas[i]
             script = self.idea_gen.generate_script_from_idea(idea, num_scenes=3)
             self.idea_gen.update_idea_script(idea_id, script)
@@ -240,6 +259,16 @@ class ContentPipeline:
             })
             logger.info(f"  Production result: {prod_result.get('success')}")
 
+            # Write checkpoint after each idea is processed
+            checkpoint = {
+                "last_processed_idea_index": i,
+                "source_id": source_id,
+                "idea_ids_processed": idea_ids[:i+1],
+                "timestamp": datetime.now().isoformat(),
+            }
+            with open(checkpoint_path, "w") as f:
+                json.dump(checkpoint, f)
+
             # Schedule for social posting (if not dry_run and auto_schedule)
             if self.auto_schedule and prod_result.get("success") and not self.dry_run:
                 platforms = ["facebook", "tiktok"] if self.idea_gen.target_platform == "both" else [self.idea_gen.target_platform]
@@ -254,6 +283,11 @@ class ContentPipeline:
                     )
                     scheduled.append({"idea_id": idea_id, "platform": platform, "calendar_id": cal_id})
                     logger.info(f"  Scheduled {idea_id} for {platform}")
+
+        # Delete checkpoint on successful completion
+        if checkpoint_path.exists():
+            checkpoint_path.unlink()
+            logger.info("  Checkpoint deleted on successful completion")
 
         # Mark topic source as completed after all YAML files are saved successfully
         if source_id:

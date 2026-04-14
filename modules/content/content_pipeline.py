@@ -416,16 +416,17 @@ class ContentPipeline:
 
             # Get output video from runner's media_dir (VideoPipelineRunner manages its own directory structure)
             output_video = None
-            if result:
+            if result and hasattr(pipeline, '_runner') and pipeline._runner is not None:
                 media_dir = pipeline._runner.media_dir
-                for f in media_dir.glob("*.mp4"):
-                    output_video = str(f)
-                    break
+                if media_dir is not None:
+                    for f in media_dir.glob("*.mp4"):
+                        output_video = str(f)
+                        break
 
             return {
                 "success": result is not None,
                 "output_video": output_video,
-                "run_dir": str(pipeline._runner.run_dir),
+                "run_dir": str(pipeline._runner.run_dir) if hasattr(pipeline, '_runner') and pipeline._runner is not None else None,
                 "captions": {
                     "facebook": fb_caption.for_facebook() if fb_caption else None,
                     "tiktok": tt_caption.for_tiktok() if tt_caption else None,
@@ -434,7 +435,7 @@ class ContentPipeline:
 
         except Exception as e:
             logger.error(f"Pipeline error: {e}")
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": str(e) if e else "unknown error"}
 
     def produce_due_items(self, platform: str = None) -> List[Dict]:
         """

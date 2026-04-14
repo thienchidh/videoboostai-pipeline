@@ -248,6 +248,34 @@ Không giải thích, chỉ trả về JSON hợp lệ."""
             logger.warning(f"LLM caption generation failed: {e}")
             return None
 
+    def _generate_via_minimax(self, provider, script: str, platform: str) -> Optional[GeneratedCaption]:
+        """Generate caption via MiniMax LLM."""
+        category = self._detect_category(script)
+        topic = self._extract_topic(script)
+        hashtag_set = HASHTAG_SETS.get(category, HASHTAG_SETS["general"])
+
+        system = "Bạn là chuyên gia viết caption cho video TikTok/Facebook Reels tiếng Việt."
+        user = f'Viết 1 caption hấp dẫn cho video: "{script[:300]}"\n\nFormat JSON: {{"headline": "...", "body": "...", "cta": "..."}}'
+
+        try:
+            response = provider.chat(user, system=system, max_tokens=200)
+            import json as json_mod, re
+            m = re.search(r'\{.*\}', response, re.DOTALL)
+            if m:
+                data = json_mod.loads(m.group())
+                headline = data.get("headline", f"🔥 {topic.title()}")
+                body = data.get("body", f"Nội dung thú vị về {topic}")
+                cta = data.get("cta", random.choice(CTA_TEMPLATES))
+                hashtags = hashtag_set[:5]
+                full = self._combine_caption(headline, body, cta, hashtags, platform)
+                return GeneratedCaption(
+                    headline=headline, body=body, hashtags=hashtags,
+                    cta=cta, full_caption=full,
+                )
+        except Exception as e:
+            logger.warning(f"MiniMax caption generation error: {e}")
+        return None
+
     def _combine_caption(
         self,
         headline: str,
@@ -295,14 +323,29 @@ Không giải thích, chỉ trả về JSON hợp lệ."""
         platform: str = "tiktok",
     ) -> GeneratedCaption:
         """Main entry point — generate caption for a script."""
-        # Try LLM first, fall back to template
+        # Try local LLM first (ollama)
         if self.use_llm:
             result = self.generate_llm(script, platform)
             if result:
                 logger.info(f"Caption generated via LLM for: {self._extract_topic(script)}")
                 return result
-            logger.info("Falling back to template caption generation")
+            logger.info("Falling back to MiniMax LLM caption generation")
 
+        # Try MiniMax LLM as second fallback
+        try:
+            from modules.llm.minimax import MiniMaxLLMProvider
+            import os
+            api_key = os.getenv("MINIMAX_API_KEY", "")
+            if api_key:
+                mini_provider = MiniMaxLLMProvider(api_key=api_key)
+                mini_result = self._generate_via_minimax(mini_provider, script, platform)
+                if mini_result:
+                    logger.info("Caption generated via MiniMax LLM")
+                    return mini_result
+        except Exception as e:
+            logger.warning(f"MiniMax caption fallback failed: {e}")
+
+        logger.info("Falling back to template caption generation")
         return self.generate_template(script, platform)
 
     def batch_generate(

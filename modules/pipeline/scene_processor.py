@@ -33,9 +33,10 @@ from modules.pipeline.exceptions import SceneDurationError
 class SceneProcessor:
     """Base class for scene processors."""
 
-    def __init__(self, ctx: PipelineContext, run_dir: Path):
+    def __init__(self, ctx: PipelineContext, run_dir: Path, resume: bool = False):
         self.ctx = ctx
         self.run_dir = run_dir
+        self.resume = resume
         self.project_root = PROJECT_ROOT
         self.timestamp = int(time.time())
 
@@ -179,8 +180,8 @@ class SingleCharSceneProcessor(SceneProcessor):
 
         scene_output.mkdir(parents=True, exist_ok=True)
         existing = scene_output / "video_9x16.mp4"
-        if existing.exists():
-            log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping")
+        if self.resume and existing.exists():
+            log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping (resume mode)")
             ts_file = scene_output / "words_timestamps.json"
             timestamps = []
             if ts_file.exists():

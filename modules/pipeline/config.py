@@ -47,7 +47,7 @@ class PipelineContext:
 
         Args:
             path: Path to scenario YAML file.
-                  Example: 'configs/channels/nang_suat_thong_minh/scenarios/2026-04-13/scenario.yaml'
+                  Example: 'configs/channels/nang_suat_thong_minh/scenarios/scenario.yaml'
         """
         self._scenario = ScenarioConfig.load(path)
 

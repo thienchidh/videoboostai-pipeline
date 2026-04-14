@@ -70,7 +70,7 @@ When lipsync credits exhausted → `LipsyncQuotaError` raised → automatic fall
 configs/technical/config_technical.yaml     # API keys, URLs, generation models, storage
 configs/channels/{channel_id}/config.yaml  # Per-channel: characters, watermark, style, voices
 configs/channels/{channel_id}/scenarios/
-  YYYY-MM-DD/{slug}.yaml                    # Scene scripts (title, scenes, characters)
+  {slug}.yaml                    # Scene scripts (title, scenes, characters)
 ```
 
 Config loading:
@@ -110,7 +110,7 @@ Raised when TTS duration exceeds channel limits. Caught in `pipeline_runner.py` 
 3. `ContentIdeaGenerator.generate_ideas_from_topics()` converts topics to ideas
 4. `check_duplicate_ideas()` uses sentence-transformers to filter semantically similar ideas (threshold 0.75 cosine similarity)
 5. For each non-duplicate idea → `generate_script_from_idea()` calls MiniMax LLM with scene prompt
-6. Script saved to YAML in `configs/channels/{channel_id}/scenarios/YYYY-MM-DD/{slug}.yaml`
+6. Script saved to YAML in `configs/channels/{channel_id}/scenarios/{slug}.yaml`
 7. TopicSource marked `completed` after YAML saved
 
 **Pending Pool**: `get_pending_topic_sources(limit=1)` returns topics not yet processed. Subsequent runs pick up from pending pool instead of re-researching.

@@ -12,7 +12,7 @@ Can be called directly from Python without CLI:
     # Video production only
     video_path, timestamps = run_video_pipeline(
         channel_id="nang_suat_thong_minh",
-        scenario_path="configs/channels/nang_suat_thong_minh/scenarios/2026-04-13/productivity-wikipedia.yaml"
+        scenario_path="configs/channels/nang_suat_thong_minh/scenarios/productivity-wikipedia.yaml"
     )
 
     # Full pipeline (content + video)

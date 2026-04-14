@@ -7,7 +7,7 @@ Usage (Python API):
 
     pipeline = VideoPipelineV3(
         channel_id="nang_suat_thong_minh",
-        scenario_path="configs/channels/nang_suat_thong_minh/scenarios/2026-04-13/scenario.yaml"
+        scenario_path="configs/channels/nang_suat_thong_minh/scenarios/scenario.yaml"
     )
     video_path = pipeline.run()
 """

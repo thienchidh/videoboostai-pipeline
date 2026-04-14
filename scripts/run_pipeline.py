@@ -64,8 +64,12 @@ def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = 
     """
     from modules.content.content_pipeline import ContentPipeline
 
+    project_id = get_or_create_project(
+        name=channel_id.replace("_", " ").title(),
+        config_file=f"configs/channels/{channel_id}/config.yaml"
+    )
     pipeline = ContentPipeline(
-        project_id=1,
+        project_id=project_id,
         config=config,
         dry_run=dry_run,
         channel_id=channel_id,
@@ -160,8 +164,15 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
     """
     from modules.content.content_pipeline import ContentPipeline
 
+    from db import get_or_create_project
+
+    project_id = get_or_create_project(
+        name=channel_id.replace("_", " ").title(),
+        config_file=f"configs/channels/{channel_id}/config.yaml"
+    )
+
     pipeline = ContentPipeline(
-        project_id=1,
+        project_id=project_id,
         config=None,
         dry_run=False,
         channel_id=channel_id,
@@ -215,7 +226,7 @@ if __name__ == "__main__":
     import argparse
 
     # Initialize DB schema if not exists
-    from db import init_db_full
+    from db import init_db_full, get_or_create_project
     try:
         init_db_full()
         logger.info("DB schema ready")
@@ -223,7 +234,8 @@ if __name__ == "__main__":
         logger.warning(f"DB init skipped (may already exist): {e}")
 
     parser = argparse.ArgumentParser(description="Unified Pipeline")
-    parser.add_argument("--channel", default="nang_suat_thong_minh", help="Channel ID")
+    parser.add_argument("--channel", default=None, help="Channel ID (default: all channels)")
+    parser.add_argument("--all", action="store_true", help="Run for all channels in configs/channels/")
     parser.add_argument("--ideas", type=int, default=1, help="Number of ideas")
     parser.add_argument("--produce", action="store_true", help="Run video production")
     parser.add_argument("--dry-run", action="store_true", help="Dry run mode")
@@ -233,18 +245,34 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.produce:
-        result = run_full_pipeline(
-            channel_id=args.channel,
-            ideas_count=args.ideas,
-            produce=True,
-            skip_lipsync=args.skip_lipsync,
-        )
-        print(f"\nResult: {result}")
+    # Get list of channels to process
+    if args.all:
+        channels_dir = Path(__file__).parent.parent / "configs" / "channels"
+        channels = [d.name for d in channels_dir.iterdir() if d.is_dir()]
+        logger.info(f"Found {len(channels)} channels: {', '.join(channels)}")
+    elif args.channel:
+        channels = [args.channel]
     else:
-        ideas = run_content_pipeline(
-            channel_id=args.channel,
-            ideas_count=args.ideas,
-            dry_run=args.dry_run,
-        )
+        channels = ["nang_suat_thong_minh"]  # Default
+
+    for ch in channels:
+        logger.info(f"\n{'='*50}")
+        logger.info(f"Processing channel: {ch}")
+        logger.info(f"{'='*50}")
+        
+        if args.produce:
+            result = run_full_pipeline(
+                channel_id=ch,
+                ideas_count=args.ideas,
+                produce=True,
+                skip_lipsync=args.skip_lipsync,
+            )
+            logger.info(f"Result for {ch}: {result}")
+        else:
+            ideas = run_content_pipeline(
+                channel_id=ch,
+                ideas_count=args.ideas,
+                dry_run=args.dry_run,
+            )
+            logger.info(f"Generated {len(ideas)} ideas for {ch}")
         print(f"\nGot {len(ideas)} ideas")

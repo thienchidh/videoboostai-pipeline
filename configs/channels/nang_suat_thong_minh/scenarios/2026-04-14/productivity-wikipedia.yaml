@@ -1,0 +1,23 @@
+title: Productivity - Wikipedia
+scenes:
+- id: 1
+  script: Bạn có biết cứ 10 người làm việc chăm chỉ thì có đến 8 người đang lãng phí
+    thời gian mà không hề hay biết? Đây không phải lỗi của họ, mà là cách họ đo lường
+    năng suất đã sai hoàn toàn!
+  character: Mentor
+  background: văn phòng hiện đại với ánh sáng ấm, 3D render, warm, eye-level, modern
+    office, professional
+- id: 2
+  script: 'Wikipedia định nghĩa năng suất là hiệu quả sản xuất được biểu hiện qua
+    tỷ lệ giữa đầu ra và đầu vào. Nói dễ hiểu là: bạn tạo ra bao nhiêu giá trị với
+    thời gian bạn có. Ví dụ, một nhân viên làm việc 8 tiếng nhưng chỉ tập trung được
+    2 tiếng thì năng suất thực tế chỉ bằng 25% thôi!'
+  character: Student
+  background: bàn làm việc với màn hình máy tính trong văn phòng ấm, 3D render, warm,
+    eye-level, modern office, professional
+- id: 3
+  script: Vậy bạn thường đo năng suất của mình bằng cách nào? Qua số giờ ngồi máy
+    hay qua kết quả thực tế? Comment cho mình biết ý kiến nhé, mình rất tò mò đấy!
+  character: Mentor
+  background: góc làm việc cá nhân với ánh đèn warm trong văn phòng hiện đại, 3D render,
+    warm, eye-level, modern office, professional

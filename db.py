@@ -524,8 +524,13 @@ def save_content_ideas(project_id: int, ideas: List[Dict], source_id: int = None
     with get_session() as session:
         for idea in ideas:
             kw = idea.get("topic_keywords", [])
-            if isinstance(kw, list):
-                kw = ", ".join(str(k) for k in kw)
+            if isinstance(kw, str):
+                # Already a string, use as-is
+                pass
+            else:
+                # Convert list to JSON string for JSONB column
+                import json
+                kw = json.dumps(kw) if kw else "[]"
             content_idea = models.ContentIdea(
                 project_id=project_id,
                 title=idea.get("title"),

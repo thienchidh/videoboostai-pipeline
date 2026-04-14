@@ -71,8 +71,7 @@ class VideoPipelineRunner:
         # Setup directories (runtime, not from config)
         self.output_dir = PROJECT_ROOT / "output"
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        date_str = time.strftime("%Y%m%d")
-        self.run_dir = self.output_dir / date_str / f"{self.timestamp}_{ctx.channel_id}"
+        self.run_dir = self.output_dir / ctx.channel_id / f"{ctx.scenario.slug}_{self.timestamp}"
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.media_dir = self.run_dir / "final"
         self.media_dir.mkdir(parents=True, exist_ok=True)
@@ -300,10 +299,10 @@ class VideoPipelineRunner:
 
         if force_start:
             log(f"🆕 Clearing previous scene cache...")
-            for run_folder in self.output_dir.glob("*"):
-                if not run_folder.is_dir():
+            for channel_dir in self.output_dir.glob("*"):
+                if not channel_dir.is_dir():
                     continue
-                for run_dir in run_folder.glob("*"):
+                for run_dir in channel_dir.glob("*"):
                     if run_dir == self.run_dir:
                         continue
                     for scene_dir in run_dir.glob("scene_*"):

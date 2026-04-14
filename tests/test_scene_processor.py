@@ -29,7 +29,7 @@ def make_mock_channel(characters=None, tts_config=None, image_style=None, voices
     """Create a mock PipelineContext with ChannelConfig and TechnicalConfig."""
     from modules.pipeline.models import (
         ChannelConfig, CharacterConfig, TTSConfig, ImageStyleConfig,
-        TechnicalConfig, GenerationConfig, GenerationTTS
+        TechnicalConfig, GenerationConfig, GenerationTTS, SceneConfig
     )
 
     chars = characters or [
@@ -91,11 +91,12 @@ class TestSceneProcessorHelpers:
     def test_build_scene_prompt_returns_background(self):
         """build_scene_prompt returns scene background."""
         from modules.pipeline.scene_processor import SceneProcessor
+        from modules.pipeline.models import SceneConfig
 
         ctx = make_mock_channel()
         processor = SceneProcessor(ctx, Path(tempfile.mkdtemp()))
 
-        scene = {"id": 1, "background": "office"}
+        scene = SceneConfig(id=1, background="office")
         prompt = processor.build_scene_prompt(scene)
 
         assert prompt == "office"
@@ -103,11 +104,12 @@ class TestSceneProcessorHelpers:
     def test_build_scene_prompt_returns_default_when_no_background(self):
         """build_scene_prompt returns default text when no background."""
         from modules.pipeline.scene_processor import SceneProcessor
+        from modules.pipeline.models import SceneConfig
 
         ctx = make_mock_channel()
         processor = SceneProcessor(ctx, Path(tempfile.mkdtemp()))
 
-        scene = {"id": 1}
+        scene = SceneConfig(id=1)
         prompt = processor.build_scene_prompt(scene)
 
         assert prompt == "a person talking"
@@ -133,7 +135,7 @@ class TestSingleCharSceneProcessor:
     def test_process_skips_existing_video(self, tmp_path):
         """process skips if video_9x16.mp4 already exists."""
         from modules.pipeline.scene_processor import SingleCharSceneProcessor
-        from modules.pipeline.models import CharacterConfig, TTSConfig
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig
 
         scene_output = tmp_path / "scene_1"
         scene_output.mkdir(parents=True)
@@ -153,7 +155,7 @@ class TestSingleCharSceneProcessor:
 
         processor = SingleCharSceneProcessor(ctx, tmp_path)
 
-        scene = {"id": 1, "script": "Xin chào", "characters": ["TestChar"]}
+        scene = SceneConfig(id=1, script="Xin chào", characters=["TestChar"])
 
         # Mock all provider functions
         mock_tts = MagicMock(return_value=(str(AUDIO_FILE), None))
@@ -170,7 +172,7 @@ class TestSingleCharSceneProcessor:
     def test_process_full_flow_calls_all_providers(self, tmp_path):
         """process calls TTS → image → lipsync → crop in sequence."""
         from modules.pipeline.scene_processor import SingleCharSceneProcessor
-        from modules.pipeline.models import CharacterConfig, TTSConfig
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig
 
         scene_output = tmp_path / "scene_1"
         scene_output.mkdir(parents=True)
@@ -181,7 +183,7 @@ class TestSingleCharSceneProcessor:
 
         processor = SingleCharSceneProcessor(ctx, tmp_path)
 
-        scene = {"id": 1, "script": "Xin chào", "characters": ["TestChar"]}
+        scene = SceneConfig(id=1, script="Xin chào", characters=["TestChar"])
 
         # Track call order
         call_order = []
@@ -217,7 +219,7 @@ class TestSingleCharSceneProcessor:
     def test_process_validates_duration(self, tmp_path):
         """process returns None if TTS duration exceeds max."""
         from modules.pipeline.scene_processor import SingleCharSceneProcessor
-        from modules.pipeline.models import CharacterConfig, TTSConfig
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig
 
         scene_output = tmp_path / "scene_1"
         scene_output.mkdir(parents=True)
@@ -228,7 +230,7 @@ class TestSingleCharSceneProcessor:
 
         processor = SingleCharSceneProcessor(ctx, tmp_path)
 
-        scene = {"id": 1, "script": "Xin chào", "characters": ["TestChar"]}
+        scene = SceneConfig(id=1, script="Xin chào", characters=["TestChar"])
 
         # Track calls and create actual image file when mock_img is called
         def mock_img(prompt, output):
@@ -247,7 +249,7 @@ class TestSingleCharSceneProcessor:
     def test_process_handles_tts_failure(self, tmp_path):
         """process returns None if TTS returns falsy."""
         from modules.pipeline.scene_processor import SingleCharSceneProcessor
-        from modules.pipeline.models import CharacterConfig, TTSConfig
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig
 
         scene_output = tmp_path / "scene_1"
         scene_output.mkdir(parents=True)
@@ -258,7 +260,7 @@ class TestSingleCharSceneProcessor:
 
         processor = SingleCharSceneProcessor(ctx, tmp_path)
 
-        scene = {"id": 1, "script": "Xin chào", "characters": ["TestChar"]}
+        scene = SceneConfig(id=1, script="Xin chào", characters=["TestChar"])
 
         mock_tts = MagicMock(return_value=(None, None))  # TTS failed
         mock_img = MagicMock(return_value=IMAGE_FILE)
@@ -271,7 +273,7 @@ class TestSingleCharSceneProcessor:
     def test_process_handles_image_failure(self, tmp_path):
         """process returns None if image gen fails."""
         from modules.pipeline.scene_processor import SingleCharSceneProcessor
-        from modules.pipeline.models import CharacterConfig, TTSConfig
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig
 
         scene_output = tmp_path / "scene_1"
         scene_output.mkdir(parents=True)
@@ -282,7 +284,7 @@ class TestSingleCharSceneProcessor:
 
         processor = SingleCharSceneProcessor(ctx, tmp_path)
 
-        scene = {"id": 1, "script": "Xin chào", "characters": ["TestChar"]}
+        scene = SceneConfig(id=1, script="Xin chào", characters=["TestChar"])
 
         mock_tts = MagicMock(return_value=(str(AUDIO_FILE), None))
         mock_img = MagicMock(return_value=None)  # Image failed

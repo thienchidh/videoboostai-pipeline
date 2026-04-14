@@ -22,9 +22,8 @@ class FacebookPublisher:
 
     def __init__(self, config: SocialPlatformConfig):
         self.config = config
-        # page_id and access_token may come from secrets, not in SocialPlatformConfig
-        self.page_id = getattr(config, 'page_id', None) or ""
-        self.access_token = getattr(config, 'access_token', None) or ""
+        self.page_id = config.page_id or ""
+        self.access_token = config.access_token or ""
         self.auto_publish = config.auto_publish
         self._session = requests.Session()
 

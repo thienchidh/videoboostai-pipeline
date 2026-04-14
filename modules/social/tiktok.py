@@ -22,9 +22,8 @@ class TikTokPublisher:
 
     def __init__(self, config: SocialPlatformConfig):
         self.config = config
-        # advertiser_id and access_token may come from secrets, not in SocialPlatformConfig
-        self.advertiser_id = getattr(config, 'advertiser_id', None) or ""
-        self.access_token = getattr(config, 'access_token', None) or ""
+        self.advertiser_id = config.advertiser_id or ""
+        self.access_token = config.access_token or ""
         self.auto_publish = config.auto_publish
         self._session = requests.Session()
         self._session.headers.update({

@@ -212,11 +212,25 @@ class SocialPlatformConfig(BaseModel):
     page_name: Optional[str] = None
     account_name: Optional[str] = None
     auto_publish: bool = False
+    # Auth fields loaded from config file or secrets manager
+    page_id: Optional[str] = None
+    access_token: Optional[str] = None
+    advertiser_id: Optional[str] = None
+    account_id: Optional[str] = None
 
 
 class SocialConfig(BaseModel):
     facebook: SocialPlatformConfig
     tiktok: SocialPlatformConfig
+
+    @classmethod
+    def load(cls, path: str | Path) -> "SocialConfig":
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Social config not found: {path}")
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        return cls(**data)
 
 
 class TTSConfig(BaseModel):

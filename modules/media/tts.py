@@ -136,7 +136,9 @@ class EdgeTTSProvider(TTSProvider):
         self.upload_func = upload_func
 
     def generate(self, text: str, voice: str = "female_voice",
-                 speed: float = 1.0, output_path: Optional[str] = None) -> Optional[str]:
+                 speed: float = 1.0, output_path: Optional[str] = None
+                 ) -> tuple[str, Optional[List[Dict[str, Any]]]] | None:
+        """Generate TTS using Edge TTS. Returns (path, timestamps) tuple or None on error."""
         import asyncio
         import edge_tts
 
@@ -160,13 +162,16 @@ class EdgeTTSProvider(TTSProvider):
                 logger.warning("Edge TTS: output file missing or too small")
                 return None
 
+            # Get word timestamps
+            timestamps = get_whisper_timestamps(output_path)
+
             # Upload if func provided
             if self.upload_func:
                 url = self.upload_func(output_path)
                 if not url:
                     logger.warning("Edge TTS: upload_func returned None")
 
-            return output_path
+            return (output_path, timestamps)
 
         except Exception as e:
             logger.warning(f"Edge TTS error: {e}")

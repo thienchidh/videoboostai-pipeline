@@ -42,7 +42,8 @@ class ContentPipeline:
     def __init__(self, project_id: int, config: Dict = None, config_path: str = None,
                  dry_run: bool = True,
                  channel_id: str = "nang_suat_thong_minh",
-                 skip_lipsync: bool = False):
+                 skip_lipsync: bool = False,
+                 skip_content: bool = False):
         """
         Args:
             project_id: project ID
@@ -51,12 +52,14 @@ class ContentPipeline:
             dry_run: if True, don't actually produce/upload videos
             channel_id: channel ID for scenario output (default: nang_suat_thong_minh)
             skip_lipsync: if True, use static image + audio instead of lipsync (saves API costs)
+            skip_content: if True, skip content generation and use existing scripts in DB (for testing production separately or re-running failed items)
         """
         self.project_id = project_id
         self.dry_run = dry_run
         self.project_root = PROJECT_ROOT
         self.channel_id = channel_id
         self.skip_lipsync = skip_lipsync
+        self.skip_content = skip_content
 
         # Load config
         if config_path:
@@ -105,6 +108,11 @@ class ContentPipeline:
         2. Generate content ideas
         3. Generate scene scripts + produce video
         """
+        if self.skip_content:
+            logger.info("⚠️  SKIP_CONTENT mode: loading existing scripts from DB")
+            results = self._run_from_existing_scripts(num_ideas)
+            return results
+
         logger.info("=" * 50)
         logger.info("CONTENT PIPELINE - FULL CYCLE")
         logger.info("=" * 50)
@@ -298,6 +306,45 @@ class ContentPipeline:
 
         logger.info(f"  Scenario saved: {config_path}")
         return config_path
+
+    def _run_from_existing_scripts(self, num_ideas: int = 5) -> Dict:
+        """Load existing script_ready ideas from DB and produce videos."""
+        from db import get_content_idea
+
+        ideas = self.idea_gen.get_ideas_by_status(status="script_ready", limit=num_ideas)
+        logger.info(f"  Found {len(ideas)} existing script_ready ideas")
+
+        produced = []
+        for idea in ideas:
+            idea_id = idea.get("id")
+            script_json = idea.get("script_json")
+
+            if not script_json:
+                logger.warning(f"  Idea {idea_id} has no script_json, skipping")
+                continue
+
+            # Save config path for this idea
+            config_path = str(self._save_script_config(idea_id, script_json))
+
+            # Mark as re_run in DB
+            self.idea_gen.update_idea_status(idea_id, status="re_run")
+
+            # Produce video
+            logger.info(f"  Producing video for existing idea {idea_id}: {idea.get('title', '')[:50]}")
+            prod_result = self.produce_video(idea_id, config_path=config_path)
+            produced.append({
+                "idea_id": idea_id,
+                "config_path": config_path,
+                "result": prod_result,
+            })
+            logger.info(f"  Production result: {prod_result.get('success')}")
+
+        return {
+            "produced": produced,
+            "scripts_generated": 0,  # No new scripts generated
+            "ideas_generated": 0,
+            "status": "re_run_from_existing",
+        }
 
     def produce_video(self, idea_id: int, config_path: Optional[str] = None) -> Dict:
         """

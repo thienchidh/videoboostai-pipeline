@@ -1,0 +1,25 @@
+title: What Is Time Management? - Mindtools
+scenes:
+- id: 1
+  script: Bạn có biết mỗi ngày bạn lãng phí trung bình 2 tiếng rưỡi vì không biết
+    sắp xếp công việc không? Không phải vì bạn lười — mà vì bạn chưa có kỹ năng đúng.
+    Hôm nay mình sẽ chỉ bạn cách lấy lại những giờ vàng đó.
+  background: bàn làm việc ngổn ngang giấy tờ, 3D render, warm, eye-level, modern
+    office, professional
+  character: Mentor
+- id: 2
+  script: 'Bí quyết đầu tiên là biết ưu tiên đúng việc, đúng lúc. Hãy thử chia công
+    việc thành bốn nhóm: quan trọng và gấp, quan trọng nhưng không gấp, gấp nhưng
+    không quan trọng, và không gấp cũng không quan trọng. Ví dụ như buổi họp với khách
+    hàng lớn là quan trọng và gấp — làm ngay. Còn lướt mạng xã hội? Cắt luôn trong
+    giờ làm. Chỉ cần bước này thôi, năng suất của bạn tăng rõ rệt trong tuần đầu tiên.'
+  background: bảng phân loại công việc trên tường, 3D render, warm, eye-level, modern
+    office, professional
+  character: Mentor
+- id: 3
+  script: Bạn đã thử áp dụng cách ưu tiên công việc này chưa? Hay bạn đang dùng mẹo
+    nào khác để quản lý thời gian hiệu quả hơn? Comment xuống dưới cho mình biết nhé
+    — mình đọc hết đó!
+  background: góc làm việc gọn gàng với cây xanh nhỏ, 3D render, warm, eye-level,
+    modern office, professional
+  character: Mentor

@@ -281,6 +281,17 @@ Trả về CHỈ JSON array, không kèm markdown."""
             logger.error(f"Failed to get ideas: {e}")
             return []
 
+    def update_idea_status(self, idea_id: int, status: str) -> bool:
+        """Update status of a content idea."""
+        from db import get_session, models
+        with get_session() as session:
+            idea = session.query(models.ContentIdea).filter_by(id=idea_id).first()
+            if not idea:
+                return False
+            idea.status = status
+            session.commit()
+            return True
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

@@ -48,7 +48,6 @@ class GenerationLLM(BaseModel):
 class GenerationTTS(BaseModel):
     max_duration: float = 15.0
     min_duration: float = 5.0
-    words_per_second: float = 2.5
 
 
 class GenerationLipsync(BaseModel):

@@ -34,6 +34,8 @@ def _regenerate_script_with_llm(original_script: str, scene_id: int,
                                 llm_api_key: str) -> str:
     """Regenerate script using MiniMax LLM to fit duration bounds.
     
+    Calculates real words-per-second from actual TTS output.
+    
     Args:
         original_script: The original TTS script that was too short/long
         scene_id: ID of the scene (for logging)
@@ -47,6 +49,10 @@ def _regenerate_script_with_llm(original_script: str, scene_id: int,
     """
     from modules.llm.minimax import MiniMaxLLMProvider
     
+    # Calculate real wps from actual TTS output
+    original_word_count = len(original_script.split())
+    real_wps = actual_duration / original_word_count if original_word_count > 0 else 2.5
+    
     if actual_duration < min_duration:
         target_duration = (min_duration + max_duration) / 2  # Aim for middle
         direction = "expand"
@@ -56,9 +62,9 @@ def _regenerate_script_with_llm(original_script: str, scene_id: int,
         direction = "shorten"
         issue = "too long"
     
-    target_words = int(target_duration * 2.5)  # ~2.5 words per second for Vietnamese
+    target_words = int(target_duration / real_wps)  # Use real wps for accurate target
     
-    system_prompt = """Bạn là một chuyên gia viết kịch bản video TikTok/Reels tiếng Việt.
+    system_prompt = f"""Bạn là một chuyên gia viết kịch bản video TikTok/Reels tiếng Việt.
 Nhiệm vụ: Viết lại kịch bản TTS cho một scene video.
 
 YÊU CẦU:
@@ -70,10 +76,7 @@ YÊU CẦU:
 - KHÔNG thêm lời chào mở đầu như "Xin chào", "Hôm nay"
 - KHÔNG thêm kết luận kiểu "Cảm ơn đã xem"
 
-Output: Chỉ output kịch bản TTS thuần túy, không có mở đầu hay kết thúc.""".format(
-        target_words=target_words,
-        target_duration=target_duration
-    )
+Output: Chỉ output kịch bản TTS thuần túy, không có mở đầu hay kết thúc."""
     
     user_prompt = f"""Kịch bản gốc (bị đánh giá là {issue}, {actual_duration:.1f}s):
 "{original_script}"

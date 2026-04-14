@@ -54,7 +54,6 @@ E2E_CONFIG = {
     "tts": {
         "min_duration": 2.0,
         "max_duration": 15.0,
-        "words_per_second": 2.5,
     },
     "models": {"tts": "edge", "image": "minimax"},
     "watermark": {"enable": False},

@@ -44,9 +44,10 @@ def make_mock_channel(characters=None, tts_config=None, image_style=None, voices
     mock_channel.image_style = img_style
     mock_channel.voices = voices or []
 
-    # Technical config with generation.tts.words_per_second
+    # Technical config with generation.tts
     mock_generation_tts = MagicMock(spec=GenerationTTS)
-    mock_generation_tts.words_per_second = 2.5
+    mock_generation_tts.min_duration = 5.0
+    mock_generation_tts.max_duration = 15.0
 
     mock_generation = MagicMock(spec=GenerationConfig)
     mock_generation.tts = mock_generation_tts

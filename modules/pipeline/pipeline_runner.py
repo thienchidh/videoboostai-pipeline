@@ -116,15 +116,9 @@ class VideoPipelineRunner:
 
     # ---- Provider builders ----
 
-    def _get_models(self) -> dict:
-        """Get models config from channel generation.models."""
-        gm = self.ctx.channel.generation.models
-        return {"tts": gm.tts, "image": gm.image, "video": gm.video}
-
     def _build_tts_provider(self):
         """Instantiate TTS provider via PluginRegistry."""
-        models = self._get_models()
-        tts_name = models.get("tts")
+        tts_name = self.ctx.channel.generation.models.tts
         if not tts_name:
             raise ValueError("models.tts provider must be configured")
         provider_cls = get_provider("tts", tts_name)
@@ -137,8 +131,7 @@ class VideoPipelineRunner:
 
     def _build_image_provider(self):
         """Instantiate image provider via PluginRegistry."""
-        models = self._get_models()
-        img_name = models.get("image")
+        img_name = self.ctx.channel.generation.models.image
         if not img_name:
             raise ValueError("models.image provider must be configured")
         provider_cls = get_provider("image", img_name)

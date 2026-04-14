@@ -82,12 +82,12 @@ class SceneProcessor:
         # Fallback: use character tts_voice/tts_speed directly (backward compat)
         return "edge", getattr(character, 'tts_voice', "female_voice"), getattr(character, 'tts_speed', 1.0), "female"
 
-    def get_video_prompt(self, scene: Dict[str, Any]) -> str:
+    def get_video_prompt(self, scene: SceneConfig) -> str:
         """Get video prompt from scene config, with image_style appended from channel config."""
-        explicit = scene.get("video_prompt")
+        explicit = scene.video_prompt
         if not explicit:
             # Fallback: use scene background directly
-            explicit = scene.get("background") or "a person talking"
+            explicit = scene.background or "a person talking"
 
         # Append image_style from channel config for consistent visual style
         image_style = self.ctx.channel.image_style
@@ -105,10 +105,10 @@ class SceneProcessor:
 
         return explicit
 
-    def build_scene_prompt(self, scene: Dict[str, Any]) -> str:
+    def build_scene_prompt(self, scene: SceneConfig) -> str:
         """Build scene prompt from scene background and channel prompt config."""
         # prompt config is not in standard config - use scene background directly
-        return scene.get("background") or "a person talking"
+        return scene.background or "a person talking"
 
     def get_tts_config(self):
         return self.ctx.channel.tts
@@ -173,9 +173,9 @@ class SingleCharSceneProcessor(SceneProcessor):
         Returns:
             (video_path, timestamps)
         """
-        scene_id = scene.get("id") or 0
-        tts_text = scene.get("tts") or scene.get("script") or ""
-        chars = scene.get("characters") or []
+        scene_id = scene.id or 0
+        tts_text = scene.tts or scene.script or ""
+        chars = scene.characters or []
 
         scene_output.mkdir(parents=True, exist_ok=True)
         existing = scene_output / "video_9x16.mp4"
@@ -198,8 +198,8 @@ class SingleCharSceneProcessor(SceneProcessor):
         provider, voice, speed, gender = self.resolve_voice(char_cfg, scene)
 
         # Per-scene character override (speed)
-        if isinstance(chars[0], dict) and chars[0].get("speed"):
-            speed = chars[0]["speed"]
+        if hasattr(chars[0], 'speed') and chars[0].speed:
+            speed = chars[0].speed
 
         prompt = self.get_video_prompt(scene)
         log(f"  📝 Prompt: {prompt[:80]}...")

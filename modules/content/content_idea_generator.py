@@ -104,7 +104,7 @@ class ContentIdeaGenerator:
         """Generate scene scripts using LLM provider with exponential backoff retry."""
         from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 
-        api_key = self._llm_config.get("api_key", "") if self._llm_config else ""
+        api_key = self._llm_config.get("api_key", "")
         if not api_key:
             # Read minimax key from technical config
             from modules.pipeline.models import TechnicalConfig
@@ -113,9 +113,9 @@ class ContentIdeaGenerator:
                 raise RuntimeError("minimax API key not found in config")
 
         llm = get_llm_provider(
-            name=self._llm_config.get("provider", "minimax") if self._llm_config else "minimax",
+            name=self._llm_config.get("provider", "minimax"),
             api_key=api_key,
-            model=self._llm_config.get("model", "MiniMax-M2.7") if self._llm_config else "MiniMax-M2.7",
+            model=self._llm_config.get("model", "MiniMax-M2.7"),
         )
         prompt = self._build_scene_prompt(title, keywords, angle, description, num_scenes)
 

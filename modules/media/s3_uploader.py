@@ -7,6 +7,7 @@ import boto3
 from pathlib import Path
 
 from modules.pipeline.exceptions import MissingConfigError
+from modules.pipeline.models import S3Config
 
 
 _s3_config = None
@@ -17,19 +18,8 @@ def configure(config: dict = None):
     global _s3_config
     if config is None:
         raise MissingConfigError("s3 config is required but not provided")
-    required = ["endpoint", "access_key", "secret_key", "bucket"]
-    for key in required:
-        val = config.get(key)
-        if not val:
-            raise MissingConfigError(f"s3.{key} is required")
-    _s3_config = {
-        'endpoint': config['endpoint'],
-        'access_key': config['access_key'],
-        'secret_key': config['secret_key'],
-        'bucket': config['bucket'],
-        'region': config.get('region', 'us-east-1'),
-        'public_url_base': config.get('public_url_base', f"{config['endpoint']}/{config['bucket']}"),
-    }
+    validated = S3Config(**config)
+    _s3_config = validated
 
 
 def get_s3_config():
@@ -45,10 +35,10 @@ def get_s3_client():
     cfg = get_s3_config()
     return boto3.client(
         's3',
-        endpoint_url=cfg['endpoint'],
-        aws_access_key_id=cfg['access_key'],
-        aws_secret_access_key=cfg['secret_key'],
-        region_name=cfg['region']
+        endpoint_url=cfg.endpoint,
+        aws_access_key_id=cfg.access_key,
+        aws_secret_access_key=cfg.secret_key,
+        region_name=cfg.region
     )
 
 
@@ -70,12 +60,12 @@ def upload_file(file_path: str, key_prefix: str = "uploads") -> str:
     client = get_s3_client()
     client.upload_file(
         str(file_path),
-        cfg['bucket'],
+        cfg.bucket,
         key,
         ExtraArgs={"ContentType": _guess_content_type(file_path.suffix)}
     )
-    
-    return f"{cfg['public_url_base']}/{key}"
+
+    return f"{cfg.public_url_base}/{key}"
 
 
 def _guess_content_type(ext: str) -> str:

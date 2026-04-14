@@ -320,6 +320,7 @@ class ScenarioConfig(BaseModel):
     """Scenes and title from scenario YAML files."""
     scenes: List[SceneConfig]
     title: str = ""
+    slug: Optional[str] = None
 
     @classmethod
     def load(cls, path: str | Path) -> "ScenarioConfig":
@@ -327,7 +328,10 @@ class ScenarioConfig(BaseModel):
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         scenes = [SceneConfig.from_dict(s) for s in data.get("scenes", [])]
-        return cls(scenes=scenes, title=data.get("title", ""))
+        slug = path.stem
+        instance = cls(scenes=scenes, title=data.get("title", ""))
+        instance.slug = slug
+        return instance
 
 
 class ContentPipelineConfig(BaseModel):

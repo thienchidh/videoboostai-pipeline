@@ -444,7 +444,7 @@ class VideoPipelineRunner:
             log(f"\n{'='*60}")
             log(f"🎵 ADDING BACKGROUND MUSIC...")
             log(f"{'='*60}")
-            music_result = add_background_music(str(subtitled_video), str(final_with_music))
+            music_result = add_background_music(str(subtitled_video), str(final_with_music), music_provider=self.music_provider)
             final_output = music_result if Path(music_result).exists() else str(subtitled_video)
 
         log(f"\n✅ DONE: {final_output}")

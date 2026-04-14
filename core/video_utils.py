@@ -189,7 +189,7 @@ def crop_to_9x16(input_video: str, output_video: str) -> Optional[str]:
                   "-c:v", "libx264", "-preset", "fast", "-crf", "23",
                   "-c:a", "aac", "-y", output_video]
             try:
-                subprocess.run(cmd, capture_output=True, timeout=300)
+                subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=300)
                 if Path(output_video).exists():
                     return output_video
             except Exception as e:
@@ -245,7 +245,7 @@ def concat_videos(video_paths: List[str], output_path: str,
                 str(get_ffmpeg()), "-y", "-f", "concat", "-safe", "0", "-i", str(list_file),
                 "-c", "copy", "-bsf:a", "aac_adtstoasc", output_path
             ]
-            subprocess.run(cmd_simple, capture_output=True, timeout=600)
+            subprocess.run(cmd_simple, capture_output=True, encoding="utf-8", errors="replace", timeout=600)
         if Path(output_path).exists():
             size = Path(output_path).stat().st_size
             log(f"  ✅ Concat done: {size/1024/1024:.1f}MB")
@@ -460,7 +460,7 @@ def add_static_watermark(video_path: str, output_path: str,
         "-c:a", "copy",
         str(tmp_wm)
     ]
-    result = subprocess.run(cmd, capture_output=True, timeout=300)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=300)
     if result.returncode == 0 and tmp_wm.exists():
         shutil.copy(tmp_wm, output_path)
         log(f"  ✅ Static watermark added")
@@ -583,7 +583,7 @@ def create_static_video_with_audio(
         output_path,
     ]
     try:
-        subprocess.run(cmd, capture_output=True, timeout=300)
+        subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=300)
         if Path(output_path).exists():
             size_mb = Path(output_path).stat().st_size / 1024 / 1024
             log(f"  ✅ Static video created: {size_mb:.1f}MB")

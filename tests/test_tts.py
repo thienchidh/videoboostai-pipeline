@@ -52,14 +52,12 @@ class TestEdgeTTSProvider:
         """EdgeTTSProvider.generate returns None when edge-tts fails."""
         provider = EdgeTTSProvider()
 
-        with patch("modules.media.tts.asyncio") as mock_asyncio:
-            mock_asyncio.set_event_loop_policy = MagicMock()
-            mock_asyncio.run = MagicMock(side_effect=Exception("edge-tts error"))
+        with patch("asyncio.set_event_loop_policy") as mock_set_policy:
+            with patch("asyncio.run", side_effect=Exception("edge-tts error")):
+                result = provider.generate("test text", "female_voice", 1.0, "/tmp/test.mp3")
 
-            result = provider.generate("test text", "female_voice", 1.0, "/tmp/test.mp3")
-
-            # On error should return None (not tuple)
-            assert result is None
+                # On error should return None (not tuple)
+                assert result is None
 
 
 class TestGetWhisperTimestamps:

@@ -102,3 +102,8 @@ class MiniMaxLLMProvider(LLMProvider):
             if text_parts:
                 return "".join(text_parts)
         return ""
+
+
+# Auto-register on import
+from core.plugins import register_provider
+register_provider("llm", "minimax", MiniMaxLLMProvider)

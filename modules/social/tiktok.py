@@ -75,32 +75,34 @@ class TikTokPublisher:
         logger.info(f"📤 TikTok: uploading {video_path.name} ({video_size // 1024}KB)")
 
         try:
-            # Step 1: Initiate upload
-            init_url = f"{TIKTOK_API_BASE}/video/upload/"
-            files = {"video_file": open(video_path, "rb")}
-            init_data = {
-                "advertiser_id": self.advertiser_id,
-                "video_description": description[:2000],
-            }
-            
-            resp = self._retry_request("POST", init_url, files=files, data=init_data)
-            if not resp:
-                return None
+            # Step 1: Upload video file (uses context manager for file handle)
+            upload_url = f"{TIKTOK_API_BASE}/video/upload/"
 
-            video_id = resp.get("video_id")
-            logger.info(f"   TikTok video_id: {video_id}")
+            with open(video_path, "rb") as video_file:
+                upload_data = {
+                    "advertiser_id": self.advertiser_id,
+                }
+                files = {"video_file": video_file}
 
-            # Step 2: Submit to TikTok (post-upload processing)
-            # The video needs to be finalized before it can be posted
-            submit_url = f"{TIKTOK_API_BASE}/video/publish/"
-            submit_data = {
+                resp = self._retry_request("POST", upload_url, files=files, data=upload_data)
+                if not resp:
+                    return None
+
+                video_id = resp.get("video_id")
+                logger.info(f"   TikTok video_id: {video_id}")
+
+            # File handle is now automatically closed after with block
+
+            # Step 2: Publish video with title/description
+            publish_url = f"{TIKTOK_API_BASE}/video/publish/"
+            publish_data = {
                 "advertiser_id": self.advertiser_id,
                 "video_id": video_id,
                 "post_description": title[:100],
             }
 
-            submit_resp = self._retry_request("POST", submit_url, data=submit_data)
-            if not submit_resp:
+            publish_resp = self._retry_request("POST", publish_url, data=publish_data)
+            if not publish_resp:
                 return None
 
             logger.info(f"✅ TikTok: published! Video ID: {video_id}")
@@ -110,9 +112,6 @@ class TikTokPublisher:
         except Exception as e:
             logger.error(f"❌ TikTok publish error: {e}")
             return None
-        finally:
-            # Ensure file handle is closed
-            pass
 
     def _retry_request(self, method: str, url: str,
                        data: dict = None, files: dict = None, retries: int = 3) -> Optional[dict]:

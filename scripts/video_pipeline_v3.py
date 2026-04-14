@@ -13,7 +13,6 @@ Usage (Python API):
 """
 
 import time
-import random
 
 from core.video_utils import log
 from modules.pipeline.exceptions import SceneDurationError
@@ -27,80 +26,73 @@ UPLOAD_TO_SOCIALS = False
 USE_STATIC_LIPSYNC = False
 
 
-# ==================== SCRIPT ADJUSTMENT HELPER ====================
+# ==================== SCRIPT ADJUSTMENT WITH LLM ====================
 
-def _adjust_script_to_duration(script: str, actual_duration: float,
+def _regenerate_script_with_llm(original_script: str, scene_id: int,
+                                actual_duration: float,
                                 min_duration: float, max_duration: float,
-                                wps: float = 2.5) -> str:
-    """Adjust script to fit within duration bounds.
+                                llm_api_key: str) -> str:
+    """Regenerate script using MiniMax LLM to fit duration bounds.
     
     Args:
-        script: Original script text
+        original_script: The original TTS script that was too short/long
+        scene_id: ID of the scene (for logging)
         actual_duration: Actual TTS duration in seconds
-        min_duration: Minimum allowed duration
-        max_duration: Maximum allowed duration
-        wps: Words per second (default 2.5 for Vietnamese TTS)
+        min_duration: Minimum allowed duration (5.0s)
+        max_duration: Maximum allowed duration (15.0s)
+        llm_api_key: MiniMax API key for LLM calls
     
     Returns:
-        Adjusted script that fits within duration bounds
+        New script that fits within duration bounds
     """
-    if actual_duration < min_duration:
-        # Too short - expand by adding filler
-        deficit_seconds = min_duration - actual_duration
-        deficit_words = int(deficit_seconds * wps)
-        
-        # Common Vietnamese filler phrases (each ~0.5-1s)
-        fillers = [
-            "Và điều quan trọng là bạn cần nhớ rằng.",
-            "Hãy cùng tôi tìm hiểu sâu hơn.",
-            "Đây là một nguyên tắc mà nhiều người thường bỏ qua.",
-            "Bạn sẽ thấy được sự khác biệt khi áp dụng ngay.",
-            "Đây là bí quyết mà các chuyên gia thường dùng.",
-            "Và điều này sẽ thay đổi cách bạn làm việc.",
-            "Bạn có biết rằng điều này có thể giúp bạn tiết kiệm thời gian?",
-        ]
-        
-        # Build filler text
-        filler_text = ""
-        words_added = 0
-        random.seed(hash(script) % 2**32)  # Reproducible randomness
-        while words_added < deficit_words:
-            filler = random.choice(fillers)
-            filler_text += " " + filler
-            words_added += len(filler.split())
-        
-        adjusted = script.strip() + filler_text
-        log(f"  📝 Script expanded: {len(script.split())} → {len(adjusted.split())} words")
-        return adjusted
-        
-    elif actual_duration > max_duration:
-        # Too long - truncate at sentence boundary
-        max_words = int(max_duration * wps)
-        words = script.split()
-        
-        # Find truncation point at sentence boundary
-        truncated = []
-        word_count = 0
-        for word in words:
-            truncated.append(word)
-            word_count += 1
-            if word_count >= max_words:
-                break
-            # Check if this looks like end of sentence
-            if word and word[-1] in '.!?:;':
-                # Check if next word would push us over
-                if word_count + 1 > max_words * 0.95:
-                    break
-        
-        adjusted = ' '.join(truncated)
-        # Ensure it ends with proper punctuation
-        if adjusted and adjusted[-1] not in '.!?':
-            adjusted += '.'
-        
-        log(f"  📝 Script truncated: {len(script.split())} → {len(adjusted.split())} words")
-        return adjusted
+    from modules.llm.minimax import MiniMaxLLMProvider
     
-    return script
+    if actual_duration < min_duration:
+        target_duration = (min_duration + max_duration) / 2  # Aim for middle
+        direction = "expand"
+        issue = "too short"
+    else:
+        target_duration = max_duration * 0.9  # Aim for 90% of max
+        direction = "shorten"
+        issue = "too long"
+    
+    target_words = int(target_duration * 2.5)  # ~2.5 words per second for Vietnamese
+    
+    system_prompt = """Bạn là một chuyên gia viết kịch bản video TikTok/Reels tiếng Việt.
+Nhiệm vụ: Viết lại kịch bản TTS cho một scene video.
+
+YÊU CẦU:
+- VIẾT TIẾNG VIỆT CÓ DẤU
+- Kịch bản phải tự nhiên, hấp dẫn, phù hợp với nội dung gốc
+- Độ dài: CHÍNH XÁC khoảng {target_words} từ (tương đương {target_duration:.0f} giây TTS)
+- Nếu cần expand: Thêm chi tiết, giải thích, ví dụ cụ thể
+- Nếu cần shorten: Cắt bớt phần ít quan trọng, giữ ý chính
+- KHÔNG thêm lời chào mở đầu như "Xin chào", "Hôm nay"
+- KHÔNG thêm kết luận kiểu "Cảm ơn đã xem"
+
+Output: Chỉ output kịch bản TTS thuần túy, không có mở đầu hay kết thúc.""".format(
+        target_words=target_words,
+        target_duration=target_duration
+    )
+    
+    user_prompt = f"""Kịch bản gốc (bị đánh giá là {issue}, {actual_duration:.1f}s):
+"{original_script}"
+
+Hãy viết lại kịch bản này để có độ dài phù hợp."""
+    
+    try:
+        llm = MiniMaxLLMProvider(api_key=llm_api_key)
+        new_script = llm.chat(
+            prompt=user_prompt,
+            system=system_prompt,
+            max_tokens=512
+        )
+        new_script = new_script.strip()
+        log(f"  🤖 LLM regenerated script for scene {scene_id}: {len(original_script.split())} → {len(new_script.split())} words")
+        return new_script
+    except Exception as e:
+        log(f"  ⚠️ LLM call failed: {e}, falling back to original script")
+        return original_script
 
 
 # ==================== WRAPPER ====================
@@ -170,12 +162,14 @@ class VideoPipelineV3:
                 log(f"⚠️ Scene {e.scene_id} duration error: {e.actual_duration:.1f}s "
                     f"(min={e.min_duration:.1f}s, max={e.max_duration:.1f}s)")
                 
-                # Adjust script to fit duration bounds
-                adjusted_script = _adjust_script_to_duration(
-                    script=e.script,
+                # Regenerate script using LLM to fit duration bounds
+                adjusted_script = _regenerate_script_with_llm(
+                    original_script=e.script,
+                    scene_id=e.scene_id,
                     actual_duration=e.actual_duration,
                     min_duration=e.min_duration,
-                    max_duration=e.max_duration
+                    max_duration=e.max_duration,
+                    llm_api_key=self.ctx.technical.api_keys.minimax
                 )
                 
                 # Find and update the scene in ctx.scenario.scenes

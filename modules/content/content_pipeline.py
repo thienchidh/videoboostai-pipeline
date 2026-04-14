@@ -16,6 +16,7 @@ from core.paths import PROJECT_ROOT, get_font_path
 from modules.content.topic_researcher import TopicResearcher
 from modules.content.content_idea_generator import ContentIdeaGenerator
 from modules.content.content_calendar import ContentCalendar
+from modules.content.caption_generator import CaptionGenerator
 from modules.pipeline.models import ChannelConfig, ContentPipelineConfig
 
 
@@ -61,7 +62,7 @@ class ContentPipeline:
         if config_path:
             self.config = ContentPipelineConfig.load(config_path)
         else:
-            self.config = config if config else ContentPipelineConfig(page={}, content={})
+            self.config = ContentPipelineConfig(**config) if isinstance(config, dict) else config if config else ContentPipelineConfig(page={}, content={})
 
         self.fb_page = self.config.page.get("facebook", {})
         self.tiktok_account = self.config.page.get("tiktok", {})
@@ -316,6 +317,16 @@ class ContentPipeline:
         if not script_json:
             return {"success": False, "error": f"Idea {idea_id} has no script"}
 
+        # Generate captions for social posts
+        caption_gen = CaptionGenerator(use_llm=True)
+        script_text = " ".join(
+            s.get("tts", "") or s.get("script", "") for s in script_json.get("scenes", [])
+        )
+        full_script = f"{script_json.get('title', '')} {script_text}".strip()
+
+        fb_caption = caption_gen.generate(full_script, platform="facebook")
+        tt_caption = caption_gen.generate(full_script, platform="tiktok")
+
         # Save config (YAML scenario file) only if not provided by caller
         if not config_path:
             config_path = str(self._save_script_config(idea_id, script_json))
@@ -326,7 +337,11 @@ class ContentPipeline:
                 "success": True,
                 "dry_run": True,
                 "config_path": str(config_path),
-                "idea_id": idea_id
+                "idea_id": idea_id,
+                "captions": {
+                    "facebook": fb_caption.for_facebook() if fb_caption else None,
+                    "tiktok": tt_caption.for_tiktok() if tt_caption else None,
+                },
             }
 
         # Run pipeline directly
@@ -364,6 +379,10 @@ class ContentPipeline:
                 "success": result is not None,
                 "output_video": output_video,
                 "run_dir": str(pipeline._runner.run_dir),
+                "captions": {
+                    "facebook": fb_caption.for_facebook() if fb_caption else None,
+                    "tiktok": tt_caption.for_tiktok() if tt_caption else None,
+                },
             }
 
         except Exception as e:

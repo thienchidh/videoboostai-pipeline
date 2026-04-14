@@ -59,8 +59,7 @@ class ContentPipeline:
 
         # Load config
         if config_path:
-            with open(config_path) as f:
-                self.config = json.load(f)
+            self.config = ContentPipelineConfig.load(config_path).model_dump()
         else:
             self.config = config or {}
 

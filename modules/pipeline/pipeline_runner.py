@@ -413,6 +413,13 @@ class VideoPipelineRunner:
                 dur = get_video_duration(vpath)
                 offset += dur
 
+            # Save SRT subtitle file
+            if combined_timestamps:
+                from modules.media.subtitle_srt import save_srt
+                srt_path = self.media_dir / f"subtitles_v3_{self.timestamp}.srt"
+                save_srt(combined_timestamps, str(srt_path))
+                log(f"  📝 SRT saved: {srt_path}")
+
             # Add watermark
             video_for_subtitles = str(final_video)
             wm_cfg = self.ctx.channel.watermark

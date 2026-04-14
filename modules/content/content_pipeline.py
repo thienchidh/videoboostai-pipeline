@@ -270,11 +270,10 @@ class ContentPipeline:
     def _save_script_config(self, idea_id: int, script: Dict):
         """Save scene script as YAML scenario file for video_pipeline.
 
-        Output path: configs/channels/{channel_id}/scenarios/{YYYY-MM-DD}/{slugified_title}.yaml
+        Output path: configs/channels/{channel_id}/scenarios/{slugified_title}.yaml
         Only 'scenes' and 'title' keys are included (PipelineContext filter).
         """
         import re
-        from datetime import date
         from unidecode import unidecode
 
         title = script.get("title", f"idea_{idea_id}")
@@ -286,9 +285,6 @@ class ContentPipeline:
         slug = re.sub(r'\s+', '-', slug.strip().lower())  # hyphen-separated lowercase
         slug = slug[:50].strip('-')  # limit length, remove trailing hyphens
 
-        # Use today's date
-        scenario_date = date.today().strftime("%Y-%m-%d")
-
         # Build scenario output (only title + scenes for PipelineContext filter)
         scenario_data = {
             "title": title,
@@ -296,7 +292,7 @@ class ContentPipeline:
         }
 
         # Ensure directory exists
-        scenario_dir = self.project_root / "configs" / "channels" / self.channel_id / "scenarios" / scenario_date
+        scenario_dir = self.project_root / "configs" / "channels" / self.channel_id / "scenarios"
         scenario_dir.mkdir(parents=True, exist_ok=True)
 
         config_path = scenario_dir / f"{slug}.yaml"

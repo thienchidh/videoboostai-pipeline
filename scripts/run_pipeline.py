@@ -321,4 +321,4 @@ if __name__ == "__main__":
                 dry_run=args.dry_run,
             )
             logger.info(f"Generated {len(ideas)} ideas for {ch}")
-        print(f"\nGot {len(ideas)} ideas")
+            print(f"\nGot {len(ideas)} ideas")

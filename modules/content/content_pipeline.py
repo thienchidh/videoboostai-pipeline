@@ -59,16 +59,13 @@ class ContentPipeline:
 
         # Load config
         if config_path:
-            self.config = ContentPipelineConfig.load(config_path).model_dump()
+            self.config = ContentPipelineConfig.load(config_path)
         else:
-            self.config = config or {}
+            self.config = config if config else ContentPipelineConfig(page={}, content={})
 
-        page_cfg = self.config.get("page", {})
-        content_cfg = self.config.get("content", {})
-
-        self.fb_page = page_cfg.get("facebook", {})
-        self.tiktok_account = page_cfg.get("tiktok", {})
-        self.auto_schedule = content_cfg.get("auto_schedule", True)
+        self.fb_page = self.config.page.get("facebook", {})
+        self.tiktok_account = self.config.page.get("tiktok", {})
+        self.auto_schedule = self.config.content.get("auto_schedule", True)
 
         # Load channel config via ChannelConfig.load() with fallback to None
         try:
@@ -497,11 +494,11 @@ if __name__ == "__main__":
     # Load config from project root via Pydantic
     config_path = PROJECT_ROOT / "configs/business/video_scenario.yaml.example"
     cfg = ContentPipelineConfig.load_or_default(config_path)
-    config = cfg.model_dump()
 
     pipeline = ContentPipeline(
         project_id=1,
-        config=config,
+        config=cfg,
+        config_path=None,
         dry_run=True,
         channel_id="nang_suat_thong_minh"
     )

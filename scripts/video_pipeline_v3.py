@@ -108,7 +108,7 @@ class VideoPipelineV3:
         scenario_path: Full path to scenario YAML file.
     """
 
-    def __init__(self, channel_id: str, scenario_path: str):
+    def __init__(self, channel_id: str, scenario_path: str, resume: bool = False):
         from modules.pipeline.config import PipelineContext
         from modules.pipeline.pipeline_runner import VideoPipelineRunner
 
@@ -126,6 +126,7 @@ class VideoPipelineV3:
             dry_run_images=DRY_RUN_IMAGES,
             use_static_lipsync=USE_STATIC_LIPSYNC,
             timestamp=self.timestamp,
+            resume=resume,
         )
 
         # Mirror key state for external consumers

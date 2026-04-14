@@ -39,18 +39,7 @@ class FacebookPublisher:
 
     def publish(self, video_path: str, title: str, description: str,
                 tags: Optional[list] = None) -> Optional[str]:
-        """
-        Upload and publish a video to Facebook Page.
-        
-        Args:
-            video_path: Path to the video file
-            title: Video title
-            description: Video description
-            tags: Optional list of tags
-        
-        Returns:
-            Post URL on success, None on failure
-        """
+        """Upload and publish a video to Facebook Page."""
         if not self.is_configured:
             logger.warning("⚠️  Facebook: not configured — skipping publish (placeholder token)")
             logger.info(f"  Would publish: {Path(video_path).name}")
@@ -65,12 +54,14 @@ class FacebookPublisher:
         logger.info(f"📤 Facebook: uploading {video_path.name} ({video_path.stat().st_size // 1024}KB)")
 
         try:
+            file_size = video_path.stat().st_size
+
             # Step 1: Initialize upload session
             init_url = f"{GRAPH_API}/{self.page_id}/videos"
             init_data = {
                 "access_token": self.access_token,
                 "upload_phase": "start",
-                "file_size": video_path.stat().st_size,
+                "file_size": file_size,
             }
             init_resp = self._retry_request("POST", init_url, data=init_data)
             if not init_resp:
@@ -80,11 +71,34 @@ class FacebookPublisher:
             video_id = init_resp.get("video_id")
             logger.info(f"   Upload session: {upload_session_id}, video_id: {video_id}")
 
-            # Step 2: Transfer video data chunk (chunked upload via URL for small-mid files)
-            # For simplicity we use the non-chunked approach: direct publish
-            # Facebook allows direct publish via the /videos endpoint for files < 1GB
-            
-            # Finish upload session
+            # Step 2: Transfer video data (chunked upload)
+            transfer_url = f"{GRAPH_API}/{self.page_id}/videos"
+            chunk_size = 5 * 1024 * 1024  # 5MB chunks
+
+            with open(video_path, "rb") as f:
+                offset = 0
+                while True:
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+
+                    chunk_data = {
+                        "access_token": self.access_token,
+                        "upload_session_id": upload_session_id,
+                        "upload_phase": "transfer",
+                        "start_offset": offset,
+                    }
+                    # For chunk upload, send as form data with the chunk
+                    transfer_resp = self._retry_request(
+                        "POST", transfer_url, data=chunk_data
+                    )
+                    if not transfer_resp:
+                        return None
+
+                    offset += len(chunk)
+                    logger.info(f"   Transferred {offset}/{file_size} bytes")
+
+            # Step 3: Finish upload session
             finish_url = f"{GRAPH_API}/{self.page_id}/videos"
             finish_data = {
                 "access_token": self.access_token,
@@ -93,14 +107,14 @@ class FacebookPublisher:
                 "title": title[:255],
                 "description": description[:2000],
             }
-            
+
             finish_resp = self._retry_request("POST", finish_url, data=finish_data)
             if not finish_resp:
                 return None
 
             post_id = finish_resp.get("id", video_id)
             post_url = f"https://www.facebook.com/{self.page_id}/videos/{post_id}"
-            
+
             logger.info(f"✅ Facebook: published! Post ID: {post_id}")
             logger.info(f"   URL: {post_url}")
             return post_url
@@ -110,7 +124,8 @@ class FacebookPublisher:
             return None
 
     def _retry_request(self, method: str, url: str, data: dict = None,
-                        json_data: dict = None, retries: int = 3) -> Optional[dict]:
+                        json_data: dict = None, files: dict = None,
+                        retries: int = 3) -> Optional[dict]:
         """Make HTTP request with exponential backoff for rate limits."""
         from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 
@@ -121,11 +136,14 @@ class FacebookPublisher:
             reraise=True,
         )
         def _call():
-            kwargs = {"timeout": 60}
-            if data:
-                kwargs["data"] = data
-            if json_data:
-                kwargs["json"] = json_data
+            kwargs = {"timeout": 120}
+            if files:
+                kwargs["files"] = files
+            else:
+                if data:
+                    kwargs["data"] = data
+                if json_data:
+                    kwargs["json"] = json_data
             resp = self._session.request(method, url, **kwargs)
             if resp.status_code == 429:
                 raise Exception("rate_limit")

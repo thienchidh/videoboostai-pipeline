@@ -75,7 +75,6 @@ class BasePipeline(ABC):
         self.config = config
         self.timestamp = int(time.time())
         self.project_root = PROJECT_ROOT
-        date_str = time.strftime("%Y%m%d")  # YYYYMMDD format
 
         if run_dir:
             self.run_dir = Path(run_dir)
@@ -83,7 +82,10 @@ class BasePipeline(ABC):
         else:
             self.output_dir = self.project_root / "output"
             self.output_dir.mkdir(parents=True, exist_ok=True)
-            self.run_dir = self.output_dir / date_str / f"{self.timestamp}"
+            # Extract channel_id and slug from config for new output dir structure
+            channel_id = self.config.get("channel_id", "default")
+            slug = self.config.get("slug") or self.config.get("scenario", {}).get("slug") or "run"
+            self.run_dir = self.output_dir / channel_id / f"{slug}_{self.timestamp}"
             self.run_dir.mkdir(parents=True, exist_ok=True)
 
         log(f"🎬 BasePipeline initialized — output: {self.run_dir}")

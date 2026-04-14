@@ -279,176 +279,186 @@ class VideoPipelineRunner:
         Returns:
             Tuple of (final_video_path, combined_word_timestamps)
         """
-        log(f"\n{'='*60}")
-        log(f"🎬 VIDEO PIPELINE RUNNER")
-        if self._use_static_lipsync:
-            log(f"🖼️  USE_STATIC_LIPSYNC mode: using static image + TTS for video")
-        log(f"{'='*60}")
+        try:
+            log(f"\n{'='*60}")
+            log(f"🎬 VIDEO PIPELINE RUNNER")
+            if self._use_static_lipsync:
+                log(f"🖼️  USE_STATIC_LIPSYNC mode: using static image + TTS for video")
+            log(f"{'='*60}")
 
-        scenes = self.ctx.scenario.scenes
-        if not scenes:
-            raise ValueError("Scenario has no scenes — at least one scene is required")
-        log(f"📋 {len(scenes)} scenes loaded")
+            scenes = self.ctx.scenario.scenes
+            if not scenes:
+                raise ValueError("Scenario has no scenes — at least one scene is required")
+            log(f"📋 {len(scenes)} scenes loaded")
 
-        if force_start:
-            log(f"🆕 Clearing previous scene cache...")
-            for channel_dir in self.output_dir.glob("*"):
-                if not channel_dir.is_dir():
-                    continue
-                for run_dir in channel_dir.glob("*"):
-                    if run_dir == self.run_dir:
+            if force_start:
+                log(f"🆕 Clearing previous scene cache...")
+                for channel_dir in self.output_dir.glob("*"):
+                    if not channel_dir.is_dir():
                         continue
-                    for scene_dir in run_dir.glob("scene_*"):
-                        for f in scene_dir.glob("*.mp4"):
-                            f.unlink(missing_ok=True)
+                    for run_dir in channel_dir.glob("*"):
+                        if run_dir == self.run_dir:
+                            continue
+                        for scene_dir in run_dir.glob("scene_*"):
+                            for f in scene_dir.glob("*.mp4"):
+                                f.unlink(missing_ok=True)
 
-        scene_videos = []
-        scene_scripts = []
+            scene_videos = []
+            scene_scripts = []
 
-        # Build wrapped lipsync function
-        lipsync_fn = self._make_lipsync_wrapper()
+            # Build wrapped lipsync function
+            lipsync_fn = self._make_lipsync_wrapper()
 
-        # Helper function to process a single scene (for parallel execution)
-        def process_single_scene(scene: Dict, scene_id: int, tts_text: str, chars: list, scene_output: Path):
-            """Process a single scene. Returns (video_path, timestamps, tts_text) or None."""
-            scene_output.mkdir(exist_ok=True)
+            # Helper function to process a single scene (for parallel execution)
+            def process_single_scene(scene: Dict, scene_id: int, tts_text: str, chars: list, scene_output: Path):
+                """Process a single scene. Returns (video_path, timestamps, tts_text) or None."""
+                scene_output.mkdir(exist_ok=True)
 
-            # Skip if already processed
-            existing = scene_output / "video_9x16.mp4"
-            if existing.exists():
-                log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping")
-                return (str(existing), [], tts_text)
+                # Skip if already processed
+                existing = scene_output / "video_9x16.mp4"
+                if existing.exists():
+                    log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping")
+                    return (str(existing), [], tts_text)
 
-            if len(chars) != 1:
-                log(f"  ❌ Scene {scene_id}: expected 1 character, got {len(chars)}")
-                return None
-            return self.single_processor.process(
-                scene, scene_output,
-                tts_fn=self.tts_generate,
-                image_fn=self.image_generate,
-                lipsync_fn=lipsync_fn,
-            ) + (tts_text,)
+                if len(chars) != 1:
+                    log(f"  ❌ Scene {scene_id}: expected 1 character, got {len(chars)}")
+                    return None
+                return self.single_processor.process(
+                    scene, scene_output,
+                    tts_fn=self.tts_generate,
+                    image_fn=self.image_generate,
+                    lipsync_fn=lipsync_fn,
+                ) + (tts_text,)
 
-        # Process scenes in parallel using ThreadPoolExecutor
-        log(f"\n🔄 Processing {len(scenes)} scenes in parallel...")
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {}
-            for scene in scenes:
-                scene_id = scene.id or 0
-                tts_text = scene.tts or scene.script or ""
-                chars = scene.characters or []
-                scene_output = self.run_dir / f"scene_{scene_id}"
+            # Process scenes in parallel using ThreadPoolExecutor
+            log(f"\n🔄 Processing {len(scenes)} scenes in parallel...")
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = {}
+                for scene in scenes:
+                    scene_id = scene.id or 0
+                    tts_text = scene.tts or scene.script or ""
+                    chars = scene.characters or []
+                    scene_output = self.run_dir / f"scene_{scene_id}"
 
-                log(f"\n{'='*40}")
-                log(f"🎬 SCENE {scene_id}: {tts_text[:50]}...")
-                log(f"   Characters: {chars}")
-                log(f"{'='*40}")
+                    log(f"\n{'='*40}")
+                    log(f"🎬 SCENE {scene_id}: {tts_text[:50]}...")
+                    log(f"   Characters: {chars}")
+                    log(f"{'='*40}")
 
-                future = executor.submit(process_single_scene, scene, scene_id, tts_text, chars, scene_output)
-                futures[future] = scene_id
+                    future = executor.submit(process_single_scene, scene, scene_id, tts_text, chars, scene_output)
+                    futures[future] = scene_id
 
-            # Collect results as they complete (store by scene_id for ordering)
-            results_by_scene = {}  # scene_id -> (video_path, timestamps, tts_text) or None
-            for future in as_completed(futures):
-                scene_id = futures[future]
-                try:
-                    result = future.result()
-                    results_by_scene[scene_id] = result
-                except SceneDurationError:
-                    # Re-raise duration errors so caller can regenerate script
-                    log(f"  ⚠️ Scene {scene_id} duration error, will retry with new script")
-                    raise
-                except Exception as e:
-                    log(f"  ❌ Scene {scene_id} failed: {e}")
-                    results_by_scene[scene_id] = None
+                # Collect results as they complete (store by scene_id for ordering)
+                results_by_scene = {}  # scene_id -> (video_path, timestamps, tts_text) or None
+                for future in as_completed(futures):
+                    scene_id = futures[future]
+                    try:
+                        result = future.result()
+                        results_by_scene[scene_id] = result
+                    except SceneDurationError:
+                        # Re-raise duration errors so caller can regenerate script
+                        log(f"  ⚠️ Scene {scene_id} duration error, will retry with new script")
+                        raise
+                    except Exception as e:
+                        log(f"  ❌ Scene {scene_id} failed: {e}")
+                        results_by_scene[scene_id] = None
 
-            # Rebuild scene_videos and scene_scripts in original scene order
-            for scene in scenes:
-                scene_id = scene.id or 0
-                result = results_by_scene.get(scene_id)
-                if result:
-                    video_path, timestamps, tts_text = result
-                    if video_path:
-                        scene_videos.append(video_path)
-                        scene_scripts.append(tts_text)
+                # Rebuild scene_videos and scene_scripts in original scene order
+                for scene in scenes:
+                    scene_id = scene.id or 0
+                    result = results_by_scene.get(scene_id)
+                    if result:
+                        video_path, timestamps, tts_text = result
+                        if video_path:
+                            scene_videos.append(video_path)
+                            scene_scripts.append(tts_text)
 
-        if not scene_videos:
-            log(f"\n❌ No scene videos generated")
-            return None, []
+            if not scene_videos:
+                log(f"\n❌ No scene videos generated")
+                raise RuntimeError("No scene videos were generated")
 
-        log(f"\n{'='*60}")
-        log(f"🔗 CONCATENATING {len(scene_videos)} scenes...")
-        log(f"{'='*60}")
-
-        concat_output = self.run_dir / "video_concat.mp4"
-        final_video = self.media_dir / f"video_v3_{self.timestamp}.mp4"
-
-        if not self.concat_videos(scene_videos, str(concat_output)):
-            log(f"\n❌ Pipeline failed at concat")
-            return None, []
-
-        shutil.copy(str(concat_output), str(final_video))
-        log(f"  ✅ Concat copied: {final_video.stat().st_size/1024/1024:.1f}MB")
-
-        # Build combined timestamps with offset
-        combined_timestamps = []
-        offset = 0.0
-        for i, scene in enumerate(scenes):
-            scene_id = scene.id or (i + 1)
-            scene_dir = self.run_dir / f"scene_{scene_id}"
-            if i >= len(scene_videos):
-                continue
-            ts_file = scene_dir / "words_timestamps.json"
-            if ts_file.exists():
-                with open(ts_file, encoding="utf-8") as f:
-                    timestamps = json.load(f)
-                for t in timestamps:
-                    combined_timestamps.append({
-                        "word": t["word"],
-                        "start": t["start"] + offset,
-                        "end": t["end"] + offset
-                    })
-            vpath = scene_videos[i]
-            dur = get_video_duration(vpath)
-            offset += dur
-
-        # Add watermark
-        video_for_subtitles = str(final_video)
-        wm_cfg = self.ctx.channel.watermark
-        if wm_cfg and wm_cfg.enable:
-            watermarked_base = self.media_dir / f"video_v3_{self.timestamp}_watermarked_base.mp4"
             log(f"\n{'='*60}")
-            log(f"💧 ADDING WATERMARK...")
+            log(f"🔗 CONCATENATING {len(scene_videos)} scenes...")
             log(f"{'='*60}")
-            wm_result = self._add_watermark(str(final_video), str(watermarked_base))
-            if Path(wm_result).exists():
-                video_for_subtitles = wm_result
 
-        # Add subtitles
-        full_script = " ".join(scene_scripts)
-        subtitled_video = self.media_dir / f"video_v3_{self.timestamp}_subtitled.mp4"
-        log(f"\n{'='*60}")
-        log(f"📝 ADDING SUBTITLES...")
-        log(f"{'='*60}")
+            concat_output = self.run_dir / "video_concat.mp4"
+            final_video = self.media_dir / f"video_v3_{self.timestamp}.mp4"
 
-        subtitle_cfg = self.ctx.channel.subtitle
-        add_subtitles(video_for_subtitles, full_script, combined_timestamps or None,
-                     str(subtitled_video), font_size=subtitle_cfg.font_size if subtitle_cfg else 60, run_dir=self.run_dir)
+            if not self.concat_videos(scene_videos, str(concat_output)):
+                log(f"\n❌ Pipeline failed at concat")
+                raise RuntimeError("Video concatenation failed")
 
-        # Add background music
-        bg_music = self.ctx.channel.background_music
-        music_enabled = bg_music.enable if bg_music else True
-        final_output = str(subtitled_video)
-        if music_enabled and Path(subtitled_video).exists():
-            final_with_music = self.media_dir / f"video_v3_{self.timestamp}_with_music.mp4"
+            shutil.copy(str(concat_output), str(final_video))
+            log(f"  ✅ Concat copied: {final_video.stat().st_size/1024/1024:.1f}MB")
+
+            # Build combined timestamps with offset
+            combined_timestamps = []
+            offset = 0.0
+            for i, scene in enumerate(scenes):
+                scene_id = scene.id or (i + 1)
+                scene_dir = self.run_dir / f"scene_{scene_id}"
+                if i >= len(scene_videos):
+                    continue
+                ts_file = scene_dir / "words_timestamps.json"
+                if ts_file.exists():
+                    with open(ts_file, encoding="utf-8") as f:
+                        timestamps = json.load(f)
+                    for t in timestamps:
+                        combined_timestamps.append({
+                            "word": t["word"],
+                            "start": t["start"] + offset,
+                            "end": t["end"] + offset
+                        })
+                vpath = scene_videos[i]
+                dur = get_video_duration(vpath)
+                offset += dur
+
+            # Add watermark
+            video_for_subtitles = str(final_video)
+            wm_cfg = self.ctx.channel.watermark
+            if wm_cfg and wm_cfg.enable:
+                watermarked_base = self.media_dir / f"video_v3_{self.timestamp}_watermarked_base.mp4"
+                log(f"\n{'='*60}")
+                log(f"💧 ADDING WATERMARK...")
+                log(f"{'='*60}")
+                wm_result = self._add_watermark(str(final_video), str(watermarked_base))
+                if Path(wm_result).exists():
+                    video_for_subtitles = wm_result
+
+            # Add subtitles
+            full_script = " ".join(scene_scripts)
+            subtitled_video = self.media_dir / f"video_v3_{self.timestamp}_subtitled.mp4"
             log(f"\n{'='*60}")
-            log(f"🎵 ADDING BACKGROUND MUSIC...")
+            log(f"📝 ADDING SUBTITLES...")
             log(f"{'='*60}")
-            music_result = add_background_music(str(subtitled_video), str(final_with_music), music_provider=self.music_provider)
-            final_output = music_result if Path(music_result).exists() else str(subtitled_video)
 
-        log(f"\n✅ DONE: {final_output}")
-        return str(final_output), combined_timestamps
+            subtitle_cfg = self.ctx.channel.subtitle
+            add_subtitles(video_for_subtitles, full_script, combined_timestamps or None,
+                         str(subtitled_video), font_size=subtitle_cfg.font_size if subtitle_cfg else 60, run_dir=self.run_dir)
+
+            # Add background music
+            bg_music = self.ctx.channel.background_music
+            music_enabled = bg_music.enable if bg_music else True
+            final_output = str(subtitled_video)
+            if music_enabled and Path(subtitled_video).exists():
+                final_with_music = self.media_dir / f"video_v3_{self.timestamp}_with_music.mp4"
+                log(f"\n{'='*60}")
+                log(f"🎵 ADDING BACKGROUND MUSIC...")
+                log(f"{'='*60}")
+                music_result = add_background_music(str(subtitled_video), str(final_with_music), music_provider=self.music_provider)
+                final_output = music_result if Path(music_result).exists() else str(subtitled_video)
+
+            log(f"\n✅ DONE: {final_output}")
+
+            if self.run_id:
+                db.complete_video_run(self.run_id, status="completed")
+
+            return str(final_output), combined_timestamps
+        except Exception as e:
+            log(f"\n❌ Pipeline failed: {e}")
+            if self.run_id:
+                db.fail_video_run(self.run_id, error=str(e))
+            raise
 
     def concat_videos(self, video_paths: List[str], output_path: str) -> Optional[str]:
         """Concatenate scene videos."""

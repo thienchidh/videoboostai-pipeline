@@ -100,7 +100,7 @@ def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = 
 
 def run_video_pipeline(channel_id: str, scenario_path: str,
                       dry_run: bool = False, dry_run_tts: bool = False,
-                      dry_run_images: bool = False) -> tuple:
+                      dry_run_images: bool = False, resume: bool = False) -> tuple:
     """Run video production from a scenario YAML file.
 
     Args:
@@ -128,7 +128,7 @@ def run_video_pipeline(channel_id: str, scenario_path: str,
     logger.info(f"  Scenario: {scenario_path}")
     logger.info(f"  Dry run: {dry_run}, TTS: {dry_run_tts}, Images: {dry_run_images}")
 
-    pipeline = VideoPipelineV3(channel_id, scenario_path)
+    pipeline = VideoPipelineV3(channel_id, scenario_path, resume=resume)
     logger.info(f"  Title: {pipeline.ctx.scenario.title}")
     logger.info(f"  Scenes: {len(pipeline.ctx.scenario.scenes)}")
     logger.info(f"  Run ID: {pipeline.run_id}")
@@ -149,7 +149,7 @@ def run_video_pipeline(channel_id: str, scenario_path: str,
 
 def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = True,
                        skip_lipsync: bool = False, skip_content: bool = False,
-                       scenario_path: str = None) -> dict:
+                       scenario_path: str = None, resume: bool = False) -> dict:
     """Run full pipeline: content generation + video production.
 
     Args:
@@ -180,6 +180,7 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
             dry_run=False,
             dry_run_tts=False,
             dry_run_images=False,
+            resume=resume,
         )
         return {"videos": [{"scenario": scenario_path, "video_path": video_path}]}
 
@@ -267,6 +268,8 @@ if __name__ == "__main__":
     parser.add_argument("--skip-content", action="store_true", help="Skip content generation, only run video production (requires existing script_json in DB)")
     parser.add_argument("--scenario", type=str, default=None,
         help="Path to scenario YAML file. When used with --skip-content, runs video production for this specific scenario.")
+    parser.add_argument("--resume", action="store_true",
+        help="Resume video production from last checkpoint (skip completed scenes)")
 
     args = parser.parse_args()
 
@@ -295,6 +298,7 @@ if __name__ == "__main__":
                     skip_lipsync=args.skip_lipsync,
                     skip_content=True,
                     scenario_path=args.scenario,
+                    resume=args.resume,
                 )
             elif args.skip_content:
                 # Skip content, run video for all script_ready ideas from DB
@@ -304,6 +308,7 @@ if __name__ == "__main__":
                     produce=True,
                     skip_lipsync=args.skip_lipsync,
                     skip_content=True,
+                    resume=args.resume,
                 )
             else:
                 result = run_full_pipeline(
@@ -312,6 +317,7 @@ if __name__ == "__main__":
                     produce=True,
                     skip_lipsync=args.skip_lipsync,
                     skip_content=False,
+                    resume=args.resume,
                 )
             logger.info(f"Result for {ch}: {result}")
         else:

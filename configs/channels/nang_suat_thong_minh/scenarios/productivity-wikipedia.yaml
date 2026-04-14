@@ -1,0 +1,27 @@
+title: Productivity - Wikipedia
+scenes:
+- id: 1
+  script: Bạn đang làm việc 10 tiếng mỗi ngày nhưng kết quả chỉ bằng người làm 4 tiếng?
+    Vấn đề không phải ở thời gian — mà ở cách bạn đo lường hiệu suất của mình. Hầu
+    hết mọi người làm việc chăm chỉ mà không biết mình đang tạo ra bao nhiêu giá trị
+    thực sự. Đó chính là bẫy năng suất nguy hiểm nhất.
+  background: bàn làm việc lộn xộn với đồng hồ nổi bật, 3D render, warm, eye-level,
+    modern office, professional
+  character: Mentor
+- id: 2
+  script: 'Năng suất thực sự được tính bằng đầu ra chia cho đầu vào — không phải số
+    giờ bạn ngồi trước màn hình. Hãy thử cách này: cuối mỗi ngày, viết ra ba kết quả
+    cụ thể bạn đã tạo ra, không phải danh sách việc đã làm. Ví dụ thay vì ghi ''họp
+    nhóm hai tiếng'', hãy ghi ''chốt được kế hoạch ra mắt sản phẩm tháng sau''. Sự
+    khác biệt này sẽ thay đổi hoàn toàn cách bạn làm việc chỉ sau một tuần.'
+  background: màn hình hiển thị biểu đồ tăng trưởng rõ ràng, 3D render, warm, eye-level,
+    modern office, professional
+  character: Mentor
+- id: 3
+  script: Vậy bạn thường đo năng suất của mình bằng cách nào — theo giờ làm hay theo
+    kết quả đạt được? Mình thấy rất nhiều người có câu trả lời khác nhau và thú vị
+    lắm. Comment ngay bên dưới cho mình biết nhé, biết đâu cách của bạn lại là bí
+    kíp mình chưa nghĩ tới!
+  background: góc văn phòng thoáng đãng với cây xanh nhỏ trên bàn, 3D render, warm,
+    eye-level, modern office, professional
+  character: Student

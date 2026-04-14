@@ -1,0 +1,21 @@
+title: Time Management Skills, Techniques and Strategies – The Ultimate ...
+scenes:
+- id: 1
+  script: Bạn có biết 80% nhân viên văn phòng đang lãng phí 2 tiếng mỗi ngày không?
+    Chỉ vì không biết cách sắp xếp công việc hợp lý. Nếu bạn cũng đang cảm thấy ngày
+    làm việc trôi qua quá nhanh mà chẳng hoàn thành được gì, thì đây chính là video
+    dành cho bạn.
+  background: văn phòng hiện đại, 3D render, warm, eye-level, modern office, professional
+  character: Mentor
+- id: 2
+  script: Hãy thử áp dụng quy tắc 25-5. Mỗi ngày hãy chọn ra 5 việc quan trọng nhất
+    cần hoàn thành trước. Xong 1 việc, bạn được nghỉ 5 phút. Cách này giúp bạn tập
+    trung hơn rất nhiều. Một nhân viên kế toán đã áp dụng và giảm được 40% thời gian
+    làm việc overtime chỉ sau 2 tuần.
+  background: văn phòng hiện đại, 3D render, warm, eye-level, modern office, professional
+  character: Mentor
+- id: 3
+  script: Bạn đã thử cách nào trong số này rồi? Comment cho mình biết nhé, mình rất
+    tò mò muốn biết kết quả của bạn thế nào!
+  background: văn phòng hiện đại, 3D render, warm, eye-level, modern office, professional
+  character: Student

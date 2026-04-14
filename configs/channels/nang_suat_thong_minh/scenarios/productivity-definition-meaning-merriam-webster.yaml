@@ -1,0 +1,22 @@
+title: PRODUCTIVITY Definition & Meaning - Merriam-Webster
+scenes:
+- id: 1
+  script: Bạn có biết? Đa số mọi người hiểu sai về năng suất. Họ nghĩ là làm càng
+    nhiều càng tốt, nhưng thực ra định nghĩa đó hoàn toàn sai.
+  background: văn phòng hiện đại với ánh sáng ấm, 3D render, warm, eye-level, modern
+    office, professional
+  character: Mentor
+- id: 2
+  script: Theo Merriam-Webster, năng suất là chất lượng hoặc trạng thái của việc tạo
+    ra kết quả. Quan trọng là chất lượng đầu ra, không phải số lượng đầu vào. Ví dụ,
+    một người làm 5 việc nhưng mỗi việc đều hoàn hảo thì năng suất cao hơn người làm
+    20 việc mà chỉ 2 cái đạt chuẩn.
+  background: không gian văn phòng 3D render ấm áp, warm, eye-level, modern office,
+    professional
+  character: Mentor
+- id: 3
+  script: Bạn đang áp dụng định nghĩa nào cho công việc của mình? Hãy comment cho
+    mình biết nhé.
+  background: phòng làm việc hiện đại ấm cúng, 3D render, warm, eye-level, modern
+    office, professional
+  character: Student

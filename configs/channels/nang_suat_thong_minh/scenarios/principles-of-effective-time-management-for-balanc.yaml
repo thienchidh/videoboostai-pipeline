@@ -1,0 +1,28 @@
+title: Principles of Effective Time Management for Balance, Well-being, ...
+scenes:
+- id: 1
+  script: Bạn đang làm việc 10 tiếng mỗi ngày nhưng vẫn không xong việc? Vấn đề không
+    phải là bạn lười — mà là bạn đang dùng sai công cụ. Nghiên cứu về quản lý thời
+    gian chỉ ra rằng hầu hết mọi người bận rộn nhưng không hiệu quả. Và sự khác biệt
+    chỉ nằm ở vài nguyên tắc đơn giản mà ít ai áp dụng đúng cách.
+  background: bàn làm việc ngổn ngang giấy tờ, 3D render, warm, eye-level, modern
+    office, professional
+  character: Mentor
+- id: 2
+  script: 'Nguyên tắc hiệu quả nhất mà nghiên cứu động lực học chứng minh là: hãy
+    làm việc quan trọng nhất vào lúc năng lượng bạn cao nhất. Ví dụ, thay vì mở email
+    ngay khi thức dậy, hãy dành 90 phút đầu tiên cho nhiệm vụ cốt lõi nhất trong ngày.
+    Một sinh viên áp dụng kỹ thuật này đã giảm thời gian ôn thi từ 8 tiếng xuống còn
+    4 tiếng mà điểm số vẫn tăng. Kỹ thuật không thay thế nỗ lực — nhưng nó giúp nỗ
+    lực của bạn đi đúng hướng.'
+  background: góc làm việc gọn gàng có đồng hồ và sổ tay, 3D render, warm, eye-level,
+    modern office, professional
+  character: Student
+- id: 3
+  script: Trong số những nguyên tắc mình vừa chia sẻ, bạn đã từng thử cách nào chưa?
+    Hay bạn đang có một mẹo quản lý thời gian hiệu quả của riêng mình? Comment ngay
+    bên dưới cho mình biết nhé — mình đọc hết đấy! Và nếu bạn muốn mình ra video sâu
+    hơn về bất kỳ kỹ thuật nào, cứ nhắn tên kỹ thuật đó vào comment là mình hiểu.
+  background: không gian văn phòng thoáng sáng với cây xanh góc phải, 3D render, warm,
+    eye-level, modern office, professional
+  character: Mentor

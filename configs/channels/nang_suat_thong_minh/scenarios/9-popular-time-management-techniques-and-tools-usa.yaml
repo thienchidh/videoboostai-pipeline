@@ -1,0 +1,21 @@
+title: 9 Popular Time Management Techniques and Tools | USAHS
+scenes:
+- id: 1
+  script: Bạn có biết người trưởng thành chỉ tập trung được 2.5 giờ mỗi ngày không?
+    Phần còn lại là thời gian chết!
+  background: văn phòng hiện đại với đồng hồ treo tường, 3D render, warm, eye-level,
+    modern office, professional
+  character: Mentor
+- id: 2
+  script: Nguyên tắc 80/20 nói rằng 20% công việc tạo ra 80% kết quả. Tại USAHS, mình
+    học được cách xác định ngay 20% đó và ưu tiên làm trước. Kết quả là năng suất
+    tăng vọt!
+  background: phòng làm việc với giấy tờ và laptop, 3D render, warm, eye-level, modern
+    office, professional
+  character: Student
+- id: 3
+  script: Vậy bạn đang dùng kỹ thuật nào để quản lý thời gian hiệu quả hơn? Comment
+    cho mình biết nhé!
+  background: không gian văn phòng ấm áp với cây xanh, 3D render, warm, eye-level,
+    modern office, professional
+  character: Mentor

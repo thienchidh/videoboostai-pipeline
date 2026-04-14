@@ -238,12 +238,11 @@ class TestSingleCharSceneProcessor:
         mock_tts = MagicMock(return_value=(str(AUDIO_FILE), None))
         mock_lip = MagicMock(return_value=VIDEO_9X16)
 
-        # Duration check says it's too long (99s > 15s max)
-        with patch("modules.pipeline.scene_processor.get_audio_duration", return_value=99.0):
-            video_path, timestamps = processor.process(scene, scene_output, mock_tts, mock_img, mock_lip)
-
-        # Should fail at duration validation
-        assert video_path is None
+        # Duration check says it's too long (99s > 15s max) — should raise SceneDurationError
+        from modules.pipeline.exceptions import SceneDurationError
+        with patch("modules.pipeline.scene_processor.get_audio_duration", return_value=99.0), \
+             pytest.raises(SceneDurationError):
+            processor.process(scene, scene_output, mock_tts, mock_img, mock_lip)
 
     def test_process_handles_tts_failure(self, tmp_path):
         """process returns None if TTS returns falsy."""

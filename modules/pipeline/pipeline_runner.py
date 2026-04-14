@@ -48,7 +48,8 @@ class VideoPipelineRunner:
 
     def __init__(self, ctx: PipelineContext, dry_run: bool = False,
                  dry_run_tts: bool = False, dry_run_images: bool = False,
-                 use_static_lipsync: bool = False, timestamp: Optional[int] = None):
+                 use_static_lipsync: bool = False, timestamp: Optional[int] = None,
+                 resume: bool = False):
         """
         Args:
             ctx: PipelineContext with loaded technical, channel, and scenario configs
@@ -64,6 +65,7 @@ class VideoPipelineRunner:
         self._dry_run_images = dry_run_images
         self._force_start = False  # CLI must call runner.run(force_start=True) to enable
         self._use_static_lipsync = use_static_lipsync
+        self._resume = resume
         self.ctx = ctx
 
         self.timestamp = timestamp if timestamp is not None else int(time.time())
@@ -112,7 +114,7 @@ class VideoPipelineRunner:
         self.music_provider = self._build_music_provider()
 
         # Scene processors
-        self.single_processor = SingleCharSceneProcessor(ctx, self.run_dir)
+        self.single_processor = SingleCharSceneProcessor(ctx, self.run_dir, resume=self._resume)
 
     # ---- Provider builders ----
 
@@ -314,10 +316,10 @@ class VideoPipelineRunner:
                 """Process a single scene. Returns (video_path, timestamps, tts_text) or None."""
                 scene_output.mkdir(exist_ok=True)
 
-                # Skip if already processed
+                # Skip if already processed (only in resume mode)
                 existing = scene_output / "video_9x16.mp4"
-                if existing.exists():
-                    log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping")
+                if self._resume and existing.exists():
+                    log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping (resume mode)")
                     return (str(existing), [], tts_text)
 
                 if len(chars) != 1:

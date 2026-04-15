@@ -238,6 +238,13 @@ Trả về CHỈ JSON array, không kèm markdown."""
                     pass
         return []
 
+    def _estimate_tts_duration(self, text: str, wps: float = 2.5) -> float:
+        """Estimate TTS duration in seconds from text word count."""
+        if not text or not text.strip():
+            return 0.0
+        word_count = len(text.split())
+        return word_count / wps
+
     def _validate_scenes(self, scenes: List[Dict]) -> List[Dict]:
         """Validate and normalize scene structure.
 

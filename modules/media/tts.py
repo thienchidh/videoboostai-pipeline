@@ -284,7 +284,7 @@ def get_whisper_timestamps(audio_path: str, output_dir: Optional[str] = None, co
         result = subprocess.run(
             [str(get_whisper()), audio_path, "--model", "small", "--word_timestamps", "True",
              "--output_format", "json", "--output_dir", output_dir],
-            capture_output=True, text=True, timeout=word_timestamp_timeout
+            capture_output=True, encoding="utf-8", errors="replace", timeout=word_timestamp_timeout
         )
         json_path = Path(output_dir) / f"{Path(audio_path).stem}.json"
         if json_path.exists():

@@ -70,7 +70,7 @@ def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = 
     )
     pipeline = ContentPipeline(
         project_id=project_id,
-        config=config,
+        config=None,
         dry_run=dry_run,
         channel_id=channel_id,
     )

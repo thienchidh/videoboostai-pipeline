@@ -4,15 +4,27 @@
 .env
 configs/technical/config_technical.json
 
-# Output
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Test artifacts (MagicMock created by pytest)
+MagicMock/
 
 # Media (but keep test fixtures tracked)
 # Track fixtures: tests/fixtures/** is committed to git
 # Exclude test outputs and large generated files
 tests/__pycache__/
 tests/.pytest_cache/
+.pytest_cache/
 
 # Credentials encryption key
 ~/.config/videopipeline/.credentials.key
@@ -22,3 +34,10 @@ memory/
 venv/
 output/
 .worktrees/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

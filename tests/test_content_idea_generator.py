@@ -171,23 +171,33 @@ class TestContentIdeaGenerator:
     def test_generate_scenes_validates_duration_and_regenerates(self):
         """Scenes too long are regenerated before being returned."""
         from modules.content.content_idea_generator import ContentIdeaGenerator
-        from modules.pipeline.models import TTSConfig
+        from modules.pipeline.models import TTSConfig, GenerationLLM, ChannelConfig
         from unittest.mock import MagicMock, patch
         import json
 
+        channel_cfg = ChannelConfig(
+            channel_id="test",
+            name="Test",
+            characters=[{"name": "Mentor", "voice_id": "x"}],
+            watermark={"text": "@Test", "enable": True, "font_size": 30, "opacity": 0.15, "motion": "bounce", "bounce_speed": 80, "bounce_padding": 20, "velocity_x": 1.2, "velocity_y": 0.8, "margin": 8},
+            style="3D render",
+            research={"niche_keywords": ["test"], "content_angle": "tips", "target_platform": "both", "research_interval_hours": 24, "pending_pool_size": 5, "threshold": 3},
+            tts={"max_duration": 15.0, "min_duration": 5.0},
+        )
         gen = ContentIdeaGenerator(
             project_id=1,
             content_angle="tips",
             niche_keywords=["test"],
-            channel_config={
-                "name": "Test",
-                "channel_id": "test",
-                "characters": [{"name": "Mentor", "voice_id": "x"}],
-                "watermark": {"text": "@Test", "enable": True, "font_size": 30, "opacity": 0.15, "motion": "bounce", "bounce_speed": 80, "bounce_padding": 20, "velocity_x": 1.2, "velocity_y": 0.8, "margin": 8},
-                "style": "3D render",
-                "research": {"niche_keywords": ["test"], "content_angle": "tips", "target_platform": "both", "research_interval_hours": 24, "pending_pool_size": 5, "threshold": 3},
-                "tts": {"max_duration": 15.0, "min_duration": 5.0},
-            },
+            channel_config=channel_cfg,
+        )
+
+        # Set _llm so _generate_scenes doesn't raise ConfigMissingKeyError
+        gen._llm = GenerationLLM(
+            provider="minimax",
+            model="MiniMax-M2.7",
+            max_tokens=1536,
+            retry_attempts=3,
+            retry_backoff_max=10,
         )
 
         # Mock _technical_config to provide wps

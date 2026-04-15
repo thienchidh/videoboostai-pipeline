@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 from core.base_pipeline import log
 from core.plugins import ImageProvider, register_provider
+from modules.pipeline.exceptions import ConfigMissingKeyError
 
 
 # ==================== MINIMAX IMAGE ====================
@@ -26,16 +27,22 @@ from core.plugins import ImageProvider, register_provider
 class MiniMaxImageProvider(ImageProvider):
     """MiniMax image generation (image-01 model)."""
 
-    DEFAULT_URL = "https://api.minimax.io/v1/image_generation"
-
-    def __init__(self, api_key: str, api_url: Optional[str] = None):
-        self.api_key = api_key
-        self.api_url = api_url or self.DEFAULT_URL
+    def __init__(self, config=None, api_key: str = None):
+        self.config = config
+        base_url = config.get("api.urls.minimax_image") if config else None
+        if not base_url:
+            raise ConfigMissingKeyError("api.urls.minimax_image", "MiniMaxImageProvider")
+        self.base_url = base_url
+        self.api_key = api_key or (config.get("api.keys.minimax") if config else None)
+        if not self.api_key:
+            raise ConfigMissingKeyError("api.keys.minimax", "MiniMaxImageProvider")
+        self.timeout = config.get("generation.image.timeout") if config else 120
+        self.model = config.get("generation.image.model") if config else "image-01"
 
     def generate(self, prompt: str, output_path: str,
                  aspect_ratio: str = "9:16") -> Optional[str]:
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-        payload = {"model": "image-01", "prompt": prompt, "aspect_ratio": aspect_ratio, "num_images": 1}
+        payload = {"model": self.model, "prompt": prompt, "aspect_ratio": aspect_ratio, "num_images": 1}
         logger.info(f"MiniMax image request: aspect_ratio={aspect_ratio}, prompt_len={len(prompt)}")
         payload_str = json.dumps(payload, ensure_ascii=False, indent=2)
         if len(payload_str) > 1500:
@@ -43,7 +50,7 @@ class MiniMaxImageProvider(ImageProvider):
         else:
             logger.info(f"MiniMax image payload: {payload_str}")
         try:
-            resp = requests.post(self.api_url, headers=headers, json=payload, timeout=180)
+            resp = requests.post(self.base_url, headers=headers, json=payload, timeout=self.timeout)
             logger.info(f"MiniMax image response status: {resp.status_code}")
             data = resp.json()
             logger.info(f"MiniMax image response: {json.dumps(data, ensure_ascii=False, indent=2)[:500]}")
@@ -59,7 +66,7 @@ class MiniMaxImageProvider(ImageProvider):
             if not img_url:
                 logger.warning(f"MiniMax image: no URL in response — {data}")
                 return None
-            resp = requests.get(img_url, timeout=120)
+            resp = requests.get(img_url, timeout=self.timeout)
             with open(output_path, "wb") as f:
                 f.write(resp.content)
             return output_path
@@ -73,10 +80,19 @@ class MiniMaxImageProvider(ImageProvider):
 class WaveSpeedImageProvider(ImageProvider):
     """WaveSpeed AI image generation via MiniMax image-01."""
 
-    def __init__(self, api_key: str, base_url: str = "https://api.wavespeed.ai"):
-        self.api_key = api_key
+    def __init__(self, config=None, api_key: str = None):
+        self.config = config
+        base_url = config.get("api.urls.wavespeed") if config else None
+        if not base_url:
+            raise ConfigMissingKeyError("api.urls.wavespeed", "WaveSpeedImageProvider")
         self.base_url = base_url
-        self.submit_url = f"{base_url}/api/v3/minimax/image-01/text-to-image"
+        self.api_key = api_key or (config.get("api.keys.wavespeed") if config else None)
+        if not self.api_key:
+            raise ConfigMissingKeyError("api.keys.wavespeed", "WaveSpeedImageProvider")
+        self.timeout = config.get("generation.image.timeout") if config else 120
+        self.poll_interval = config.get("generation.image.poll_interval") if config else 5
+        self.max_polls = config.get("generation.image.max_polls") if config else 24
+        self.submit_url = f"{self.base_url}/api/v3/minimax/image-01/text-to-image"
 
     def _submit_job(self, prompt: str, size: str) -> Optional[str]:
         """Submit image job, return job_id or None."""
@@ -96,8 +112,8 @@ class WaveSpeedImageProvider(ImageProvider):
         """Poll for job completion, return image URL or None."""
         headers = {"Authorization": f"Bearer {self.api_key}"}
         get_url = f"{self.base_url}/api/v3/predictions/{job_id}/result"
-        for attempt in range(24):
-            time.sleep(5)
+        for attempt in range(self.max_polls):
+            time.sleep(self.poll_interval)
             try:
                 resp = requests.get(get_url, headers=headers, timeout=15)
                 result = resp.json()
@@ -134,7 +150,7 @@ class WaveSpeedImageProvider(ImageProvider):
             return None
 
         try:
-            resp = requests.get(img_url, timeout=120)
+            resp = requests.get(img_url, timeout=self.timeout)
             with open(output_path, "wb") as f:
                 f.write(resp.content)
             return output_path
@@ -152,15 +168,19 @@ class KieImageProvider(ImageProvider):
          GET  https://api.kie.ai/api/v1/jobs/recordInfo?taskId=xxx
     """
 
-    BASE_URL = "https://api.kie.ai/api/v1"
-
-    def __init__(self, api_key: str):
-        self.api_key = api_key
+    def __init__(self, config=None, api_key: str = None):
+        self.config = config
+        base_url = config.get("api.urls.kie_ai") if config else None
+        if not base_url:
+            raise ConfigMissingKeyError("api.urls.kie_ai", "KieImageProvider")
+        self.base_url = base_url
+        self.api_key = api_key or (config.get("api.keys.kie_ai") if config else None)
+        if not self.api_key:
+            raise ConfigMissingKeyError("api.keys.kie_ai", "KieImageProvider")
+        self.timeout = config.get("generation.image.timeout") if config else 120
+        self.poll_interval = config.get("generation.image.poll_interval") if config else 5
+        self.max_polls = config.get("generation.image.max_polls") if config else 24
         self.session = requests.Session()
-        self.session.headers.update({
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        })
         self.session.headers.update({
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -191,9 +211,9 @@ class KieImageProvider(ImageProvider):
         # Step 1: Create task
         try:
             resp = self.session.post(
-                f"{self.BASE_URL}/jobs/createTask",
+                f"{self.base_url}/jobs/createTask",
                 json=payload,
-                timeout=30,
+                timeout=self.timeout,
             )
             data = resp.json()
             logger.info(f"Kie Z Image create response: {resp.status_code}, {json.dumps(data, ensure_ascii=False)[:300]}")
@@ -216,7 +236,7 @@ class KieImageProvider(ImageProvider):
 
         # Step 3: Download
         try:
-            resp = requests.get(img_url, timeout=120)
+            resp = requests.get(img_url, timeout=self.timeout)
             with open(output_path, "wb") as f:
                 f.write(resp.content)
             logger.info(f"Kie Z Image downloaded: {output_path} ({Path(output_path).stat().st_size} bytes)")
@@ -225,15 +245,17 @@ class KieImageProvider(ImageProvider):
             logger.warning(f"Kie Z Image download error: {e}")
         return None
 
-    def _poll_task(self, task_id: str, interval: int = 5,
-                   max_wait: int = 300) -> Optional[str]:
+    def _poll_task(self, task_id: str, interval: int = None,
+                   max_wait: int = None) -> Optional[str]:
         """Poll task until success, return image URL or None."""
+        interval = interval or self.poll_interval
+        max_wait = max_wait or (self.max_polls * self.poll_interval)
         start = time.time()
         while time.time() - start < max_wait:
             try:
                 resp = self.session.get(
-                    f"{self.BASE_URL}/jobs/recordInfo?taskId={task_id}",
-                    timeout=30,
+                    f"{self.base_url}/jobs/recordInfo?taskId={task_id}",
+                    timeout=self.timeout,
                 )
                 data = resp.json()
                 if resp.status_code != 200:

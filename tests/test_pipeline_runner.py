@@ -79,7 +79,10 @@ def test_pipeline_runner_completes_run_on_success():
             with open(subtitled_video, "w") as f:
                 f.write("subtitled video")
 
-            runner.run()
+            # Patch single_processor.process to return the fake video path directly
+            with patch.object(runner.single_processor, 'process',
+                              return_value=(str(fake_scene_dir / "video_9x16.mp4"), [])):
+                runner.run()
 
             assert mock_db.complete_video_run.called, "complete_video_run was never called"
             call_args = mock_db.complete_video_run.call_args

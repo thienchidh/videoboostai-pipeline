@@ -50,6 +50,7 @@ class ContentIdeaGenerator:
         self.content_angle = content_angle
         self.niche_keywords = niche_keywords or []
         self._llm_config = llm_config or {}
+        self._technical_config = technical_config
 
         # Read LLM settings from technical config (strict mode - raise if missing)
         if technical_config:
@@ -127,7 +128,12 @@ class ContentIdeaGenerator:
 
     def _generate_scenes(self, title: str, keywords: List[str], angle: str,
                           description: str = "", num_scenes: int = 3) -> List[Dict]:
-        """Generate scene scripts using LLM provider with exponential backoff retry."""
+        """Generate scene scripts using LLM provider with exponential backoff retry.
+
+        After initial generation, each scene's TTS is validated against channel
+        duration bounds. Scenes that exceed bounds are regenerated (TTS text only)
+        via _regenerate_scene_tts before being returned.
+        """
         from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 
         api_key = self._llm_config.get("api_key", "")
@@ -160,6 +166,30 @@ class ContentIdeaGenerator:
 
         scenes = _call_llm()
         logger.info(f"Generated {len(scenes)} scenes from LLM")
+
+        # Validate each scene's TTS duration and regenerate if out of bounds
+        if self._channel_config and self._channel_config.tts:
+            tts_cfg = self._channel_config.tts
+            wps = 2.5
+            if self._technical_config and hasattr(self._technical_config, 'generation'):
+                gen_cfg = self._technical_config.generation
+                if hasattr(gen_cfg, 'tts') and gen_cfg.tts and hasattr(gen_cfg.tts, 'words_per_second'):
+                    wps = gen_cfg.tts.words_per_second
+                elif hasattr(gen_cfg, 'llm'):
+                    pass  # keep wps=2.5 as default
+
+            for scene in scenes:
+                tts_text = scene.get("tts", "")
+                if not tts_text:
+                    continue
+                if not self._validate_scene_duration(tts_text, tts_cfg, wps):
+                    logger.warning(f"  ⚠️ Scene {scene.get('id', '?')} TTS out of bounds "
+                                  f"({len(tts_text.split())} words), regenerating...")
+                    regenerated = self._regenerate_scene_tts(
+                        tts_text, tts_cfg, api_key=api_key, wps=wps
+                    )
+                    scene["tts"] = regenerated
+
         return scenes
 
     def _build_scene_prompt(self, title: str, keywords: List[str], angle: str,

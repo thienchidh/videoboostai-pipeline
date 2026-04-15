@@ -167,3 +167,49 @@ class TestContentIdeaGenerator:
             result = gen._regenerate_scene_tts(original, tts_cfg, api_key="fake-key", wps=2.5, max_retries=3)
         assert result == original, f"expected original after retries, got: {result[:50]}"
         assert mock_llm.chat.call_count == 3, f"expected 3 calls, got {mock_llm.chat.call_count}"
+
+    def test_generate_scenes_validates_duration_and_regenerates(self):
+        """Scenes too long are regenerated before being returned."""
+        from modules.content.content_idea_generator import ContentIdeaGenerator
+        from modules.pipeline.models import TTSConfig
+        from unittest.mock import MagicMock, patch
+        import json
+
+        gen = ContentIdeaGenerator(
+            project_id=1,
+            content_angle="tips",
+            niche_keywords=["test"],
+            channel_config={
+                "name": "Test",
+                "channel_id": "test",
+                "characters": [{"name": "Mentor", "voice_id": "x"}],
+                "watermark": {"text": "@Test", "enable": True, "font_size": 30, "opacity": 0.15, "motion": "bounce", "bounce_speed": 80, "bounce_padding": 20, "velocity_x": 1.2, "velocity_y": 0.8, "margin": 8},
+                "style": "3D render",
+                "research": {"niche_keywords": ["test"], "content_angle": "tips", "target_platform": "both", "research_interval_hours": 24, "pending_pool_size": 5, "threshold": 3},
+                "tts": {"max_duration": 15.0, "min_duration": 5.0},
+            },
+        )
+
+        # Mock _technical_config to provide wps
+        mock_tech_config = MagicMock()
+        mock_gen = MagicMock()
+        mock_tts_cfg = MagicMock()
+        mock_tts_cfg.words_per_second = 2.5
+        mock_gen.tts = mock_tts_cfg
+        mock_tech_config.generation = mock_gen
+        gen._technical_config = mock_tech_config
+
+        # Mock LLM provider chain: get_llm_provider returns mock LLM
+        # whose chat() returns a scene that's too long (80 words = 32s at 2.5 wps)
+        long_scene = {"id": 1, "tts": " ".join(["đây là một từ dài"] * 40), "character": "Mentor", "background": "office, 3D render"}
+        short_scene = {"id": 2, "tts": "ngắn gọn", "character": "Mentor", "background": "office, 3D render"}
+        mock_llm = MagicMock()
+        mock_llm.chat.return_value = json.dumps([long_scene, short_scene])
+
+        with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
+            with patch.object(gen, "_regenerate_scene_tts", return_value="ngắn gọn và đúng vào việc thôi"):
+                scenes = gen._generate_scenes("Test Title", ["test"], "tips", "", num_scenes=2)
+
+        assert len(scenes) == 2
+        # The too-long scene should have been regenerated
+        assert scenes[0]["tts"] == "ngắn gọn và đúng vào việc thôi"

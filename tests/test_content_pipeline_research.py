@@ -39,22 +39,45 @@ class TestContentPipelineReResearch:
         # ─── Shared state for mock side effects ────────────────────
         research_call_count = 0
         dedup_call_count = 0
+        get_pending_call_count = 0
+        _pending_topics_after_research = None
 
-        def mock_research_from_keywords(count):
-            nonlocal research_call_count
+        def mock_get_pending_topic_sources(limit):
+            nonlocal get_pending_call_count, _pending_topics_after_research
+            get_pending_call_count += 1
+            # First call: return empty to trigger research phase
+            # Subsequent calls: return topics created by run_research_phase
+            if get_pending_call_count == 1:
+                return []
+            return _pending_topics_after_research or []
+
+        def mock_research_from_keywords(keywords=None, count=None):
+            nonlocal research_call_count, _pending_topics_after_research
             research_call_count += 1
             if research_call_count == 1:
+                _pending_topics_after_research = [
+                    {"id": 1, "topics": [
+                        {"title": "Topic A - Productivity Tips", "summary": "Desc A", "keywords": ["productivity"]},
+                        {"title": "Topic B - Time Management", "summary": "Desc B", "keywords": ["time"]},
+                    ]},
+                ]
                 return [
                     {"title": "Topic A - Productivity Tips", "summary": "Desc A", "keywords": ["productivity"]},
                     {"title": "Topic B - Time Management", "summary": "Desc B", "keywords": ["time"]},
                 ]
             else:
+                _pending_topics_after_research = [
+                    {"id": 2, "topics": [
+                        {"title": "Topic C - Morning Routine", "summary": "Desc C", "keywords": ["morning"]},
+                        {"title": "Topic D - Healthy Habits", "summary": "Desc D", "keywords": ["health"]},
+                    ]},
+                ]
                 return [
                     {"title": "Topic C - Morning Routine", "summary": "Desc C", "keywords": ["morning"]},
                     {"title": "Topic D - Healthy Habits", "summary": "Desc D", "keywords": ["health"]},
                 ]
 
-        def mock_check_dup(ideas, project_id):
+        def mock_check_dup(ideas, project_id, config=None):
             nonlocal dedup_call_count
             dedup_call_count += 1
             if dedup_call_count == 1:
@@ -127,10 +150,11 @@ class TestContentPipelineReResearch:
                   return_value=mock_channel_instance), \
             patch("modules.content.content_pipeline.ContentPipelineConfig",
                   return_value=MagicMock(page={"facebook": {}, "tiktok": {}}, content={"auto_schedule": False})), \
-            patch("db.get_pending_topic_sources", return_value=[]), \
+            patch("db.get_pending_topic_sources", side_effect=mock_get_pending_topic_sources), \
             patch("utils.embedding.check_duplicate_ideas", side_effect=mock_check_dup), \
             patch("utils.embedding.save_idea_embedding"), \
-            patch("db.mark_topic_source_completed"):\
+            patch("db.mark_topic_source_completed"), \
+            patch("modules.content.content_pipeline.ContentPipeline.should_trigger_research", return_value=True):\
 
             from modules.content.content_pipeline import ContentPipeline
 
@@ -266,3 +290,44 @@ def test_check_duplicate_saves_dupe_idea_with_embedding(mock_get_model):
 
                 assert mock_save_idea.called, "save_content_ideas not called for dupe"
                 assert mock_save_emb.called, "save_idea_embedding not called for dupe"
+
+
+@patch("modules.content.content_pipeline.TopicResearcher")
+@patch("modules.content.content_pipeline.ContentIdeaGenerator")
+def test_research_fails_fast_on_api_exhaustion(mock_idea_gen, mock_topic_researcher):
+    from modules.content.content_pipeline import ContentPipeline
+
+    mock_researcher = MagicMock()
+    mock_researcher.research_from_keywords.return_value = []
+    mock_topic_researcher.return_value = mock_researcher
+
+    pipeline = ContentPipeline(project_id=1, dry_run=True, channel_id="test_channel")
+    results = pipeline.run_research_phase()
+    assert results.get("status") == "research_failed"
+
+
+@patch("modules.content.content_pipeline.TopicResearcher")
+@patch("modules.content.content_pipeline.ContentIdeaGenerator")
+def test_pending_pool_threshold_skips_research(mock_idea_gen, mock_topic_researcher):
+    from modules.content.content_pipeline import ContentPipeline
+
+    mock_researcher = MagicMock()
+    mock_researcher.research_from_keywords.return_value = [
+        {"title": "Test Topic", "summary": "desc", "keywords": [], "source_url": ""}
+    ]
+    mock_topic_researcher.return_value = mock_researcher
+
+    mock_ig = MagicMock()
+    mock_ig.generate_ideas_from_topics.return_value = [
+        {"title": "Test Idea", "description": "desc", "topic_keywords": [], "target_platform": "both"}
+    ]
+    mock_idea_gen.return_value = mock_ig
+
+    pipeline = ContentPipeline(project_id=1, dry_run=True, channel_id="test_channel")
+
+    with patch("modules.content.content_pipeline.ContentPipeline.should_trigger_research", return_value=True):
+        with patch("db.is_research_locked", return_value=False):
+            with patch("db.acquire_research_lock", return_value=True):
+                results = pipeline.run_research_phase()
+
+    assert mock_researcher.research_from_keywords.called

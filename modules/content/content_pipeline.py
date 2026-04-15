@@ -18,6 +18,7 @@ from modules.content.content_idea_generator import ContentIdeaGenerator
 from modules.content.content_calendar import ContentCalendar
 from modules.content.caption_generator import CaptionGenerator
 from modules.pipeline.models import ChannelConfig, ContentPipelineConfig, TechnicalConfig
+from modules.pipeline.backoff import Backoff, CircuitBreaker, CircuitOpenError
 
 
 class ContentPipeline:
@@ -85,6 +86,11 @@ class ContentPipeline:
         # Store channel name for social upload fallback
         self.channel_name = validated_channel.name if validated_channel else ""
 
+        # Research threshold settings
+        research_cfg = validated_channel.research if validated_channel else None
+        self.pending_threshold = research_cfg.threshold if research_cfg else 3
+        self.pending_pool_size = research_cfg.pending_pool_size if research_cfg else 5
+
         # Load technical config for content generation settings
         try:
             self.technical_config = TechnicalConfig.load()
@@ -121,6 +127,87 @@ class ContentPipeline:
         )
         self.calendar = ContentCalendar(project_id=project_id)
 
+    def should_trigger_research(self) -> bool:
+        """Check if pending pool is below threshold."""
+        from db import get_session, models
+        with get_session() as session:
+            count = session.query(models.ContentIdea).filter(
+                models.ContentIdea.status == "raw"
+            ).count()
+        return count < self.pending_threshold
+
+    def run_research_phase(self, num_ideas: int = 5) -> Dict:
+        """Run research phase: acquire lock, research topics, generate ideas, save to pending pool."""
+        import uuid
+        run_id = f"research_{uuid.uuid4().hex[:8]}"
+        from db import acquire_research_lock, release_research_lock, is_research_locked
+
+        if is_research_locked():
+            logger.info("Research lock held by another run, skipping research")
+            return {"status": "skipped_locked", "researched": 0}
+
+        if not acquire_research_lock(run_id):
+            logger.info("Could not acquire research lock, skipping")
+            return {"status": "skipped_locked", "researched": 0}
+
+        try:
+            # Check threshold
+            if not self.should_trigger_research():
+                logger.info(f"Pending pool above threshold ({self.pending_threshold}), skipping research")
+                return {"status": "skipped_threshold", "researched": 0}
+
+            # Get keywords from pool, fallback to channel seeds
+            from db import get_keywords_for_research
+            keywords_data = get_keywords_for_research(limit=20)
+            if keywords_data:
+                keywords = [k["keyword"] for k in keywords_data]
+            else:
+                keywords = self.niche_keywords  # fallback to seed keywords
+
+            # Research with circuit breaker
+            cb = CircuitBreaker(max_attempts=3, open_timeout=120)
+            backoff = Backoff(base_delay=3.0, max_delay=60.0, factor=2.0)
+
+            topics = []
+            for attempt in range(3):
+                try:
+                    cb.check()
+                except CircuitOpenError as e:
+                    logger.error(f"Circuit breaker open: {e}")
+                    return {"status": "research_failed", "failure_reason": "circuit_breaker_open"}
+
+                topics = self.researcher.research_from_keywords(keywords=keywords, count=num_ideas)
+                if topics:
+                    cb.record_success()
+                    break
+                else:
+                    cb.record_failure()
+                    logger.warning(f"Research returned empty (attempt {attempt+1}/3)")
+                    if attempt < 2:
+                        backoff.sleep(attempt + 1)
+                    continue
+
+            if not topics:
+                return {"status": "research_failed", "failure_reason": "no_topics_from_api"}
+
+            # Save to DB
+            source_id = self.researcher.save_to_db(topics, source_query=", ".join(keywords))
+
+            # Generate ideas from topics
+            ideas = self.idea_gen.generate_ideas_from_topics(topics, count=num_ideas)
+
+            # Save ideas to DB (status=raw — pending pool)
+            idea_ids = self.idea_gen.save_ideas_to_db(ideas, source_id=source_id)
+
+            return {
+                "status": "success",
+                "topics_found": len(topics),
+                "ideas_generated": len(idea_ids),
+                "source_id": source_id,
+            }
+        finally:
+            release_research_lock(run_id)
+
     def run_full_cycle(self, num_ideas: int = 5) -> Dict:
         """
         Run full content cycle:
@@ -154,13 +241,22 @@ class ContentPipeline:
             except (json.JSONDecodeError, IOError, ValueError) as e:
                 logger.warning(f"Could not load checkpoint: {e}")
 
-        # Step 1: Get topics — from pending pool OR fresh research
+        # Step 1: Run research phase if pending pool is below threshold
         from db import get_pending_topic_sources
         pending = get_pending_topic_sources(limit=1)
 
+        if not pending and self.should_trigger_research():
+            logger.info("Step 1: Pending pool below threshold, running research phase...")
+            research_result = self.run_research_phase(num_ideas=num_ideas)
+            results["research"] = research_result
+            if research_result.get("status") == "research_failed":
+                logger.warning(f"Research phase failed: {research_result.get('failure_reason')}")
+            # Refresh pending pool after research
+            pending = get_pending_topic_sources(limit=1)
+
         if pending:
             ps = pending[0]
-            logger.info("Step 1: Using pending topic source id={}".format(ps["id"]))
+            logger.info("Step 1b: Using pending topic source id={}".format(ps["id"]))
             topics = ps.get("topics", [])
             source_id = ps["id"]
             results["topics_found"] = len(topics)
@@ -168,12 +264,9 @@ class ContentPipeline:
             results["pending_mode"] = True
             logger.info(f"  Loaded {len(topics)} topics from pending pool")
         else:
-            logger.info("Step 1: Researching trending topics (pending pool empty)...")
-            topics = self.researcher.research_from_keywords(count=num_ideas)
-            results["topics_found"] = len(topics)
-            logger.info(f"  Found {len(topics)} topics")
-            source_id = self.researcher.save_to_db(topics, source_query=", ".join(self.niche_keywords))
-            results["source_id"] = source_id
+            logger.info("Step 1b: No pending topics and research not triggered, skipping research")
+            topics = []
+            source_id = None
             results["pending_mode"] = False
 
         # Step 2: Generate ideas + dedup in a loop
@@ -264,58 +357,62 @@ class ContentPipeline:
         produced = []
         scheduled = []
 
-        for i, idea_id in enumerate(idea_ids):
-            if i < start_idea_index:
-                logger.info(f"  Skipping already processed idea {idea_id} (index {i})")
-                continue
+        try:
+            for i, idea_id in enumerate(idea_ids):
+                if i < start_idea_index:
+                    logger.info(f"  Skipping already processed idea {idea_id} (index {i})")
+                    continue
 
-            idea = ideas[i]
-            script = self.idea_gen.generate_script_from_idea(idea, num_scenes=self.scene_count)
-            self.idea_gen.update_idea_script(idea_id, script)
+                idea = ideas[i]
+                script = self.idea_gen.generate_script_from_idea(idea, num_scenes=self.scene_count)
+                self.idea_gen.update_idea_script(idea_id, script)
 
-            # Save script to file
-            config_path = self._save_script_config(idea_id, script)
-            logger.info(f"  Script saved for idea {idea_id}: {idea.get('title', '')[:50]}")
+                # Save script to file
+                config_path = self._save_script_config(idea_id, script)
+                logger.info(f"  Script saved for idea {idea_id}: {idea.get('title', '')[:50]}")
 
-            # Produce video immediately for this just-generated script
-            logger.info(f"  Producing video for idea {idea_id}...")
-            prod_result = self.produce_video(idea_id)
-            produced.append({
-                "idea_id": idea_id,
-                "config_path": str(config_path),
-                "result": prod_result,
-            })
-            logger.info(f"  Production result: {prod_result.get('success')}")
+                # Produce video immediately for this just-generated script
+                logger.info(f"  Producing video for idea {idea_id}...")
+                prod_result = self.produce_video(idea_id)
+                produced.append({
+                    "idea_id": idea_id,
+                    "config_path": str(config_path),
+                    "result": prod_result,
+                })
+                logger.info(f"  Production result: {prod_result.get('success')}")
 
-            # Write checkpoint after each idea is processed
-            checkpoint = {
-                "last_processed_idea_index": i,
-                "source_id": source_id,
-                "idea_ids_processed": idea_ids[:i+1],
-                "timestamp": datetime.now().isoformat(),
-            }
-            with open(checkpoint_path, "w") as f:
-                json.dump(checkpoint, f)
+                # Write checkpoint after each idea is processed
+                checkpoint = {
+                    "last_processed_idea_index": i,
+                    "source_id": source_id,
+                    "idea_ids_processed": idea_ids[:i+1],
+                    "timestamp": datetime.now().isoformat(),
+                }
+                with open(checkpoint_path, "w") as f:
+                    json.dump(checkpoint, f)
 
-            # Schedule for social posting (if not dry_run and auto_schedule)
-            if self.auto_schedule and prod_result.get("success") and not self.dry_run:
-                platforms = ["facebook", "tiktok"] if self.idea_gen.target_platform == "both" else [self.idea_gen.target_platform]
-                start_date = date.today()
-                for platform in platforms:
-                    cal_id = self.calendar.schedule_idea(
-                        idea_id=idea_id,
-                        platform=platform,
-                        scheduled_date=start_date,
-                        scheduled_time=self.schedule_time,
-                        priority="medium"
-                    )
-                    scheduled.append({"idea_id": idea_id, "platform": platform, "calendar_id": cal_id})
-                    logger.info(f"  Scheduled {idea_id} for {platform}")
-
-        # Delete checkpoint on successful completion
-        if checkpoint_path.exists():
-            checkpoint_path.unlink()
-            logger.info("  Checkpoint deleted on successful completion")
+                # Schedule for social posting (if not dry_run and auto_schedule)
+                if self.auto_schedule and prod_result.get("success") and not self.dry_run:
+                    platforms = ["facebook", "tiktok"] if self.idea_gen.target_platform == "both" else [self.idea_gen.target_platform]
+                    start_date = date.today()
+                    for platform in platforms:
+                        cal_id = self.calendar.schedule_idea(
+                            idea_id=idea_id,
+                            platform=platform,
+                            scheduled_date=start_date,
+                            scheduled_time=self.schedule_time,
+                            priority="medium"
+                        )
+                        scheduled.append({"idea_id": idea_id, "platform": platform, "calendar_id": cal_id})
+                        logger.info(f"  Scheduled {idea_id} for {platform}")
+        finally:
+            # Always clean up checkpoint on any exit
+            try:
+                if checkpoint_path.exists():
+                    checkpoint_path.unlink()
+                    logger.info("  Checkpoint cleaned up")
+            except Exception as e:
+                logger.warning(f"Could not delete checkpoint: {e}")
 
         # Mark topic source as completed after all YAML files are saved successfully
         if source_id:

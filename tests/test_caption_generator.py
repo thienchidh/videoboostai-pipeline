@@ -1,4 +1,4 @@
-"""Test CaptionGenerator refactor — PluginRegistry LLM, no ollama."""
+"""Test CaptionGenerator and ABCaptionGenerator refactor — PluginRegistry LLM, no ollama."""
 import os
 from unittest.mock import MagicMock, patch
 
@@ -39,16 +39,38 @@ def test_caption_generator_accepts_custom_llm_provider():
 
 
 def test_caption_generator_no_ollama_code():
-    """CaptionGenerator should have no ollama imports or references."""
+    """CaptionGenerator and ABCaptionGenerator should have no ollama imports or references."""
     from pathlib import Path
 
     caption_file = Path("modules/content/caption_generator.py")
-    content = caption_file.read_text(encoding="utf-8")
+    content_caption = caption_file.read_text(encoding="utf-8")
+
+    ab_caption_file = Path("modules/content/ab_caption_generator.py")
+    content_ab_caption = ab_caption_file.read_text(encoding="utf-8")
 
     # Check for ollama/disallowed names
-    ollama_names = ["ollama", "subprocess", "_check_ollama", "generate_llm", "use_llm"]
+    ollama_names = ["ollama", "subprocess", "_check_ollama", "generate_llm", "use_llm", "curl", "ollama_host", "llama3.2"]
     for name in ollama_names:
-        assert name not in content, f"Found '{name}' in CaptionGenerator — ollama code must be removed"
+        assert name not in content_caption, f"Found '{name}' in CaptionGenerator — ollama code must be removed"
+        assert name not in content_ab_caption, f"Found '{name}' in ABCaptionGenerator — ollama code must be removed"
 
-    assert "curl" not in content, "curl calls found — ollama code not removed"
-    assert "llama3.2" not in content, "llama model reference found — ollama code not removed"
+
+def test_ab_caption_generator_template_generation():
+    """ABCaptionGenerator should generate valid captions via template fallback."""
+    from modules.content.ab_caption_generator import ABCaptionGenerator
+
+    gen = ABCaptionGenerator()
+    result = gen.generate_ab_captions(
+        "Hải sản là nguồn dinh dưỡng tuyệt vời cho sức khỏe. "
+        "Ăn hải sản đúng cách sẽ giúp bạn sống khỏe hơn mỗi ngày.",
+        "tiktok"
+    )
+
+    assert result.variant_a is not None
+    assert result.variant_b is not None
+    assert result.variant_a.headline
+    assert result.variant_b.headline
+    assert "🔥" in result.variant_a.full_caption
+    assert "❓" in result.variant_b.full_caption
+    assert len(result.variant_a.hashtags) <= 5
+    assert len(result.variant_b.hashtags) <= 5

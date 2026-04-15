@@ -427,6 +427,50 @@ class ScenarioConfig(BaseModel):
         return instance
 
 
+class PagePlatformConfig(BaseModel):
+    page_id: Optional[str] = None
+    page_name: Optional[str] = None
+    account_name: Optional[str] = None
+    account_id: Optional[str] = None
+    auto_publish: bool = False
+    access_token: Optional[str] = None
+
+
+class PageConfig(BaseModel):
+    facebook: PagePlatformConfig = PagePlatformConfig()
+    tiktok: PagePlatformConfig = PagePlatformConfig()
+
+
+class ContentSettings(BaseModel):
+    auto_schedule: bool = True
+    niche_keywords: list[str] = []
+    content_angle: str = "tips"
+    target_platform: str = "both"
+    research_interval_hours: int = 24
+    schedule: str = "2h"
+    threshold: int = 3
+    pending_pool_size: int = 5
+
+
+class CheckpointData(BaseModel):
+    last_processed_idea_index: int = -1
+    source_id: Optional[int] = None
+    idea_ids_processed: list[int] = []
+    timestamp: Optional[str] = None
+
+
+class LipsyncRequest(BaseModel):
+    left_audio: Optional[str] = None
+    right_audio: Optional[str] = None
+    config: Optional["GenerationLipsync"] = None
+
+
+class CTRData(BaseModel):
+    ctr: float = 0.0
+    impressions: int = 0
+    clicks: int = 0
+
+
 class ContentPipelineConfig(BaseModel):
     """Business config for content pipeline - social pages and content settings."""
     page: Dict[str, Dict[str, Any]]

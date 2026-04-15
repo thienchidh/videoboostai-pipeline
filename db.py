@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
 
 from datetime import datetime, date, timezone
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text, func
 from sqlalchemy.orm import sessionmaker, Session
 
 from modules.pipeline.exceptions import MissingConfigError
@@ -949,6 +949,99 @@ def get_pending_topic_sources(limit: int = 3) -> List[Dict]:
                 "created_at": r.created_at,
             })
         return result
+
+
+# ─── Keyword Pool Operations ─────────────────────────────────
+
+def save_keyword(keyword: str, source_topic_id: int = None) -> int:
+    """Save an extracted keyword to the pool. Returns keyword id."""
+    with get_session() as session:
+        kw = models.ContentKeywordPool(keyword=keyword, source_topic_id=source_topic_id)
+        session.add(kw)
+        session.flush()
+        return kw.id
+
+
+def get_keywords_for_research(limit: int = 20, days_old: int = None) -> List[Dict]:
+    """Get distinct keywords for research, ordered by newest first."""
+    if days_old is None:
+        days_old = 90
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days_old)
+    with get_session() as session:
+        # Subquery: rank rows by created_at descending within each keyword
+        subq = session.query(
+            models.ContentKeywordPool.keyword,
+            models.ContentKeywordPool.source_topic_id,
+            func.row_number().over(
+                partition_by=models.ContentKeywordPool.keyword,
+                order_by=models.ContentKeywordPool.created_at.desc()
+            ).label("rn")
+        ).filter(
+            models.ContentKeywordPool.created_at >= cutoff
+        ).subquery()
+        rows = session.query(
+            subq.c.keyword,
+            subq.c.source_topic_id,
+        ).filter(subq.c.rn == 1).limit(limit).all()
+        return [{"keyword": r.keyword, "source_topic_id": r.source_topic_id} for r in rows]
+
+
+def delete_expired_keywords(ttl_days: int = 30) -> int:
+    """Delete keywords older than ttl_days. Returns count deleted."""
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=ttl_days)
+    with get_session() as session:
+        deleted = session.query(models.ContentKeywordPool).filter(
+            models.ContentKeywordPool.created_at < cutoff
+        ).delete()
+        session.commit()
+        return deleted
+
+
+# ─── Pipeline Lock Operations ─────────────────────────────────
+
+def acquire_research_lock(owner_run_id: str, timeout_seconds: int = 300) -> bool:
+    """Atomically acquire research lock. Returns True if acquired, False if held."""
+    from datetime import timedelta
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=timeout_seconds)
+    with get_session() as session:
+        # Clean up any expired locks first
+        session.query(models.PipelineLock).filter(
+            models.PipelineLock.expires_at < datetime.now(timezone.utc)
+        ).delete()
+        existing = session.query(models.PipelineLock).filter_by(lock_name="research").first()
+        if existing:
+            return False
+        lock = models.PipelineLock(
+            lock_name="research",
+            owner_run_id=owner_run_id,
+            acquired_at=datetime.now(timezone.utc),
+            expires_at=expires_at,
+        )
+        session.add(lock)
+        session.flush()
+        return True
+
+
+def release_research_lock(owner_run_id: str) -> None:
+    """Release research lock only if owned by owner_run_id."""
+    with get_session() as session:
+        session.query(models.PipelineLock).filter(
+            models.PipelineLock.lock_name == "research",
+            models.PipelineLock.owner_run_id == owner_run_id,
+        ).delete()
+        session.commit()
+
+
+def is_research_locked() -> bool:
+    """Check if research lock is currently held (and not expired)."""
+    with get_session() as session:
+        lock = session.query(models.PipelineLock).filter(
+            models.PipelineLock.lock_name == "research",
+            models.PipelineLock.expires_at >= datetime.now(timezone.utc)
+        ).first()
+        return lock is not None
 
 
 # ─── Idea Embedding Operations ───────────────────────────────────────

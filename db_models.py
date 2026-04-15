@@ -365,3 +365,36 @@ class ScheduledPost(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     video_run = relationship("VideoRun")
+
+
+class ContentKeywordPool(Base):
+    """Pool of extracted keywords for research deduplication (P2).
+
+    Populated by TopicResearcher when it extracts keywords from search results.
+    Used to avoid re-researching the same keyword within a rolling window.
+    """
+    __tablename__ = "content_keyword_pool"
+    __table_args__ = (
+        Index("idx_keyword_pool_keyword", "keyword"),
+        Index("idx_keyword_pool_created", "created_at"),
+    )
+    id = Column(Integer, primary_key=True)
+    keyword = Column(String(255), nullable=False)
+    source_topic_id = Column(Integer, ForeignKey("topic_sources.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class PipelineLock(Base):
+    """Short-lived distributed lock for pipeline stages (P2).
+
+    Used to prevent concurrent research runs from working on the same
+    topic source simultaneously. Lock is released after timeout or explicitly.
+    """
+    __tablename__ = "pipeline_locks"
+    __table_args__ = (
+        Index("idx_pipeline_locks_name", "lock_name"),
+    )
+    lock_name = Column(String(100), primary_key=True)
+    acquired_at = Column(DateTime, default=datetime.datetime.utcnow)
+    owner_run_id = Column(String(100), nullable=False)
+    expires_at = Column(DateTime, nullable=False)

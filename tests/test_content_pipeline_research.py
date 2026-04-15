@@ -168,3 +168,40 @@ class TestContentPipelineReResearch:
             f"check_duplicate_ideas should be called at least twice (once per research batch), "
             f"but was called {dedup_call_count}×"
         )
+
+
+def test_keyword_pool_save_and_get():
+    from db import save_keyword, get_keywords_for_research
+    keyword_id = save_keyword("productivity apps", source_topic_id=None)
+    assert keyword_id is not None
+    keywords = get_keywords_for_research(limit=10)
+    assert any(k["keyword"] == "productivity apps" for k in keywords)
+
+
+def test_pipeline_lock_acquire_release():
+    from db import acquire_research_lock, release_research_lock, is_research_locked
+    import uuid
+    run_id = f"test_{uuid.uuid4().hex[:8]}"
+    acquired = acquire_research_lock(run_id)
+    assert acquired is True
+    assert is_research_locked() is True
+    # Second acquire should fail
+    acquired2 = acquire_research_lock("another_run")
+    assert acquired2 is False
+    release_research_lock(run_id)
+    assert is_research_locked() is False
+
+
+def test_keyword_pool_ttl_cleanup():
+    from db import save_keyword, delete_expired_keywords, get_keywords_for_research
+    from datetime import datetime, timezone, timedelta
+    # Insert old keyword via raw SQL
+    from db import get_session, text
+    with get_session() as session:
+        session.execute(text("""
+            INSERT INTO content_keyword_pool (keyword, created_at)
+            VALUES (:kw, NOW() - INTERVAL '35 days')
+        """), {"kw": "old_expired_keyword"})
+        session.commit()
+    deleted = delete_expired_keywords(ttl_days=30)
+    assert deleted >= 1

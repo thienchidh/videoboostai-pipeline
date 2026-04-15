@@ -287,19 +287,75 @@ class ContentPipeline:
 
         ideas = []
         topics_tried = set()  # track by title to avoid re-checking same topics
+        pending_sources = []   # round-robin list of pending sources loaded on demand
+        pending_index = 0
+        pending_sources_loaded = False
+        # Track the source we're currently consuming (so we can mark it completed when exhausted)
+        current_topics_source_id = source_id
 
         while len(ideas) < num_ideas:
-            # Generate ideas from remaining topics
-            remaining_topics = [t for t in topics if t.get("title", "") not in topics_tried]
-            if not remaining_topics:
-                logger.info("  No more topics to try from current batch")
-                break
+            # Load pending sources on first iteration (after initial topics are set)
+            if not pending_sources_loaded and results.get("pending_mode"):
+                # Load ALL pending sources EXCEPT the current one (already in `topics`)
+                # so round-robin starts from the NEXT source
+                current_source_id = source_id
+                all_pending = get_pending_topic_sources(limit=99)
+                pending_sources = [ps for ps in all_pending if ps["id"] != current_source_id]
+                pending_sources_loaded = True
+                pending_index = 0
+                logger.info(f"  Loaded {len(pending_sources)} pending sources for round-robin "
+                            f"(current id={current_source_id} excluded)")
 
-            batch_ideas = self.idea_gen.generate_ideas_from_topics(remaining_topics, count=num_ideas - len(ideas))
-            logger.info(f"Step 2: Generated {len(batch_ideas)} ideas from remaining topics")
+            # Build remaining topics from current batch
+            remaining = [t for t in topics if t.get("title", "") not in topics_tried]
+
+            # If current batch exhausted, try next pending source
+            if not remaining:
+                logger.info("  Current topic batch exhausted, trying next pending source...")
+                # Mark the PREVIOUS source as completed (all its topics were exhausted)
+                from db import mark_topic_source_completed
+                if current_topics_source_id:
+                    try:
+                        mark_topic_source_completed(current_topics_source_id)
+                        logger.info(f"  Marked pending source id={current_topics_source_id} as completed "
+                                   f"(all topics tried, all duplicates)")
+                    except Exception as e:
+                        logger.warning(f"  Could not mark source {current_topics_source_id} completed: {e}")
+                # Advance to next pending source in round-robin
+                while pending_index < len(pending_sources):
+                    ps = pending_sources[pending_index]
+                    pending_index += 1
+                    if ps.get("topics"):
+                        topics = ps["topics"]
+                        current_topics_source_id = ps["id"]
+                        source_id = ps["id"]
+                        logger.info(f"  Switched to pending source id={source_id}, {len(topics)} topics")
+                        break
+                    # Empty source — mark completed and skip (nothing to process)
+                    logger.info(f"  Skipping empty pending source id={ps['id']} — marking completed")
+                    try:
+                        mark_topic_source_completed(ps["id"])
+                    except Exception:
+                        pass
+                else:
+                    # All pending sources exhausted — no more topics to try
+                    logger.info("  All pending sources exhausted (all topics were duplicates)")
+                    break
+
+            # Determine how many topics to request this iteration (fill the quota)
+            quota = num_ideas - len(ideas)
+            topics_this_iter = remaining[:quota]
+
+            # Track which topic titles we are about to consume
+            topics_to_consume = set(t.get("title", "") for t in topics_this_iter)
+
+            batch_ideas = self.idea_gen.generate_ideas_from_topics(topics_this_iter, count=quota)
+            logger.info(f"Step 2: Generated {len(batch_ideas)} ideas from {len(topics_this_iter)} topics")
 
             if not batch_ideas:
-                break
+                # Mark consumed topics as tried and continue
+                topics_tried.update(topics_to_consume)
+                continue
 
             # Dedup against all existing ideas in DB
             try:
@@ -310,18 +366,21 @@ class ContentPipeline:
                 logger.warning(f"Embedding dedup failed: {e}, using batch without dedup")
                 new_batch = batch_ideas
 
-            # Mark topics as tried (use remaining_topics since batch_ideas is ideas, not topics)
-            for t in remaining_topics:
-                topics_tried.add(t.get("title", ""))
+            # Mark topics as consumed
+            topics_tried.update(topics_to_consume)
 
             ideas.extend(new_batch)
 
-            # If pending_mode and all from this batch were dupes, try more topics from same source
-            if not new_batch and results.get("pending_mode"):
-                logger.info("  All ideas from this batch are duplicates, trying more topics from pending pool...")
+            if new_batch:
+                # Some new ideas found — keep going to fill quota
                 continue
-            elif not new_batch:
-                # Fresh research: if all dupes and no more topics, re-research more topics
+            elif results.get("pending_mode"):
+                # All ideas from this batch were duplicates in pending_mode
+                # Continue to next iteration (will try next pending source if batch exhausted)
+                logger.info("  All ideas from this batch are duplicates (pending_mode), continuing to next batch...")
+                continue
+            else:
+                # Not in pending_mode: try fresh research
                 if len(topics_tried) >= len(topics):
                     logger.info("  All ideas from this batch are duplicates, re-researching more topics...")
                     topics = self.researcher.research_from_keywords(count=num_ideas)

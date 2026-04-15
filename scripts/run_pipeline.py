@@ -272,10 +272,10 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
     fail_count = len(video_results) - success_count
 
     # Fallback: if content cycle found no new ideas (all duplicate),
-    # try existing script_ready ideas from DB
+    # try existing script_ready ideas from DB — no limit so we process all available
     if results.get("status") == "no_new_ideas" and not video_results:
         logger.info("  Content cycle found no new ideas — falling back to existing script_ready ideas from DB")
-        ideas = pipeline.idea_gen.get_ideas_by_status(status="script_ready", limit=ideas_count)
+        ideas = pipeline.idea_gen.get_ideas_by_status(status="script_ready", limit=999)
         logger.info(f"  Found {len(ideas)} existing script_ready ideas for fallback production")
 
         for idea in ideas:
@@ -293,9 +293,7 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
                 success_count += 1
             else:
                 fail_count += 1
-    else:
-        ideas = pipeline.idea_gen.get_ideas_by_status(status="script_ready", limit=ideas_count)
-        logger.info(f"  Found {len(ideas)} ideas ready for production")
+    # else: new ideas from run_full_cycle are already produced (produce_video called in run_full_cycle loop)
 
     logger.info("")
     logger.info("=" * 60)

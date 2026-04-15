@@ -6,6 +6,17 @@ class MissingConfigError(Exception):
     pass
 
 
+class ConfigMissingKeyError(Exception):
+    """Raised when required config key is missing (strict mode)."""
+    def __init__(self, key_path: str, provider: str = None):
+        self.key_path = key_path
+        self.provider = provider
+        msg = f"Required config key missing: '{key_path}'"
+        if provider:
+            msg += f" (required by {provider})"
+        super().__init__(msg)
+
+
 class SceneDurationError(Exception):
     """Raised when scene TTS duration is outside allowed bounds.
     

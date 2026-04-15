@@ -19,35 +19,55 @@ SIMILARITY_THRESHOLD = 0.75  # slightly lower threshold for multilingual model
 
 # Lazy-load model to avoid import overhead at module load time
 _st_model = None
+_st_model_name = None
 
 
-def _get_model():
-    """Get or create the sentence-transformers model (lazy loading)."""
-    global _st_model
-    if _st_model is None:
+def _get_model(config: TechnicalConfig = None):
+    """Get or create the sentence-transformers model (lazy loading).
+
+    Args:
+        config: Optional TechnicalConfig for model name override.
+               Reads embedding.model from config if provided.
+    """
+    global _st_model, _st_model_name
+
+    model_name = "distiluse-base-multilingual-cased-v2"
+    if config:
+        model_name = config.embedding.model
+
+    if _st_model is None or _st_model_name != model_name:
         from sentence_transformers import SentenceTransformer
-        _st_model = SentenceTransformer("distiluse-base-multilingual-cased-v2")
-        logger.info("Embedding model loaded: distiluse-base-multilingual-cased-v2")
+        _st_model = SentenceTransformer(model_name)
+        _st_model_name = model_name
+        logger.info(f"Embedding model loaded: {model_name}")
     return _st_model
 
 
-def translate_to_english(text: str) -> str:
-    """Translate Vietnamese text to English for better embedding quality."""
+def translate_to_english(text: str, config: TechnicalConfig = None) -> str:
+    """Translate Vietnamese text to English for better embedding quality.
+
+    Args:
+        text: Vietnamese text to translate
+        config: Optional TechnicalConfig for translation_max_tokens setting.
+               Reads embedding.translation_max_tokens from config if provided.
+    """
     try:
-        cfg = TechnicalConfig.load()
-        api_key = cfg.api_keys.minimax
+        if config is None:
+            config = TechnicalConfig.load()
+        api_key = config.api_keys.minimax
         if not api_key:
             logger.warning("No MiniMax API key for translation, using original text")
             return text
 
+        max_tokens = config.embedding.translation_max_tokens
         llm = get_llm_provider(
             name="minimax",
             api_key=api_key,
-            model="MiniMax-M2.7",
+            model=config.generation.llm.model,
         )
         # Use Vietnamese-to-English specific prompt
         prompt = f"Dịch sang tiếng Anh: {text}"
-        result = llm.chat(prompt, max_tokens=200).strip()
+        result = llm.chat(prompt, max_tokens=max_tokens).strip()
 
         # Clean up - remove markdown formatting, quotes, explanations
         result = re.sub(r"\*\*(.*?)\*\*", r"\1", result)  # Remove **bold**
@@ -72,13 +92,18 @@ def translate_to_english(text: str) -> str:
         return text
 
 
-def create_embedding(text: str) -> Optional[List[float]]:
+def create_embedding(text: str, config: TechnicalConfig = None) -> Optional[List[float]]:
     """Create embedding vector using sentence-transformers (multilingual).
 
     Supports Vietnamese directly without translation.
+
+    Args:
+        text: Text to create embedding for
+        config: Optional TechnicalConfig for model name.
+               Reads embedding.model from config if provided.
     """
     try:
-        model = _get_model()
+        model = _get_model(config)
         embedding = model.encode(text, convert_to_numpy=True)
         embedding = embedding.tolist()
         logger.debug(f"Embedding created: dim={len(embedding)}")
@@ -101,8 +126,21 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
 
 
 def find_similar_ideas(embedding: List[float], project_id: int,
-                       threshold: float = SIMILARITY_THRESHOLD) -> List[Dict]:
-    """Find ideas with similarity score > threshold using in-memory comparison."""
+                       threshold: float = None, config: TechnicalConfig = None) -> List[Dict]:
+    """Find ideas with similarity score > threshold using in-memory comparison.
+
+    Args:
+        embedding: The embedding vector to compare
+        project_id: Project ID to search within
+        threshold: Similarity threshold. If None, reads from config.
+        config: Optional TechnicalConfig for similarity_threshold setting.
+               Reads embedding.similarity_threshold from config if provided.
+    """
+    if threshold is None:
+        if config is None:
+            config = TechnicalConfig.load()
+        threshold = config.embedding.similarity_threshold
+
     from db import get_session
     import db_models as models
 
@@ -160,12 +198,18 @@ def save_idea_embedding(idea_id: int, title_vi: str, title_en: str,
         return record.id
 
 
-def check_duplicate_ideas(ideas: List[Dict], project_id: int) -> List[Dict]:
+def check_duplicate_ideas(ideas: List[Dict], project_id: int, config: TechnicalConfig = None) -> List[Dict]:
     """
     Check ideas for semantic duplicates against existing DB records.
     Returns only non-duplicate ideas.
 
     Uses multilingual sentence-transformers - no translation needed.
+
+    Args:
+        ideas: List of idea dicts to check
+        project_id: Project ID for deduplication
+        config: Optional TechnicalConfig for embedding settings.
+               Reads embedding.model, embedding.similarity_threshold from config.
     """
     new_ideas = []
     skipped = []
@@ -178,13 +222,13 @@ def check_duplicate_ideas(ideas: List[Dict], project_id: int) -> List[Dict]:
         # Multilingual model supports Vietnamese directly - no translation needed
         logger.debug(f"Checking idea: '{title}'")
 
-        embedding = create_embedding(title)
+        embedding = create_embedding(title, config)
         if not embedding:
             logger.warning(f"Could not create embedding for '{title}', including anyway")
             new_ideas.append(idea)
             continue
 
-        similar = find_similar_ideas(embedding, project_id)
+        similar = find_similar_ideas(embedding, project_id, config=config)
 
         if similar:
             logger.info(f"SKIP duplicate: '{title}' (similar to: {similar[0]['title_vi']}, "

@@ -43,6 +43,8 @@ class GenerationLLM(BaseModel):
     model: str = "MiniMax-M2.7"
     max_tokens: int = 1536
     timeout: int = 60
+    retry_attempts: int = 3
+    retry_backoff_max: int = 10
 
 
 class GenerationTTS(BaseModel):
@@ -74,6 +76,16 @@ class ParallelSceneConfig(BaseModel):
     max_workers: int = 3
 
 
+class GenerationContent(BaseModel):
+    scene_count: int = 3
+    checkpoint_path: str = ".content_pipeline_checkpoint.json"
+
+
+class ResearchConfig(BaseModel):
+    schedule_hour: int = 9
+    schedule_minute: int = 0
+
+
 class GenerationConfig(BaseModel):
     llm: GenerationLLM
     image: GenerationImage
@@ -81,6 +93,8 @@ class GenerationConfig(BaseModel):
     lipsync: GenerationLipsync
     seeds: GenerationSeeds
     parallel_scene_processing: ParallelSceneConfig = ParallelSceneConfig()
+    content: GenerationContent = GenerationContent()
+    research: ResearchConfig = ResearchConfig()
 
 
 class S3Config(BaseModel):
@@ -116,6 +130,12 @@ class ObserverConfig(BaseModel):
     enabled: bool = False
 
 
+class EmbeddingConfig(BaseModel):
+    model: str = "distiluse-base-multilingual-cased-v2"
+    similarity_threshold: float = 0.75
+    translation_max_tokens: int = 200
+
+
 class TechnicalConfig(BaseModel):
     api_keys: APIKeys
     api_urls: APIURLs
@@ -124,6 +144,7 @@ class TechnicalConfig(BaseModel):
     storage: StorageConfig
     logging: LoggingConfig = LoggingConfig()
     observer: Optional[ObserverConfig] = None
+    embedding: EmbeddingConfig = EmbeddingConfig()
 
     @classmethod
     def load(cls) -> "TechnicalConfig":
@@ -140,6 +161,8 @@ class TechnicalConfig(BaseModel):
         }
         if 'observer' in data:
             restructured['observer'] = data['observer']
+        if 'embedding' in data:
+            restructured['embedding'] = data['embedding']
         return cls(**restructured)
 
 

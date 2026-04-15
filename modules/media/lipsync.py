@@ -29,15 +29,15 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
 
     def __init__(self, config=None, api_key=None, upload_func=None):
         self.config = config
-        base_url = config.get("api.urls.wavespeed") if config else None
+        base_url = config.api_urls.wavespeed if config else None
         if not base_url:
             from modules.pipeline.exceptions import ConfigMissingKeyError
             raise ConfigMissingKeyError("api.urls.wavespeed", "WaveSpeedLipsyncProvider")
         self.base_url = base_url
-        self.api_key = api_key or (config.get("api.keys.wavespeed") if config else None)
+        self.api_key = api_key or (config.api_keys.wavespeed if config else None)
         self.upload_func = upload_func
-        self.poll_interval = config.get("generation.lipsync.poll_interval") if config else 10
-        self.max_wait = config.get("generation.lipsync.max_wait") if config else 300
+        self.poll_interval = config.generation.lipsync.poll_interval if config and config.generation and config.generation.lipsync else 10
+        self.max_wait = config.generation.lipsync.max_wait if config and config.generation and config.generation.lipsync else 300
 
     def upload_file(self, file_path: str) -> Optional[str]:
         """Upload file to WaveSpeed media storage."""
@@ -90,9 +90,11 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
 
     def generate(self, image_path: str, audio_path: str,
                  output_path: str, config: Optional[GenerationLipsync] = None) -> Optional[str]:
-        cfg = config or {}
-        default_retries = self.config.get("generation.lipsync.retries", 2) if self.config else 2
-        retries = cfg.get("retries", default_retries)
+        retries = config.retries if config and config.retries else (
+            self.config.generation.lipsync.retries if self.config and self.config.generation and self.config.generation.lipsync else 2
+        )
+        resolution = config.resolution if config else "480p"
+        seed = config.seed if config and config.seed else None
 
         for attempt in range(retries):
             logger.debug(f"  🎬 LTX Lipsync (attempt {attempt+1})...")
@@ -110,10 +112,10 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
             payload = {
                 "image": image_url,
                 "audio": audio_url,
-                "resolution": cfg.get("resolution", "480p")
+                "resolution": resolution
             }
-            if cfg.get("seed"):
-                payload["seed"] = cfg["seed"]
+            if seed is not None:
+                payload["seed"] = seed
 
             try:
                 resp = requests.post(url, headers=headers, json=payload, timeout=30)
@@ -151,15 +153,15 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
 
     def __init__(self, config=None, api_key=None, upload_func=None):
         self.config = config
-        base_url = config.get("api.urls.wavespeed") if config else None
+        base_url = config.api_urls.wavespeed if config else None
         if not base_url:
             from modules.pipeline.exceptions import ConfigMissingKeyError
             raise ConfigMissingKeyError("api.urls.wavespeed", "WaveSpeedMultiTalkProvider")
         self.base_url = base_url
-        self.api_key = api_key or (config.get("api.keys.wavespeed") if config else None)
+        self.api_key = api_key or (config.api_keys.wavespeed if config else None)
         self.upload_func = upload_func
-        self.poll_interval = config.get("generation.lipsync.poll_interval") if config else 10
-        self.max_wait = config.get("generation.lipsync.max_wait") if config else 300
+        self.poll_interval = config.generation.lipsync.poll_interval if config and config.generation and config.generation.lipsync else 10
+        self.max_wait = config.generation.lipsync.max_wait if config and config.generation and config.generation.lipsync else 300
 
     def upload_file(self, file_path: str) -> Optional[str]:
         if self.upload_func:
@@ -203,9 +205,10 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
     def generate(self, image_path: str, audio_path: str,
                  output_path: str, config: Optional[GenerationLipsync] = None) -> Optional[str]:
         """Multi-talk: audio_path can be a LipsyncRequest with left_audio/right_audio."""
-        cfg = config or {}
-        default_retries = self.config.get("generation.lipsync.retries", 2) if self.config else 2
-        retries = cfg.get("retries", default_retries) if isinstance(cfg, dict) else default_retries
+        retries = config.retries if config and config.retries else (
+            self.config.generation.lipsync.retries if self.config and self.config.generation and self.config.generation.lipsync else 2
+        )
+        resolution = config.resolution if config else "480p"
 
         # Handle multi-audio: audio_path can be a LipsyncRequest with left/right
         if isinstance(audio_path, LipsyncRequest):
@@ -234,7 +237,7 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
                 "left_audio": left_url,
                 "right_audio": right_url,
                 "order": "left_right",
-                "resolution": cfg.get("resolution", "480p")
+                "resolution": resolution
             }
             try:
                 resp = requests.post(url, headers=headers, json=payload, timeout=30)
@@ -279,16 +282,16 @@ class KieAIInfinitalkProvider(LipsyncProvider):
 
     def __init__(self, config=None, api_key=None, webhook_key=None, upload_func=None):
         self.config = config
-        base_url = config.get("api.urls.kie_ai") if config else None
+        base_url = config.api_urls.kie_ai if config else None
         if not base_url:
             from modules.pipeline.exceptions import ConfigMissingKeyError
             raise ConfigMissingKeyError("api.urls.kie_ai", "KieAIInfinitalkProvider")
         self.base_url = base_url
-        self.api_key = api_key or (config.get("api.keys.kie_ai") if config else None)
+        self.api_key = api_key or (config.api_keys.kie_ai if config else None)
         self.webhook_key = webhook_key if webhook_key else ""
         self.upload_func = upload_func
-        self.poll_interval = config.get("generation.lipsync.poll_interval") if config else 10
-        self.max_wait = config.get("generation.lipsync.max_wait") if config else 300
+        self.poll_interval = config.generation.lipsync.poll_interval if config and config.generation and config.generation.lipsync else 10
+        self.max_wait = config.generation.lipsync.max_wait if config and config.generation and config.generation.lipsync else 300
         self._client = KieAIClient(
             api_key=self.api_key,
             webhook_key=self.webhook_key,
@@ -309,11 +312,10 @@ class KieAIInfinitalkProvider(LipsyncProvider):
                 max_wait: int,      # polling timeout in seconds
             }
         """
-        cfg = config or {}
-        prompt = cfg.get("prompt", "A person talking")
-        resolution = cfg.get("resolution", "480p")
+        prompt = config.prompt if config and config.prompt else "A person talking"
+        resolution = config.resolution if config and config.resolution else "480p"
         default_max_wait = self.max_wait if self.config else 300
-        max_wait = cfg.get("max_wait", default_max_wait)
+        max_wait = config.max_wait if config and config.max_wait else default_max_wait
         default_poll_interval = self.poll_interval if self.config else 10
 
         # Upload image and audio if upload_func provided
@@ -323,10 +325,12 @@ class KieAIInfinitalkProvider(LipsyncProvider):
         if self.upload_func:
             image_url = self.upload_func(image_path)
             audio_url = self.upload_func(audio_path)
-        if not image_url:
-            image_url = cfg.get("image_url")
-        if not audio_url:
-            audio_url = cfg.get("audio_url")
+
+        # Fallback: allow dict-style config for image_url/audio_url
+        if not image_url and config and isinstance(config, dict):
+            image_url = config.get("image_url")
+        if not audio_url and config and isinstance(config, dict):
+            audio_url = config.get("audio_url")
 
         if not image_url or not audio_url:
             logger.warning(

@@ -236,11 +236,7 @@ def get_whisper_timestamps(audio_path: str, output_dir: Optional[str] = None, co
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     logger.debug(f"Running Whisper for word timestamps...")
-    word_timestamp_timeout = 120
-    if config:
-        timeout = config.get("generation.tts.word_timestamp_timeout")
-        if timeout is not None:
-            word_timestamp_timeout = timeout
+    word_timestamp_timeout = config.generation.tts.word_timestamp_timeout if config and config.generation and config.generation.tts else 120
 
     try:
         result = subprocess.run(

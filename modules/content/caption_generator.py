@@ -178,28 +178,39 @@ class CaptionGenerator:
         if self._llm is None:
             return None
 
-        category = self._detect_category(script)
-        topic = self._extract_topic(script)
-        hashtag_set = HASHTAG_SETS.get(category, HASHTAG_SETS["general"])
-
-        system = "Bạn là chuyên gia viết caption cho video TikTok/Facebook Reels tiếng Việt."
-        user = f'Viết 1 caption hấp dẫn cho video: "{script[:300]}"\n\nFormat JSON: {{"headline": "...", "body": "...", "cta": "..."}}'
+        platform_label = "TikTok" if platform == "tiktok" else "Facebook"
+        system = (
+            f"You are a professional {platform_label} Reels caption writer for Vietnamese audience.\n"
+            "CRITICAL INSTRUCTIONS:\n"
+            "- You MUST respond with ONLY valid JSON — no markdown, no text before or after\n"
+            "- headline: string, under 10 words, curiosity hook or bold statement, include fire emoji 🔥\n"
+            "- body: string, 150-300 chars, story-telling style in Vietnamese, natural like speaking to viewer\n"
+            "- cta: string, natural call-to-action or question to engage viewer\n"
+            "- hashtags: array of 5-8 strings, each starting with #, relevant to the script content"
+        )
+        user = (
+            f"Write a caption for a video. Script: \"{script[:800]}\"\n\n"
+            f"Respond with ONLY this JSON format, nothing else:\n"
+            f'{{"headline": "...", "body": "...", "cta": "...", "hashtags": ["#tag1", "#tag2"]}}'
+        )
 
         try:
-            response = self._llm.chat(user, system=system, max_tokens=200)
+            response = self._llm.chat(user, system=system, max_tokens=1200)
             m = re.search(r'\{.*\}', response, re.DOTALL)
             if not m:
                 logger.warning(f"LLM response missing JSON: {response[:100]}")
                 return None
 
             data = json.loads(m.group())
-            headline = data.get("headline", f"🔥 {topic.title()}")
-            body = data.get("body", f"Nội dung thú vị về {topic}")
-            cta = data.get("cta", random.choice(CTA_TEMPLATES))
-            hashtags = hashtag_set[:5]
+            headline = data.get("headline", "🔥 Nội dung thú vị")
+            body = data.get("body", "Nội dung video rất thú vị và hữu ích.")
+            cta = data.get("cta") or random.choice(CTA_TEMPLATES)
+            hashtags = data.get("hashtags") or ["#vietnamtiktok", "#fyp", "#trending"]
+            if isinstance(hashtags, list) and len(hashtags) > 8:
+                hashtags = hashtags[:8]
             full = self._combine_caption(headline, body, cta, hashtags, platform)
 
-            logger.info(f"Caption generated via LLM for topic: {topic}")
+            logger.info(f"Caption generated via LLM")
             return GeneratedCaption(
                 headline=headline,
                 body=body,

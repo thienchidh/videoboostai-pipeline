@@ -88,7 +88,14 @@ class VideoPipelineRunner:
         # Configure database if database section is present in config
         db_cfg = ctx.technical.storage.database
         if db_cfg:
-            db.configure(db_cfg)
+            from modules.pipeline.db_config import DatabaseConnectionConfig
+            db.configure(DatabaseConnectionConfig(
+                host=db_cfg.host,
+                port=db_cfg.port,
+                name=db_cfg.name,
+                user=db_cfg.user,
+                password=db_cfg.password,
+            ))
 
         # Init DB and create run record
         db.init_db()

@@ -63,6 +63,7 @@ class ContentIdeaGenerator:
 
         # Store channel config (already validated by caller)
         self._channel_config = channel_config
+        self._technical_config = technical_config
 
     def generate_ideas_from_topics(self, topics: List[Dict], count: int = 5) -> List[Dict]:
         """Generate content ideas from researched topics."""
@@ -124,7 +125,7 @@ class ContentIdeaGenerator:
         # Resolve api_key — from technical_config if not provided via GenerationLLM (it doesn't have api_key)
         if not self._llm or not self._llm.model:
             raise ConfigMissingKeyError("generation.llm.model", "ContentIdeaGenerator")
-        tech_cfg = technical_config if technical_config else TechnicalConfig.load()
+        tech_cfg = self._technical_config if self._technical_config else TechnicalConfig.load()
         api_key = tech_cfg.api_keys.minimax
         if not api_key:
             raise RuntimeError("minimax API key not found in config")

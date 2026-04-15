@@ -276,10 +276,25 @@ class ContentPipeline:
             results["pending_mode"] = True
             logger.info(f"  Loaded {len(topics)} topics from pending pool")
         else:
-            logger.info("Step 1b: No pending topics and research not triggered, skipping research")
-            topics = []
-            source_id = None
-            results["pending_mode"] = False
+            # No pending topic sources — check for existing raw ideas in DB
+            logger.info("Step 1b: No pending topics, checking for raw ideas in DB...")
+            from db import get_ideas_by_status
+            raw_ideas = get_ideas_by_status(project_id=self.project_id, status="raw", limit=num_ideas)
+            if raw_ideas:
+                logger.info(f"  Found {len(raw_ideas)} raw ideas in DB — will convert to scripts")
+                # Convert raw ideas to topic format for Step 2 processing
+                topics = [{"title": i.get("title", ""), "summary": i.get("description", ""),
+                           "keywords": i.get("topic_keywords", []), "source_keyword": i.get("source", "")}
+                          for i in raw_ideas]
+                source_id = None
+                results["pending_mode"] = False
+                results["topics_found"] = len(topics)
+                results["raw_mode"] = True
+            else:
+                logger.info("Step 1b: No pending topics and research not triggered, skipping research")
+                topics = []
+                source_id = None
+                results["pending_mode"] = False
 
         # Step 2: Generate ideas + dedup in a loop
         # Keep loading topics until we get non-duplicate ideas or run out

@@ -1,6 +1,7 @@
 def test_tiktok_publisher_uses_context_manager():
     """TikTokPublisher.publish should use context manager for file handle."""
-    from unittest.mock import patch, MagicMock, mock_open
+    from functools import wraps
+    from unittest.mock import patch, MagicMock, mock_open, PropertyMock
     from modules.social.tiktok import TikTokPublisher
     from modules.pipeline.models import SocialPlatformConfig
     import io
@@ -32,12 +33,34 @@ def test_tiktok_publisher_uses_context_manager():
 
     mock_file.return_value.__exit__ = tracked_exit
 
-    with patch("pathlib.Path.exists") as mock_exists:
-        mock_exists.return_value = True
-        with patch("pathlib.Path.stat") as mock_stat:
-            mock_stat.return_value = MagicMock(st_size=1024)
-            with patch("builtins.open", mock_file):
-                result = publisher.publish("/tmp/test_video.mp4", "Test", "Desc")
+    # Mock tenacity module so retry decorator actually wraps the function
+    class _MockTenacity:
+        @staticmethod
+        def retry(stop=None, wait=None, before_sleep=None, reraise=True):
+            def decorator(func):
+                @wraps(func)
+                def wrapper(*args, **kwargs):
+                    return func(*args, **kwargs)
+                return wrapper
+            return decorator
+        @staticmethod
+        def stop_after_attempt(attempts):
+            return f"stop_after_attempt({attempts})"
+        @staticmethod
+        def wait_exponential(multiplier=1, min=1, max=60):
+            return f"wait_exponential({multiplier}, {min}, {max})"
+        @staticmethod
+        def before_sleep_log(logger, log_level):
+            return f"before_sleep_log({log_level})"
+
+    with patch.dict("sys.modules", {"tenacity": _MockTenacity()}):
+        with patch.object(TikTokPublisher, "is_configured", new_callable=PropertyMock, return_value=True):
+            with patch("pathlib.Path.exists") as mock_exists:
+                mock_exists.return_value = True
+                with patch("pathlib.Path.stat") as mock_stat:
+                    mock_stat.return_value = MagicMock(st_size=1024)
+                    with patch("builtins.open", mock_file):
+                        result = publisher.publish("/tmp/test_video.mp4", "Test", "Desc")
 
     # Verify file was opened
     assert mock_file.called, "open was never called"

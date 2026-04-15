@@ -175,8 +175,6 @@ class ContentIdeaGenerator:
                 gen_cfg = self._technical_config.generation
                 if hasattr(gen_cfg, 'tts') and gen_cfg.tts and hasattr(gen_cfg.tts, 'words_per_second'):
                     wps = gen_cfg.tts.words_per_second
-                elif hasattr(gen_cfg, 'llm'):
-                    pass  # keep wps=2.5 as default
 
             for scene in scenes:
                 tts_text = scene.get("tts", "")

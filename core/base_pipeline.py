@@ -17,7 +17,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.paths import PROJECT_ROOT, get_karaoke_python as _resolve_karaoke_python
+from core.paths import PROJECT_ROOT
 from core.video_utils import (
     log,
     deep_merge,
@@ -39,14 +39,9 @@ from core.video_utils import (
 logger = logging.getLogger(__name__)
 
 
-def get_karaoke_python() -> str:
-    """Return python with moviepy installed (wrapper for core.paths)."""
-    return str(_resolve_karaoke_python())
-
-
 # Re-export everything from video_utils for backward compatibility
 __all__ = [
-    "get_karaoke_python", "log", "deep_merge",
+    "log", "deep_merge",
     "crop_to_9x16", "concat_videos", "add_subtitles",
     "add_background_music",
     "get_video_duration", "get_audio_duration",

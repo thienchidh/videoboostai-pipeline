@@ -243,3 +243,26 @@ def test_keyword_pool_ttl_cleanup():
         session.commit()
     deleted = delete_expired_keywords(ttl_days=30)
     assert deleted >= 1
+
+
+@patch("utils.embedding._get_model")
+def test_check_duplicate_saves_dupe_idea_with_embedding(mock_get_model):
+    """When idea is dupe, check_duplicate_ideas should save ContentIdea(status=duplicate) + embedding."""
+    import numpy as np
+    mock_model = MagicMock()
+    mock_model.encode.return_value = np.array([0.1] * 512)
+    mock_get_model.return_value = mock_model
+
+    with patch("utils.embedding.find_similar_ideas") as mock_find:
+        mock_find.return_value = [{"idea_id": 1, "title_vi": "Old Idea", "similarity": 0.9}]
+
+        with patch("utils.embedding.save_idea_embedding") as mock_save_emb:
+            with patch("db.save_content_ideas") as mock_save_idea:
+                mock_save_idea.return_value = [999]  # returned idea ID
+
+                ideas = [{"title": "Similar Idea", "description": "test"}]
+                from utils.embedding import check_duplicate_ideas
+                result = check_duplicate_ideas(ideas, project_id=1)
+
+                assert mock_save_idea.called, "save_content_ideas not called for dupe"
+                assert mock_save_emb.called, "save_idea_embedding not called for dupe"

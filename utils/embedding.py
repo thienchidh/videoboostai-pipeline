@@ -189,6 +189,30 @@ def check_duplicate_ideas(ideas: List[Dict], project_id: int) -> List[Dict]:
         if similar:
             logger.info(f"SKIP duplicate: '{title}' (similar to: {similar[0]['title_vi']}, "
                        f"score={similar[0]['similarity']})")
+            # Save dupe as ContentIdea with status=duplicate, then save embedding
+            # This ensures subsequent runs catch this idea before calling LLM
+            try:
+                from db import save_content_ideas
+                dupe_ids = save_content_ideas(project_id, [idea])
+                if dupe_ids:
+                    dupe_id = dupe_ids[0]
+                    from db import get_session
+                    import db_models as models
+                    with get_session() as session:
+                        row = session.query(models.ContentIdea).filter_by(id=dupe_id).first()
+                        if row:
+                            row.status = "duplicate"
+                            session.commit()
+                    if embedding:
+                        from utils.embedding import save_idea_embedding
+                        save_idea_embedding(
+                            idea_id=dupe_id,
+                            title_vi=title,
+                            title_en="",
+                            embedding=embedding,
+                        )
+            except Exception as e:
+                logger.warning(f"Could not save dupe idea embedding: {e}")
             skipped.append({
                 **idea,
                 "title_vi": title,

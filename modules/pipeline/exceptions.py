@@ -1,6 +1,23 @@
 """modules/pipeline/exceptions.py — Pipeline exceptions."""
 
 
+class PipelineError(Exception):
+    """Base exception for pipeline errors."""
+    pass
+
+
+class ConfigMissingKeyError(PipelineError):
+    """Raised when required config key is missing."""
+
+    def __init__(self, key_path: str, provider: str = None):
+        self.key_path = key_path
+        self.provider = provider
+        msg = f"Required config key missing: '{key_path}'"
+        if provider:
+            msg += f" (required by {provider})"
+        super().__init__(msg)
+
+
 class MissingConfigError(Exception):
     """Raised when a required configuration key is missing."""
     pass

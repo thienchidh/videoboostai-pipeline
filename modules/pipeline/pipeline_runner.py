@@ -176,10 +176,11 @@ class VideoPipelineRunner:
 
         if lipsync_name == "kieai":
             return provider_cls(
+                config=self.ctx.technical,
                 api_key=self.ctx.technical.api_keys.kie_ai,
                 upload_func=upload_fn,
             )
-        return provider_cls(api_key=self.ctx.technical.api_keys.wavespeed, upload_func=upload_fn)
+        return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.wavespeed, upload_func=upload_fn)
 
     def _build_music_provider(self):
         """Instantiate music provider via PluginRegistry."""

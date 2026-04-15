@@ -185,8 +185,11 @@ class TestEdgeTTSConfig:
         """EdgeTTSProvider.generate should return tuple even without config."""
         provider = EdgeTTSProvider()
 
+        def _close_coro(coro):
+            coro.close()
+
         with patch("asyncio.set_event_loop_policy"):
-            with patch("asyncio.run"):
+            with patch("asyncio.run", side_effect=_close_coro):
                 with patch("edge_tts.Communicate") as MockComm:
                     mock_comm = MagicMock()
 

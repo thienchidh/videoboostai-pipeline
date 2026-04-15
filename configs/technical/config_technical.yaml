@@ -75,6 +75,9 @@ generation:
     enabled: true   # true | false — parallelize TTS + image across scenes
     max_workers: 3 # max concurrent API calls per phase (max 5)
 
+  pipeline:
+    max_retries: 3   # max retries for scene processing errors
+
 logging:
   level: INFO            # DEBUG | INFO | WARNING | ERROR
   format: "%(asctime)s %(levelname)s %(message)s"
@@ -83,6 +86,7 @@ logging:
 # STORAGE - S3 and database configuration
 # ================================================
 storage:
+  output_dir: "output"  # output directory for generated videos
   s3:
     endpoint: "https://s3.trachanhtv.top"
     access_key: "minio-admin"

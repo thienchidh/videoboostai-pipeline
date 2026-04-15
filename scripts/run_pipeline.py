@@ -281,7 +281,7 @@ if __name__ == "__main__":
     elif args.channel:
         channels = [args.channel]
     else:
-        channels = ["nang_suat_thong_minh"]  # Default
+        raise ValueError("No channel specified: use --channel or --all")
 
     for ch in channels:
         logger.info(f"\n{'='*50}")

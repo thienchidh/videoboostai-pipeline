@@ -31,11 +31,12 @@ USE_STATIC_LIPSYNC = False
 def _regenerate_script_with_llm(original_script: str, scene_id: int,
                                 actual_duration: float,
                                 min_duration: float, max_duration: float,
-                                llm_api_key: str) -> str:
+                                llm_api_key: str,
+                                wps: float = 2.5) -> str:
     """Regenerate script using MiniMax LLM to fit duration bounds.
-    
+
     Calculates real words-per-second from actual TTS output.
-    
+
     Args:
         original_script: The original TTS script that was too short/long
         scene_id: ID of the scene (for logging)
@@ -43,15 +44,16 @@ def _regenerate_script_with_llm(original_script: str, scene_id: int,
         min_duration: Minimum allowed duration (5.0s)
         max_duration: Maximum allowed duration (15.0s)
         llm_api_key: MiniMax API key for LLM calls
-    
+        wps: Words per second from config (default 2.5)
+
     Returns:
         New script that fits within duration bounds
     """
     from modules.llm.minimax import MiniMaxLLMProvider
-    
+
     # Calculate real wps from actual TTS output
     original_word_count = len(original_script.split())
-    real_wps = actual_duration / original_word_count if original_word_count > 0 else 2.5
+    real_wps = actual_duration / original_word_count if original_word_count > 0 else wps
     
     if actual_duration < min_duration:
         target_duration = (min_duration + max_duration) / 2  # Aim for middle
@@ -150,8 +152,15 @@ class VideoPipelineV3:
     def run(self):
         """Run the pipeline. Auto-retries with script adjustment on duration errors."""
         import shutil
-        
-        max_retries = 3
+
+        # Read max_retries and wps from config (strict: require key to exist)
+        max_retries = self.ctx.technical.generation.pipeline.max_retries
+        if not max_retries:
+            raise ValueError("generation.pipeline.max_retries is required in technical config")
+        wps = self.ctx.technical.generation.tts.words_per_second
+        if not wps:
+            raise ValueError("generation.tts.words_per_second is required in technical config")
+
         for attempt in range(1, max_retries + 1):
             try:
                 video_path, word_timestamps = self._runner.run()
@@ -173,7 +182,8 @@ class VideoPipelineV3:
                     actual_duration=e.actual_duration,
                     min_duration=e.min_duration,
                     max_duration=e.max_duration,
-                    llm_api_key=self.ctx.technical.api_keys.minimax
+                    llm_api_key=self.ctx.technical.api_keys.minimax,
+                    wps=wps,
                 )
                 
                 # Find and update the scene in ctx.scenario.scenes

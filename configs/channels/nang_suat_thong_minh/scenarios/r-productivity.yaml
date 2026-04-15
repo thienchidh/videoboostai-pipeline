@@ -1,0 +1,19 @@
+title: r/productivity
+scenes:
+- id: 1
+  script: 90% người làm việc chăm chỉ nhưng vẫn không hiệu quả. Bạn có đang mắc kẹt
+    trong vòng lặp 'bận rộn' mà không có kết quả thật sự không?
+  background: văn phòng hiện đại với ánh sáng ấm, 3D render, warm, eye-level, modern
+    office, professional
+  character: Mentor
+- id: 2
+  script: 'Mẹo từ cộng đồng r/productivity: áp dụng kỹ thuật ''2 phút''. Nếu công
+    việc chỉ mất 2 phút, hãy làm ngay. Kết quả: giảm 40% backlog!'
+  background: không gian văn phòng ấm áp với đèn treo, 3D render, warm, eye-level,
+    modern office, professional
+  character: Mentor
+- id: 3
+  script: Bạn đã thử cách nào hiệu quả nhất trong số này? Comment cho mình biết nhé!
+  background: góc làm việc với cửa sổ tự nhiên, 3D render, warm, eye-level, modern
+    office, professional
+  character: Student

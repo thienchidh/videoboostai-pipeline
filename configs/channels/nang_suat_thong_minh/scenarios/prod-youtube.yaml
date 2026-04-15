@@ -1,0 +1,17 @@
+title: Prod - YouTube
+scenes:
+- id: 1
+  script: Bạn tưởng chơi game là lãng phí thời gian? Sai rồi! Đam mê này có thể giúp
+    bạn tạo ra thu nhập.
+  background: văn phòng hiện đại, 3D render, warm, eye-level, modern office, professional
+  character: Mentor
+- id: 2
+  script: Tôi đã biến đam mê chơi game thành công việc mà ai cũng thích xem. Mình
+    chia sẻ cho bạn 3 cách làm video 'cười nghiêng ngả' mà không cần quay lại.
+  background: văn phòng hiện đại, 3D render, warm, eye-level, modern office, professional
+  character: Mentor
+- id: 3
+  script: Thử áp dụng một trong 3 cách trên rồi để lại kết quả bạn nhé! Mình rất muốn
+    xem thành quả của bạn.
+  background: văn phòng hiện đại, 3D render, warm, eye-level, modern office, professional
+  character: Mentor

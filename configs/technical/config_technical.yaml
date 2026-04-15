@@ -49,6 +49,8 @@ generation:
     prompt: "A person talking"  # mô tả cho lipsync model
     resolution: "480p"           # 480p | 720p | 1080p
     max_wait: 300                # giây chờ job hoàn thành
+    poll_interval: 10           # giây giữa các poll
+    retries: 2                   # số lần retry cho generation
   seeds:
     image: 42      # seed cho image generation
     video: 12345    # seed cho video generation

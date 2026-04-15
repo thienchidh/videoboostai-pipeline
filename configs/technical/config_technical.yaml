@@ -116,3 +116,22 @@ embedding:
   model: "distiluse-base-multilingual-cased-v2"
   similarity_threshold: 0.75
   translation_max_tokens: 200
+
+# ================================================
+# RESEARCH - Content research configuration
+# ================================================
+research:
+  max_attempts: 3
+  backoff_base: 3.0
+  backoff_max: 60.0
+  backoff_factor: 2.0
+
+idea_gen:
+  max_attempts: 5
+  max_research_loops: 3
+  backoff_base: 2.0
+  backoff_max: 30.0
+  backoff_factor: 2.0
+
+keyword_pool:
+  ttl_days: 30

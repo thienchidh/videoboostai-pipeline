@@ -13,7 +13,8 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from modules.llm import get_llm_provider
-from modules.pipeline.models import ChannelConfig
+from modules.pipeline.models import ChannelConfig, TechnicalConfig
+from modules.pipeline.exceptions import ConfigMissingKeyError
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,8 @@ class ContentIdeaGenerator:
     def __init__(self, project_id: int = None, target_platform: str = "both",
                  content_angle: str = "tips", niche_keywords: List[str] = None,
                  llm_config: Optional[Dict] = None,
-                 channel_config: Optional[Dict] = None):
+                 channel_config: Optional[Dict] = None,
+                 technical_config: TechnicalConfig = None):
         """
         Args:
             project_id: project ID for DB storage
@@ -40,12 +42,36 @@ class ContentIdeaGenerator:
             channel_config: Optional channel config dict. If provided, validated
                            via Pydantic ChannelConfig — missing required fields
                            raise ValidationError.
+            technical_config: Optional TechnicalConfig for LLM settings.
+                              If provided, reads generation.llm.* from it.
         """
         self.project_id = project_id
         self.target_platform = target_platform
         self.content_angle = content_angle
         self.niche_keywords = niche_keywords or []
         self._llm_config = llm_config or {}
+
+        # Read LLM settings from technical config (strict mode - raise if missing)
+        if technical_config:
+            model = technical_config.generation.llm.model
+            if not model:
+                raise ConfigMissingKeyError("generation.llm.model", "ContentIdeaGenerator")
+            self._llm_config["model"] = model
+
+            max_tokens = technical_config.generation.llm.max_tokens
+            if max_tokens is None:
+                raise ConfigMissingKeyError("generation.llm.max_tokens", "ContentIdeaGenerator")
+            self._llm_config["max_tokens"] = max_tokens
+
+            retry_attempts = technical_config.generation.llm.retry_attempts
+            if retry_attempts is None:
+                raise ConfigMissingKeyError("generation.llm.retry_attempts", "ContentIdeaGenerator")
+            self._llm_config["retry_attempts"] = retry_attempts
+
+            retry_backoff_max = technical_config.generation.llm.retry_backoff_max
+            if retry_backoff_max is None:
+                raise ConfigMissingKeyError("generation.llm.retry_backoff_max", "ContentIdeaGenerator")
+            self._llm_config["retry_backoff_max"] = retry_backoff_max
 
         # Validate channel config with Pydantic — raise on missing required fields
         if channel_config:
@@ -120,13 +146,13 @@ class ContentIdeaGenerator:
         prompt = self._build_scene_prompt(title, keywords, angle, description, num_scenes)
 
         @retry(
-            stop=stop_after_attempt(3),
-            wait=wait_exponential(multiplier=1, min=1, max=10),
+            stop=stop_after_attempt(self._llm_config.get("retry_attempts", 3)),
+            wait=wait_exponential(multiplier=1, min=1, max=self._llm_config.get("retry_backoff_max", 10)),
             before_sleep=before_sleep_log(logger, logging.WARNING),
             reraise=True,
         )
         def _call_llm():
-            text = llm.chat(prompt, max_tokens=1536)
+            text = llm.chat(prompt, max_tokens=self._llm_config.get("max_tokens", 1536))
             scenes = self._parse_scenes(text)
             if not scenes:
                 raise ValueError("Invalid scene format")

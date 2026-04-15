@@ -35,6 +35,14 @@ generation:
     model: "MiniMax-M2.7"
     max_tokens: 1536
     timeout: 60
+    retry_attempts: 3
+    retry_backoff_max: 10
+  content:
+    scene_count: 3
+    checkpoint_path: ".content_pipeline_checkpoint.json"
+  research:
+    schedule_hour: 9
+    schedule_minute: 0
   image:
     provider: "kieai"
     fallback_providers: ["minimax"]
@@ -96,3 +104,11 @@ observer:
   host: "0.0.0.0"
   port: 8765
   enabled: false   # set to true to enable live monitoring
+
+# ================================================
+# EMBEDDING - Semantic deduplication settings
+# ================================================
+embedding:
+  model: "distiluse-base-multilingual-cased-v2"
+  similarity_threshold: 0.75
+  translation_max_tokens: 200

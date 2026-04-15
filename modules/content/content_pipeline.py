@@ -17,7 +17,7 @@ from modules.content.topic_researcher import TopicResearcher
 from modules.content.content_idea_generator import ContentIdeaGenerator
 from modules.content.content_calendar import ContentCalendar
 from modules.content.caption_generator import CaptionGenerator
-from modules.pipeline.models import ChannelConfig, ContentPipelineConfig
+from modules.pipeline.models import ChannelConfig, ContentPipelineConfig, TechnicalConfig
 
 
 class ContentPipeline:
@@ -85,6 +85,25 @@ class ContentPipeline:
         # Store channel name for social upload fallback
         self.channel_name = validated_channel.name if validated_channel else ""
 
+        # Load technical config for content generation settings
+        try:
+            self.technical_config = TechnicalConfig.load()
+        except Exception as e:
+            logger.warning(f"Could not load TechnicalConfig: {e}")
+            self.technical_config = None
+
+        # Read content settings from technical config
+        if self.technical_config:
+            self.scene_count = self.technical_config.generation.content.scene_count
+            self.checkpoint_path = self.project_root / self.technical_config.generation.content.checkpoint_path
+            schedule_hour = self.technical_config.generation.research.schedule_hour
+            schedule_minute = self.technical_config.generation.research.schedule_minute
+            self.schedule_time = time(schedule_hour, schedule_minute)
+        else:
+            self.scene_count = 3
+            self.checkpoint_path = self.project_root / ".content_pipeline_checkpoint.json"
+            self.schedule_time = time(9, 0)
+
         # Initialize components
         self.researcher = TopicResearcher(
             niche_keywords=self.niche_keywords,
@@ -98,6 +117,7 @@ class ContentPipeline:
             target_platform=self.target_platform,
             niche_keywords=self.niche_keywords,
             channel_config=channel_cfg_dict,
+            technical_config=self.technical_config,
         )
         self.calendar = ContentCalendar(project_id=project_id)
 
@@ -120,7 +140,7 @@ class ContentPipeline:
         results = {}
 
         # Check for checkpoint to resume from
-        checkpoint_path = self.project_root / ".content_pipeline_checkpoint.json"
+        checkpoint_path = self.checkpoint_path
         checkpoint = None
         start_idea_index = 0
         if checkpoint_path.exists():
@@ -178,7 +198,7 @@ class ContentPipeline:
 
             # Dedup against all existing ideas in DB
             try:
-                new_batch = check_duplicate_ideas(batch_ideas, self.project_id)
+                new_batch = check_duplicate_ideas(batch_ideas, self.project_id, self.technical_config)
                 skipped = len(batch_ideas) - len(new_batch)
                 logger.info(f"Step 2b: Dedup: {skipped} duplicates skipped, {len(new_batch)} new ideas")
             except (RuntimeError, IOError) as e:
@@ -250,7 +270,7 @@ class ContentPipeline:
                 continue
 
             idea = ideas[i]
-            script = self.idea_gen.generate_script_from_idea(idea, num_scenes=3)
+            script = self.idea_gen.generate_script_from_idea(idea, num_scenes=self.scene_count)
             self.idea_gen.update_idea_script(idea_id, script)
 
             # Save script to file
@@ -286,7 +306,7 @@ class ContentPipeline:
                         idea_id=idea_id,
                         platform=platform,
                         scheduled_date=start_date,
-                        scheduled_time=time(9, 0),
+                        scheduled_time=self.schedule_time,
                         priority="medium"
                     )
                     scheduled.append({"idea_id": idea_id, "platform": platform, "calendar_id": cal_id})

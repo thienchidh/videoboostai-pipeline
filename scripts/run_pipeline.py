@@ -34,7 +34,14 @@ from scripts.video_pipeline_v3 import DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, USE_
 # Load log level from TechnicalConfig
 _log_cfg = None
 try:
-    from modules.pipeline.models import TechnicalConfig
+    from modules.pipeline.models import (
+    TechnicalConfig,
+    ChannelConfig,
+    ContentPipelineConfig,
+    PageConfig,
+    PagePlatformConfig,
+    ContentSettings,
+)
     _tech = TechnicalConfig.load()
     _log_cfg = _tech.logging.level
 except Exception:
@@ -46,6 +53,50 @@ logger = logging.getLogger(__name__)
 
 
 # ==================== CONTENT PIPELINE ====================
+
+def _build_content_pipeline_config(channel_id: str) -> ContentPipelineConfig:
+    """Build ContentPipelineConfig from channel config file.
+
+    Args:
+        channel_id: Channel identifier
+
+    Returns:
+        ContentPipelineConfig with page and content settings from channel config
+    """
+    try:
+        channel_cfg = ChannelConfig.load(channel_id)
+    except FileNotFoundError:
+        channel_cfg = None
+
+    if channel_cfg and channel_cfg.social:
+        facebook_cfg = channel_cfg.social.facebook
+        tiktok_cfg = channel_cfg.social.tiktok
+    else:
+        facebook_cfg = None
+        tiktok_cfg = None
+
+    return ContentPipelineConfig(
+        page=PageConfig(
+            facebook=PagePlatformConfig(
+                page_name=facebook_cfg.page_name if facebook_cfg else None,
+                page_id=facebook_cfg.page_id if facebook_cfg else None,
+                auto_publish=facebook_cfg.auto_publish if facebook_cfg else False,
+                access_token=facebook_cfg.access_token if facebook_cfg else None,
+            ) if facebook_cfg else PagePlatformConfig(),
+            tiktok=PagePlatformConfig(
+                account_name=tiktok_cfg.account_name if tiktok_cfg else None,
+                account_id=tiktok_cfg.account_id if tiktok_cfg else None,
+                auto_publish=tiktok_cfg.auto_publish if tiktok_cfg else False,
+            ) if tiktok_cfg else PagePlatformConfig(),
+        ),
+        content=ContentSettings(
+            auto_schedule=True,
+            niche_keywords=channel_cfg.research.niche_keywords if channel_cfg and channel_cfg.research else [],
+            content_angle=channel_cfg.research.content_angle if channel_cfg and channel_cfg.research else "tips",
+            target_platform=channel_cfg.research.target_platform if channel_cfg and channel_cfg.research else "both",
+        ),
+    )
+
 
 def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = False):
     """Run content generation cycle: research -> ideas -> scripts.
@@ -66,7 +117,7 @@ def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = 
     )
     pipeline = ContentPipeline(
         project_id=project_id,
-        config=None,
+        config=_build_content_pipeline_config(channel_id),
         dry_run=dry_run,
         channel_id=channel_id,
     )
@@ -191,7 +242,7 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
 
     pipeline = ContentPipeline(
         project_id=project_id,
-        config=None,
+        config=_build_content_pipeline_config(channel_id),
         dry_run=False,
         channel_id=channel_id,
         skip_lipsync=skip_lipsync,

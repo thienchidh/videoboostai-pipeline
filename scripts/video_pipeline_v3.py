@@ -134,10 +134,6 @@ class VideoPipelineV3:
             resume=resume,
         )
 
-        # Mirror key state for external consumers
-        self.config = {
-            "video": {"title": self.ctx.scenario.title if self.ctx.scenario else "Untitled"},
-        }
         self.avatars_dir = self._runner.run_dir / "avatars"
         self.media_dir = self._runner.media_dir
 

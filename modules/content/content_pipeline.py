@@ -128,12 +128,16 @@ class ContentPipeline:
         self.calendar = ContentCalendar(project_id=project_id)
 
     def should_trigger_research(self) -> bool:
-        """Check if pending pool is below threshold."""
+        """Check if pending pool is below threshold AND below pending_pool_size."""
         from db import get_session, models
         with get_session() as session:
             count = session.query(models.ContentIdea).filter(
                 models.ContentIdea.status == "raw"
             ).count()
+        # Skip research if pool is large enough (>= pending_pool_size)
+        if count >= self.pending_pool_size:
+            return False
+        # Trigger research if pool is small (< threshold)
         return count < self.pending_threshold
 
     def run_research_phase(self, num_ideas: int = 5) -> Dict:

@@ -17,7 +17,14 @@ from modules.content.topic_researcher import TopicResearcher
 from modules.content.content_idea_generator import ContentIdeaGenerator
 from modules.content.content_calendar import ContentCalendar
 from modules.content.caption_generator import CaptionGenerator
-from modules.pipeline.models import ChannelConfig, ContentPipelineConfig, TechnicalConfig
+from modules.pipeline.models import (
+    TechnicalConfig,
+    ChannelConfig,
+    ScenarioConfig,
+    SocialConfig,
+    ContentPipelineConfig,
+    CheckpointData,
+)
 from modules.pipeline.backoff import Backoff, CircuitBreaker, CircuitOpenError
 
 
@@ -40,7 +47,7 @@ class ContentPipeline:
     }
     """
 
-    def __init__(self, project_id: int, config: Dict = None, config_path: str = None,
+    def __init__(self, project_id: int, config: ContentPipelineConfig = None,
                  dry_run: bool = True,
                  channel_id: str = "nang_suat_thong_minh",
                  skip_lipsync: bool = False,
@@ -48,8 +55,7 @@ class ContentPipeline:
         """
         Args:
             project_id: project ID
-            config: config dict
-            config_path: path to config JSON file
+            config: ContentPipelineConfig Pydantic model (uses defaults if None)
             dry_run: if True, don't actually produce/upload videos
             channel_id: channel ID for scenario output (default: nang_suat_thong_minh)
             skip_lipsync: if True, use static image + audio instead of lipsync (saves API costs)
@@ -62,15 +68,18 @@ class ContentPipeline:
         self.skip_lipsync = skip_lipsync
         self.skip_content = skip_content
 
-        # Load config
-        if config_path:
-            self.config = ContentPipelineConfig.load(config_path)
-        else:
-            self.config = ContentPipelineConfig(**config) if isinstance(config, dict) else config if config else ContentPipelineConfig(page={}, content={})
-
-        self.fb_page = self.config.page.get("facebook", {})
-        self.tiktok_account = self.config.page.get("tiktok", {})
-        self.auto_schedule = self.config.content.get("auto_schedule", True)
+        if config is None:
+            config = ContentPipelineConfig()
+        if not isinstance(config, ContentPipelineConfig):
+            raise TypeError(
+                f"ContentPipeline.__init__ expects a ContentPipelineConfig Pydantic model "
+                f"for config=, got {type(config).__name__}. "
+                f"Use ContentPipelineConfig() for defaults or ContentPipelineConfig.load(path) to load from file."
+            )
+        self.config = config
+        self.fb_page = self.config.page.facebook
+        self.tiktok_account = self.config.page.tiktok
+        self.auto_schedule = self.config.content.auto_schedule
 
         # Load channel config via ChannelConfig.load() with fallback to None
         try:
@@ -115,14 +124,13 @@ class ContentPipeline:
             niche_keywords=self.niche_keywords,
             project_id=project_id
         )
-        # Pass ChannelConfig as dict for ContentIdeaGenerator validation
-        channel_cfg_dict = validated_channel.model_dump() if validated_channel else None
+        # Pass ChannelConfig directly to ContentIdeaGenerator
         self.idea_gen = ContentIdeaGenerator(
             project_id=project_id,
             content_angle=self.content_angle,
             target_platform=self.target_platform,
             niche_keywords=self.niche_keywords,
-            channel_config=channel_cfg_dict,
+            channel_config=validated_channel,
             technical_config=self.technical_config,
         )
         self.calendar = ContentCalendar(project_id=project_id)
@@ -237,8 +245,8 @@ class ContentPipeline:
         if checkpoint_path.exists():
             try:
                 with open(checkpoint_path) as f:
-                    checkpoint = json.load(f)
-                last_idx = checkpoint.get("last_processed_idea_index", -1)
+                    checkpoint = CheckpointData.model_validate_json(f.read())
+                last_idx = checkpoint.last_processed_idea_index
                 if last_idx >= 0:
                     start_idea_index = last_idx + 1
                     logger.info(f"📍 Resume: found checkpoint, last processed idea index: {last_idx}, starting from {start_idea_index}")

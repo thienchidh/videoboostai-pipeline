@@ -74,13 +74,16 @@ class VideoPipelineRunner:
 
         self.timestamp = timestamp if timestamp is not None else int(time.time())
 
-        # Setup directories (runtime, not from config)
-        self.output_dir = PROJECT_ROOT / "output"
+        # Read output_dir and max_workers from config
+        self.output_dir = PROJECT_ROOT / (ctx.technical.storage.output_dir if ctx.technical.storage else "output")
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.run_dir = self.output_dir / ctx.channel_id / f"{ctx.scenario.slug}_{self.timestamp}"
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.media_dir = self.run_dir / "final"
         self.media_dir.mkdir(parents=True, exist_ok=True)
+
+        # Read max_workers from config
+        self.max_workers = ctx.technical.generation.parallel_scene_processing.max_workers
 
         # Configure database if database section is present in config
         db_cfg = ctx.technical.storage.database
@@ -199,9 +202,14 @@ class VideoPipelineRunner:
         if self._dry_run or self._dry_run_images:
             return mock_generate_image(prompt, output_path)
 
+        # Get aspect_ratio from channel config (required)
+        aspect_ratio = ctx.channel.video.aspect_ratio if ctx.channel.video else "9:16"
+        if not aspect_ratio:
+            raise ValueError("channel config video.aspect_ratio is required")
+
         # Primary provider
         try:
-            result = self.image_provider.generate(prompt, output_path, aspect_ratio="9:16")
+            result = self.image_provider.generate(prompt, output_path, aspect_ratio=aspect_ratio)
         except Exception as e:
             log(f"  ⚠️ Image provider raised: {type(e).__name__}: {e}")
             result = None
@@ -234,7 +242,7 @@ class VideoPipelineRunner:
                 fb_provider = fb_cls(api_key=self.ctx.technical.api_keys.wavespeed)
             log(f"  → Trying fallback provider: {fb_name}")
             try:
-                fb_result = fb_provider.generate(prompt, output_path, aspect_ratio="9:16")
+                fb_result = fb_provider.generate(prompt, output_path, aspect_ratio=aspect_ratio)
             except Exception as e:
                 log(f"  ⚠️ Fallback '{fb_name}' error: {type(e).__name__}: {e}")
                 fb_result = None
@@ -347,7 +355,7 @@ class VideoPipelineRunner:
 
             # Process scenes in parallel using ThreadPoolExecutor
             log(f"\n🔄 Processing {len(scenes)} scenes in parallel...")
-            with ThreadPoolExecutor(max_workers=4) as executor:
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                 futures = {}
                 for scene in scenes:
                     scene_id = scene.id or 0
@@ -455,8 +463,9 @@ class VideoPipelineRunner:
             log(f"{'='*60}")
 
             subtitle_cfg = self.ctx.channel.subtitle
+            sub_font_size = subtitle_cfg.font_size if subtitle_cfg and subtitle_cfg.font_size else 60
             add_subtitles(video_for_subtitles, full_script, combined_timestamps or None,
-                         str(subtitled_video), font_size=subtitle_cfg.font_size if subtitle_cfg else 60, run_dir=self.run_dir)
+                         str(subtitled_video), font_size=sub_font_size, run_dir=self.run_dir)
 
             # Add background music
             bg_music = self.ctx.channel.background_music

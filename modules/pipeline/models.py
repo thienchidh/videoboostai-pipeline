@@ -48,6 +48,7 @@ class GenerationLLM(BaseModel):
 class GenerationTTS(BaseModel):
     max_duration: float = 15.0
     min_duration: float = 5.0
+    words_per_second: float = 2.5
 
 
 class GenerationLipsync(BaseModel):
@@ -69,6 +70,10 @@ class GenerationSeeds(BaseModel):
     video: int = 12345
 
 
+class GenerationPipeline(BaseModel):
+    max_retries: int = 3
+
+
 class ParallelSceneConfig(BaseModel):
     enabled: bool = True
     max_workers: int = 3
@@ -81,6 +86,7 @@ class GenerationConfig(BaseModel):
     lipsync: GenerationLipsync
     seeds: GenerationSeeds
     parallel_scene_processing: ParallelSceneConfig = ParallelSceneConfig()
+    pipeline: GenerationPipeline = GenerationPipeline()
 
 
 class S3Config(BaseModel):
@@ -101,6 +107,7 @@ class DatabaseConfig(BaseModel):
 
 
 class StorageConfig(BaseModel):
+    output_dir: str = "output"
     s3: S3Config
     database: DatabaseConfig
 

@@ -204,7 +204,7 @@ class VideoPipelineRunner:
             return mock_generate_image(prompt, output_path)
 
         # Get aspect_ratio from channel config (required)
-        aspect_ratio = ctx.channel.video.aspect_ratio if ctx.channel.video else "9:16"
+        aspect_ratio = self.ctx.channel.video.aspect_ratio if self.ctx.channel.video else "9:16"
         if not aspect_ratio:
             raise ValueError("channel config video.aspect_ratio is required")
 
@@ -234,13 +234,14 @@ class VideoPipelineRunner:
             if not fb_cls:
                 log(f"  ⚠️ Fallback provider '{fb_name}' not registered")
                 continue
-            # Pick API key
+            # Pick API key + config for provider
+            fb_config = self.ctx.technical
             if fb_name == "minimax":
-                fb_provider = fb_cls(api_key=self.ctx.technical.api_keys.minimax)
+                fb_provider = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.minimax)
             elif fb_name == "kieai":
-                fb_provider = fb_cls(api_key=self.ctx.technical.api_keys.kie_ai)
+                fb_provider = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.kie_ai)
             else:
-                fb_provider = fb_cls(api_key=self.ctx.technical.api_keys.wavespeed)
+                fb_provider = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.wavespeed)
             log(f"  → Trying fallback provider: {fb_name}")
             try:
                 fb_result = fb_provider.generate(prompt, output_path, aspect_ratio=aspect_ratio)

@@ -177,6 +177,7 @@ class KieImageProvider(ImageProvider):
         self.api_key = api_key or (config.get("api.keys.kie_ai") if config else None)
         if not self.api_key:
             raise ConfigMissingKeyError("api.keys.kie_ai", "KieImageProvider")
+        # Use config values if present, otherwise use defaults
         self.timeout = config.get("generation.image.timeout") if config else 120
         self.poll_interval = config.get("generation.image.poll_interval") if config else 5
         self.max_polls = config.get("generation.image.max_polls") if config else 24
@@ -248,8 +249,10 @@ class KieImageProvider(ImageProvider):
     def _poll_task(self, task_id: str, interval: int = None,
                    max_wait: int = None) -> Optional[str]:
         """Poll task until success, return image URL or None."""
-        interval = interval or self.poll_interval
-        max_wait = max_wait or (self.max_polls * self.poll_interval)
+        poll_interval = self.poll_interval if self.poll_interval else 5
+        max_polls = self.max_polls if self.max_polls else 24
+        interval = interval or poll_interval
+        max_wait = max_wait or (max_polls * poll_interval)
         start = time.time()
         while time.time() - start < max_wait:
             try:

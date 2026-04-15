@@ -35,7 +35,9 @@ def _regenerate_script_with_llm(original_script: str, scene_id: int,
                                 wps: float = 2.5) -> str:
     """Regenerate script using MiniMax LLM to fit duration bounds.
 
-    Calculates real words-per-second from actual TTS output.
+    Uses configured wps (not derived from actual TTS output) to avoid the circular
+    trap: slow TTS → low derived wps → large target word count → LLM generates
+    terse script → fast TTS → still fails duration check.
 
     Args:
         original_script: The original TTS script that was too short/long
@@ -51,20 +53,21 @@ def _regenerate_script_with_llm(original_script: str, scene_id: int,
     """
     from modules.llm.minimax import MiniMaxLLMProvider
 
-    # Calculate real wps from actual TTS output
+    # Calculate target word count using configured wps (not derived from slow TTS output).
+    # Deriving real_wps from actual_duration is circular: slow TTS → low real_wps →
+    # large target_words → LLM generates short script → fast TTS → still too short.
+    # Use the configured wps which reflects expected human speaking rate.
     original_word_count = len(original_script.split())
-    real_wps = actual_duration / original_word_count if original_word_count > 0 else wps
-    
+    effective_wps = wps  # Use configured words-per-second as the target rate
+
     if actual_duration < min_duration:
         target_duration = (min_duration + max_duration) / 2  # Aim for middle
-        direction = "expand"
         issue = "too short"
     else:
         target_duration = max_duration * 0.9  # Aim for 90% of max
-        direction = "shorten"
         issue = "too long"
-    
-    target_words = int(target_duration / real_wps)  # Use real wps for accurate target
+
+    target_words = int(target_duration / effective_wps)
     
     system_prompt = f"""Bạn là một chuyên gia viết kịch bản video TikTok/Reels tiếng Việt.
 Nhiệm vụ: Viết lại kịch bản TTS cho một scene video.
@@ -192,8 +195,10 @@ class VideoPipelineV3:
                     if scene.id == e.scene_id:
                         old_tts = scene.tts
                         scene.tts = adjusted_script
+                        old_tts_preview = (old_tts[:50] + "...") if old_tts else "None"
+                        adjusted_preview = (adjusted_script[:50] + "...") if adjusted_script else "None"
                         log(f"  🔄 Scene {e.scene_id} script updated: "
-                            f"'{old_tts[:50]}...' → '{adjusted_script[:50]}...'")
+                            f"'{old_tts_preview}' → '{adjusted_preview}'")
                         updated = True
                         break
                 

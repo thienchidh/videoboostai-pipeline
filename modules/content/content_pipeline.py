@@ -302,8 +302,8 @@ class ContentPipeline:
                 logger.warning(f"Embedding dedup failed: {e}, using batch without dedup")
                 new_batch = batch_ideas
 
-            # Mark topics as tried
-            for t in batch_ideas:
+            # Mark topics as tried (use remaining_topics since batch_ideas is ideas, not topics)
+            for t in remaining_topics:
                 topics_tried.add(t.get("title", ""))
 
             ideas.extend(new_batch)
@@ -528,7 +528,7 @@ class ContentPipeline:
             return {"success": False, "error": f"Idea {idea_id} has no script"}
 
         # Generate captions for social posts
-        caption_gen = CaptionGenerator(use_llm=True)
+        caption_gen = CaptionGenerator()
         script_text = " ".join(
             s.get("tts", "") or s.get("script", "") for s in script_json.get("scenes", [])
         )

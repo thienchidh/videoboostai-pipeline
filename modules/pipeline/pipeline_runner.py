@@ -34,7 +34,8 @@ from modules.pipeline.scene_processor import SingleCharSceneProcessor
 # Import observer (lazy to avoid circular import)
 from modules.ops.pipeline_observer import PipelineObserver, register_run, update_run_progress
 
-# Import providers to trigger registration
+# Import providers to trigger PluginRegistry registration (side-effect).
+# Also needed by tests that reference pipeline_runner.MiniMaxMusicProvider etc.
 from modules.media.tts import MiniMaxTTSProvider, EdgeTTSProvider  # noqa: F401
 from modules.media.image_gen import MiniMaxImageProvider, WaveSpeedImageProvider, KieImageProvider  # noqa: F401
 from modules.media.lipsync import WaveSpeedLipsyncProvider, WaveSpeedMultiTalkProvider, KieAIInfinitalkProvider  # noqa: F401

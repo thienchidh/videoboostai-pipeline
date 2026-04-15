@@ -131,7 +131,7 @@ class ContentPipeline:
                 if last_idx >= 0:
                     start_idea_index = last_idx + 1
                     logger.info(f"📍 Resume: found checkpoint, last processed idea index: {last_idx}, starting from {start_idea_index}")
-            except Exception as e:
+            except (json.JSONDecodeError, IOError, ValueError) as e:
                 logger.warning(f"Could not load checkpoint: {e}")
 
         # Step 1: Get topics — from pending pool OR fresh research
@@ -181,7 +181,7 @@ class ContentPipeline:
                 new_batch = check_duplicate_ideas(batch_ideas, self.project_id)
                 skipped = len(batch_ideas) - len(new_batch)
                 logger.info(f"Step 2b: Dedup: {skipped} duplicates skipped, {len(new_batch)} new ideas")
-            except Exception as e:
+            except (RuntimeError, IOError) as e:
                 logger.warning(f"Embedding dedup failed: {e}, using batch without dedup")
                 new_batch = batch_ideas
 
@@ -226,7 +226,7 @@ class ContentPipeline:
                         title_en="",  # No translation needed with multilingual model
                         embedding=embedding,
                     )
-        except Exception as e:
+        except (RuntimeError, IOError) as e:
             logger.warning(f"Could not save embeddings: {e}")
 
         results["idea_ids"] = idea_ids
@@ -295,7 +295,7 @@ class ContentPipeline:
             try:
                 mark_topic_source_completed(source_id)
                 logger.info(f"  Topic source {source_id} marked as completed")
-            except Exception as e:
+            except (RuntimeError, IOError) as e:
                 logger.warning(f"Could not mark topic source completed: {e}")
 
         results["produced"] = produced
@@ -468,7 +468,7 @@ class ContentPipeline:
             }
 
         except Exception as e:
-            logger.error(f"Pipeline error: {e}")
+            logger.error(f"Pipeline error: {e}", exc_info=True)
             return {"success": False, "error": str(e) if e else "unknown error"}
 
     def produce_due_items(self, platform: str = None) -> List[Dict]:
@@ -552,8 +552,8 @@ class ContentPipeline:
                 page_access_token=self.fb_page.get("access_token")
             )
             return post_result
-        except Exception as e:
-            logger.error(f"Facebook upload failed: {e}")
+        except (RuntimeError, IOError) as e:
+            logger.error(f"Facebook upload failed: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     def _upload_tiktok(self, video_path: str, idea_id: int = None, caption: str = None) -> Dict:
@@ -576,8 +576,8 @@ class ContentPipeline:
                 account_id=account_id
             )
             return post_result
-        except Exception as e:
-            logger.error(f"TikTok upload failed: {e}")
+        except (RuntimeError, IOError) as e:
+            logger.error(f"TikTok upload failed: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
 

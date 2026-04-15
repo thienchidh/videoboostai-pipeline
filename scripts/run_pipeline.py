@@ -28,12 +28,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.video_utils import log
 
-# Global flags for video pipeline (set these before calling run_* functions)
-DRY_RUN = False
-DRY_RUN_TTS = False
-DRY_RUN_IMAGES = False
-UPLOAD_TO_SOCIALS = False
-USE_STATIC_LIPSYNC = False
+# Re-export flags from video_pipeline_v3 (the canonical source)
+from scripts.video_pipeline_v3 import DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, USE_STATIC_LIPSYNC, UPLOAD_TO_SOCIALS
 
 # Load log level from TechnicalConfig
 _log_cfg = None

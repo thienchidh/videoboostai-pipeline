@@ -7,23 +7,6 @@ class PipelineError(Exception):
 
 
 class ConfigMissingKeyError(PipelineError):
-    """Raised when required config key is missing."""
-
-    def __init__(self, key_path: str, provider: str = None):
-        self.key_path = key_path
-        self.provider = provider
-        msg = f"Required config key missing: '{key_path}'"
-        if provider:
-            msg += f" (required by {provider})"
-        super().__init__(msg)
-
-
-class MissingConfigError(Exception):
-    """Raised when a required configuration key is missing."""
-    pass
-
-
-class ConfigMissingKeyError(MissingConfigError):
     """Raised when required config key is missing.
 
     Attributes:
@@ -40,9 +23,14 @@ class ConfigMissingKeyError(MissingConfigError):
         super().__init__(msg)
 
 
+class MissingConfigError(Exception):
+    """Raised when a required configuration key is missing."""
+    pass
+
+
 class SceneDurationError(Exception):
     """Raised when scene TTS duration is outside allowed bounds.
-    
+
     Attributes:
         scene_id: ID of the scene
         actual_duration: Actual TTS duration in seconds
@@ -58,7 +46,7 @@ class SceneDurationError(Exception):
         self.min_duration = min_duration
         self.max_duration = max_duration
         self.script = script
-        
+
         if actual_duration < min_duration:
             msg = (f"Scene {scene_id} TTS too short: {actual_duration:.1f}s "
                    f"(min: {min_duration:.1f}s)")

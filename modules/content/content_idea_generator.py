@@ -28,8 +28,8 @@ class ContentIdeaGenerator:
 
     def __init__(self, project_id: int = None, target_platform: str = "both",
                  content_angle: str = "tips", niche_keywords: List[str] = None,
-                 llm_config: Optional[Dict] = None,
-                 channel_config: Optional[Dict] = None,
+                 llm_config: Optional["GenerationLLM"] = None,
+                 channel_config: Optional[ChannelConfig] = None,
                  technical_config: TechnicalConfig = None):
         """
         Args:
@@ -37,49 +37,32 @@ class ContentIdeaGenerator:
             target_platform: 'facebook', 'tiktok', or 'both'
             content_angle: 'tips', 'educational', 'motivational', 'story'
             niche_keywords: list of niche keywords
-            llm_config: Optional dict with 'provider', 'model', 'api_key' keys.
-                         If None, resolves from config automatically.
-            channel_config: Optional channel config dict. If provided, validated
-                           via Pydantic ChannelConfig — missing required fields
-                           raise ValidationError.
-            technical_config: Optional TechnicalConfig for LLM settings.
-                              If provided, reads generation.llm.* from it.
+            llm_config: GenerationLLM Pydantic model. If provided, used directly.
+                        If not, reads from technical_config.generation.llm.
+            channel_config: ChannelConfig Pydantic model. Required for script generation.
+            technical_config: TechnicalConfig Pydantic model. Used to resolve api_key
+                              if llm_config is not provided.
         """
+        from modules.pipeline.models import GenerationLLM
+
         self.project_id = project_id
         self.target_platform = target_platform
         self.content_angle = content_angle
         self.niche_keywords = niche_keywords or []
-        self._llm_config = llm_config or {}
-        self._technical_config = technical_config
 
-        # Read LLM settings from technical config (strict mode - raise if missing)
-        if technical_config:
-            model = technical_config.generation.llm.model
-            if not model:
-                raise ConfigMissingKeyError("generation.llm.model", "ContentIdeaGenerator")
-            self._llm_config["model"] = model
-
-            max_tokens = technical_config.generation.llm.max_tokens
-            if max_tokens is None:
-                raise ConfigMissingKeyError("generation.llm.max_tokens", "ContentIdeaGenerator")
-            self._llm_config["max_tokens"] = max_tokens
-
-            retry_attempts = technical_config.generation.llm.retry_attempts
-            if retry_attempts is None:
-                raise ConfigMissingKeyError("generation.llm.retry_attempts", "ContentIdeaGenerator")
-            self._llm_config["retry_attempts"] = retry_attempts
-
-            retry_backoff_max = technical_config.generation.llm.retry_backoff_max
-            if retry_backoff_max is None:
-                raise ConfigMissingKeyError("generation.llm.retry_backoff_max", "ContentIdeaGenerator")
-            self._llm_config["retry_backoff_max"] = retry_backoff_max
-
-        # Validate channel config with Pydantic — raise on missing required fields
-        if channel_config:
-            validated = ChannelConfig(**channel_config)
-            self._channel_config = validated
+        # Resolve llm_config: prefer explicit param, fall back to technical_config
+        if llm_config is not None:
+            if not isinstance(llm_config, GenerationLLM):
+                raise TypeError(f"llm_config must be a GenerationLLM Pydantic model, got {type(llm_config).__name__}")
+            self._llm = llm_config
+        elif technical_config is not None:
+            self._llm = technical_config.generation.llm
         else:
-            self._channel_config = None
+            # Neither provided — defer to per-scene TechnicalConfig.load() (lazy)
+            self._llm = None
+
+        # Store channel config (already validated by caller)
+        self._channel_config = channel_config
 
     def generate_ideas_from_topics(self, topics: List[Dict], count: int = 5) -> List[Dict]:
         """Generate content ideas from researched topics."""
@@ -136,29 +119,31 @@ class ContentIdeaGenerator:
         """
         from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 
-        api_key = self._llm_config.get("api_key", "")
+        from modules.pipeline.models import TechnicalConfig
+
+        # Resolve api_key — from technical_config if not provided via GenerationLLM (it doesn't have api_key)
+        if not self._llm or not self._llm.model:
+            raise ConfigMissingKeyError("generation.llm.model", "ContentIdeaGenerator")
+        tech_cfg = technical_config if technical_config else TechnicalConfig.load()
+        api_key = tech_cfg.api_keys.minimax
         if not api_key:
-            # Read minimax key from technical config
-            from modules.pipeline.models import TechnicalConfig
-            api_key = TechnicalConfig.load().api_keys.minimax
-            if not api_key:
-                raise RuntimeError("minimax API key not found in config")
+            raise RuntimeError("minimax API key not found in config")
 
         llm = get_llm_provider(
-            name=self._llm_config.get("provider", "minimax"),
+            name=self._llm.provider if self._llm else "minimax",
             api_key=api_key,
-            model=self._llm_config.get("model", "MiniMax-M2.7"),
+            model=self._llm.model if self._llm else "MiniMax-M2.7",
         )
         prompt = self._build_scene_prompt(title, keywords, angle, description, num_scenes)
 
         @retry(
-            stop=stop_after_attempt(self._llm_config.get("retry_attempts", 3)),
-            wait=wait_exponential(multiplier=1, min=1, max=self._llm_config.get("retry_backoff_max", 10)),
+            stop=stop_after_attempt(self._llm.retry_attempts if self._llm else 3),
+            wait=wait_exponential(multiplier=1, min=1, max=self._llm.retry_backoff_max if self._llm else 10),
             before_sleep=before_sleep_log(logger, logging.WARNING),
             reraise=True,
         )
         def _call_llm():
-            text = llm.chat(prompt, max_tokens=self._llm_config.get("max_tokens", 1536))
+            text = llm.chat(prompt, max_tokens=self._llm.max_tokens if self._llm else 1536)
             scenes = self._parse_scenes(text)
             if not scenes:
                 raise ValueError("Invalid scene format")

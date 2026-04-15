@@ -7,86 +7,16 @@ read hardcoded values from TechnicalConfig instead of using defaults.
 import pytest
 from unittest.mock import MagicMock, patch
 from datetime import time
+from pydantic import ValidationError
 
 
 class TestContentIdeaGeneratorConfig:
     """Test ContentIdeaGenerator reads LLM config from TechnicalConfig."""
 
-    def test_raises_error_when_llm_model_missing(self):
-        """ContentIdeaGenerator should raise ConfigMissingKeyError when generation.llm.model is missing."""
-        from modules.content.content_idea_generator import ContentIdeaGenerator
-        from modules.pipeline.exceptions import ConfigMissingKeyError
-
-        mock_config = MagicMock()
-        mock_config.generation.llm.model = None
-        mock_config.generation.llm.max_tokens = 1536
-        mock_config.generation.llm.retry_attempts = 3
-        mock_config.generation.llm.retry_backoff_max = 10
-
-        with pytest.raises(ConfigMissingKeyError) as exc_info:
-            ContentIdeaGenerator(
-                project_id=1,
-                technical_config=mock_config,
-            )
-        assert "generation.llm.model" in str(exc_info.value)
-
-    def test_raises_error_when_max_tokens_missing(self):
-        """ContentIdeaGenerator should raise ConfigMissingKeyError when generation.llm.max_tokens is missing."""
-        from modules.content.content_idea_generator import ContentIdeaGenerator
-        from modules.pipeline.exceptions import ConfigMissingKeyError
-
-        mock_config = MagicMock()
-        mock_config.generation.llm.model = "MiniMax-M2.7"
-        mock_config.generation.llm.max_tokens = None
-        mock_config.generation.llm.retry_attempts = 3
-        mock_config.generation.llm.retry_backoff_max = 10
-
-        with pytest.raises(ConfigMissingKeyError) as exc_info:
-            ContentIdeaGenerator(
-                project_id=1,
-                technical_config=mock_config,
-            )
-        assert "generation.llm.max_tokens" in str(exc_info.value)
-
-    def test_raises_error_when_retry_attempts_missing(self):
-        """ContentIdeaGenerator should raise ConfigMissingKeyError when generation.llm.retry_attempts is missing."""
-        from modules.content.content_idea_generator import ContentIdeaGenerator
-        from modules.pipeline.exceptions import ConfigMissingKeyError
-
-        mock_config = MagicMock()
-        mock_config.generation.llm.model = "MiniMax-M2.7"
-        mock_config.generation.llm.max_tokens = 1536
-        mock_config.generation.llm.retry_attempts = None
-        mock_config.generation.llm.retry_backoff_max = 10
-
-        with pytest.raises(ConfigMissingKeyError) as exc_info:
-            ContentIdeaGenerator(
-                project_id=1,
-                technical_config=mock_config,
-            )
-        assert "generation.llm.retry_attempts" in str(exc_info.value)
-
-    def test_raises_error_when_retry_backoff_max_missing(self):
-        """ContentIdeaGenerator should raise ConfigMissingKeyError when generation.llm.retry_backoff_max is missing."""
-        from modules.content.content_idea_generator import ContentIdeaGenerator
-        from modules.pipeline.exceptions import ConfigMissingKeyError
-
-        mock_config = MagicMock()
-        mock_config.generation.llm.model = "MiniMax-M2.7"
-        mock_config.generation.llm.max_tokens = 1536
-        mock_config.generation.llm.retry_attempts = 3
-        mock_config.generation.llm.retry_backoff_max = None
-
-        with pytest.raises(ConfigMissingKeyError) as exc_info:
-            ContentIdeaGenerator(
-                project_id=1,
-                technical_config=mock_config,
-            )
-        assert "generation.llm.retry_backoff_max" in str(exc_info.value)
-
     def test_uses_config_model_and_tokens(self):
         """ContentIdeaGenerator should read model, max_tokens, retry_attempts from config."""
         from modules.content.content_idea_generator import ContentIdeaGenerator
+        from modules.pipeline.models import GenerationLLM
 
         mock_config = MagicMock()
         mock_config.generation.llm.model = "custom-llm-model"
@@ -99,10 +29,33 @@ class TestContentIdeaGeneratorConfig:
             technical_config=mock_config,
         )
 
-        assert gen._llm_config.get("model") == "custom-llm-model"
-        assert gen._llm_config.get("max_tokens") == 2048
-        assert gen._llm_config.get("retry_attempts") == 5
-        assert gen._llm_config.get("retry_backoff_max") == 15
+        # _llm is now a GenerationLLM Pydantic model, not a dict
+        assert gen._llm.model == "custom-llm-model"
+        assert gen._llm.max_tokens == 2048
+        assert gen._llm.retry_attempts == 5
+        assert gen._llm.retry_backoff_max == 15
+
+    def test_uses_direct_llm_config(self):
+        """ContentIdeaGenerator should accept GenerationLLM directly for _llm parameter."""
+        from modules.content.content_idea_generator import ContentIdeaGenerator
+        from modules.pipeline.models import GenerationLLM
+
+        llm_config = GenerationLLM(
+            provider="minimax",
+            model="direct-llm-model",
+            max_tokens=4096,
+            retry_attempts=7,
+            retry_backoff_max=30,
+        )
+
+        gen = ContentIdeaGenerator(
+            project_id=1,
+            llm_config=llm_config,
+        )
+
+        assert gen._llm.model == "direct-llm-model"
+        assert gen._llm.max_tokens == 4096
+        assert gen._llm.retry_attempts == 7
 
 
 class TestContentPipelineConfig:
@@ -111,7 +64,7 @@ class TestContentPipelineConfig:
     def test_uses_config_scene_count(self):
         """ContentPipeline should read generation.content.scene_count from config."""
         from modules.content.content_pipeline import ContentPipeline
-        from modules.pipeline.models import ContentPipelineConfig
+        from modules.pipeline.models import ContentPipelineConfig, GenerationContent
 
         mock_tech_config = MagicMock()
         mock_tech_config.generation.content.scene_count = 5

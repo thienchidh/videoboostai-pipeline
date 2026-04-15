@@ -23,6 +23,7 @@ class TestContentPipelineReResearch:
     def test_research_phase_returns_success_with_valid_topics(self, tmp_path):
         """run_research_phase() should return success when valid topics are found."""
         from modules.content.content_pipeline import ContentPipeline
+        from modules.pipeline.models import ContentPipelineConfig
         from unittest.mock import MagicMock, patch
 
         mock_researcher = MagicMock()
@@ -53,6 +54,12 @@ class TestContentPipelineReResearch:
         mock_research_cfg.pending_pool_size = 5
         mock_channel.research = mock_research_cfg
 
+        # Use real ContentPipelineConfig - no need to patch it
+        cfg = ContentPipelineConfig(
+            page={},
+            content={}
+        )
+
         with \
             patch("modules.content.content_pipeline.TopicResearcher", return_value=mock_researcher), \
             patch("modules.content.content_pipeline.ContentIdeaGenerator", return_value=mock_idea_gen), \
@@ -60,8 +67,6 @@ class TestContentPipelineReResearch:
             patch("modules.content.content_pipeline.CaptionGenerator", return_value=MagicMock()), \
             patch("modules.content.content_pipeline.PROJECT_ROOT", tmp_path), \
             patch("modules.pipeline.models.ChannelConfig.load", return_value=mock_channel), \
-            patch("modules.content.content_pipeline.ContentPipelineConfig",
-                  return_value=MagicMock(page={}, content={})), \
             patch("db.acquire_research_lock", return_value=True), \
             patch("db.release_research_lock"), \
             patch("db.is_research_locked", return_value=False), \
@@ -69,7 +74,7 @@ class TestContentPipelineReResearch:
             patch("modules.content.content_pipeline.ContentPipeline.should_trigger_research", return_value=True):
 
             from modules.content.content_pipeline import ContentPipeline
-            pipeline = ContentPipeline(project_id=1, config={}, channel_id="test", dry_run=True)
+            pipeline = ContentPipeline(project_id=1, config=cfg, channel_id="test", dry_run=True)
             result = pipeline.run_research_phase()
 
         assert result.get("status") == "success", f"Expected success, got {result.get('status')}"
@@ -179,12 +184,14 @@ def test_check_duplicate_saves_dupe_idea_with_embedding(mock_get_model):
 @patch("modules.content.content_pipeline.ContentIdeaGenerator")
 def test_research_fails_fast_on_api_exhaustion(mock_idea_gen, mock_topic_researcher):
     from modules.content.content_pipeline import ContentPipeline
+    from modules.pipeline.models import ContentPipelineConfig
 
     mock_researcher = MagicMock()
     mock_researcher.research_from_keywords.return_value = []
     mock_topic_researcher.return_value = mock_researcher
 
-    pipeline = ContentPipeline(project_id=1, dry_run=True, channel_id="test_channel")
+    cfg = ContentPipelineConfig(page={}, content={})
+    pipeline = ContentPipeline(project_id=1, dry_run=True, channel_id="test_channel", config=cfg)
     results = pipeline.run_research_phase()
     assert results.get("status") == "research_failed"
 
@@ -193,6 +200,7 @@ def test_research_fails_fast_on_api_exhaustion(mock_idea_gen, mock_topic_researc
 @patch("modules.content.content_pipeline.ContentIdeaGenerator")
 def test_pending_pool_threshold_skips_research(mock_idea_gen, mock_topic_researcher):
     from modules.content.content_pipeline import ContentPipeline
+    from modules.pipeline.models import ContentPipelineConfig
 
     mock_researcher = MagicMock()
     mock_researcher.research_from_keywords.return_value = [
@@ -206,7 +214,8 @@ def test_pending_pool_threshold_skips_research(mock_idea_gen, mock_topic_researc
     ]
     mock_idea_gen.return_value = mock_ig
 
-    pipeline = ContentPipeline(project_id=1, dry_run=True, channel_id="test_channel")
+    cfg = ContentPipelineConfig(page={}, content={})
+    pipeline = ContentPipeline(project_id=1, dry_run=True, channel_id="test_channel", config=cfg)
 
     with patch("modules.content.content_pipeline.ContentPipeline.should_trigger_research", return_value=True):
         with patch("db.is_research_locked", return_value=False):

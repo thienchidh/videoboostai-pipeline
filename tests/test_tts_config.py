@@ -1,8 +1,7 @@
 """
 tests/test_tts_config.py — Tests for TTS config loading
 
-Verifies TTS providers read all settings from config and raise
-ConfigMissingKeyError when required keys are missing.
+Verifies TTS providers read all settings from TechnicalConfig Pydantic model.
 """
 
 import pytest
@@ -11,7 +10,58 @@ import tempfile
 from pathlib import Path
 
 from modules.media.tts import MiniMaxTTSProvider, EdgeTTSProvider, get_whisper_timestamps
-from modules.pipeline.exceptions import ConfigMissingKeyError
+from modules.pipeline.models import (
+    TechnicalConfig, GenerationTTS, GenerationLLM, GenerationImage,
+    GenerationLipsync, GenerationSeeds, APIKeys, APIURLs, GenerationModels,
+    GenerationConfig, StorageConfig, S3Config, DatabaseConfig
+)
+
+
+def make_tech_config(overrides=None):
+    """Create a valid TechnicalConfig for testing."""
+    storage = StorageConfig(
+        s3=S3Config(
+            endpoint="https://s3.example.com",
+            access_key="key",
+            secret_key="secret",
+            bucket="bucket",
+            public_url_base="https://s3.example.com/public"
+        ),
+        database=DatabaseConfig()
+    )
+    defaults = {
+        "api_keys": APIKeys(wavespeed="", minimax="test-key", kie_ai="", you_search=""),
+        "api_urls": APIURLs(
+            wavespeed="",
+            minimax_tts="https://api.minimax.io/v1/t2a_v2",
+            minimax_image="",
+            kie_ai="",
+            tiktok="",
+            facebook_graph=""
+        ),
+        "models": GenerationModels(tts="speech-2.1-hd"),
+        "generation": GenerationConfig(
+            llm=GenerationLLM(),
+            tts=GenerationTTS(
+                model="speech-2.1-hd",
+                sample_rate=32000,
+                timeout=60,
+                max_duration=15.0,
+                min_duration=5.0,
+                words_per_second=2.5,
+                bitrate=128000,
+                format="mp3",
+                channel=1,
+            ),
+            image=GenerationImage(),
+            lipsync=GenerationLipsync(),
+            seeds=GenerationSeeds(),
+        ),
+        "storage": storage,
+    }
+    if overrides:
+        defaults.update(overrides)
+    return TechnicalConfig(**defaults)
 
 
 class TestMiniMaxTTSConfig:
@@ -19,162 +69,123 @@ class TestMiniMaxTTSConfig:
 
     def test_uses_config_url(self):
         """MiniMaxTTSProvider should read base_url from config."""
-        mock_config = MagicMock()
-        mock_config.get.side_effect = lambda key: {
-            "api.urls.minimax_tts": "https://custom.api.minimax.io/v1/t2a_v2",
-            "api.keys.minimax": "test-key",
-            "generation.tts.model": "speech-2.8-hd",
-            "generation.tts.timeout": 60,
-            "generation.tts.sample_rate": 32000,
-            "generation.tts.bitrate": 128000,
-            "generation.tts.format": "mp3",
-            "generation.tts.channel": 1,
-        }.get(key)
-
-        provider = MiniMaxTTSProvider(mock_config)
+        tech_config = make_tech_config({
+            "api_urls": APIURLs(
+                wavespeed="",
+                minimax_tts="https://custom.api.minimax.io/v1/t2a_v2",
+                minimax_image="",
+                kie_ai="",
+                tiktok="",
+                facebook_graph=""
+            ),
+        })
+        provider = MiniMaxTTSProvider(tech_config)
         assert provider.base_url == "https://custom.api.minimax.io/v1/t2a_v2"
 
     def test_uses_config_model(self):
         """MiniMaxTTSProvider should read model from config."""
-        mock_config = MagicMock()
-        mock_config.get.side_effect = lambda key: {
-            "api.urls.minimax_tts": "https://api.minimax.io/v1/t2a_v2",
-            "api.keys.minimax": "test-key",
-            "generation.tts.model": "speech-2.1-hd",
-            "generation.tts.timeout": 60,
-            "generation.tts.sample_rate": 32000,
-            "generation.tts.bitrate": 128000,
-            "generation.tts.format": "mp3",
-            "generation.tts.channel": 1,
-        }.get(key)
-
-        provider = MiniMaxTTSProvider(mock_config)
-        assert provider.model == "speech-2.1-hd"
+        tech_config = make_tech_config({
+            "generation": GenerationConfig(
+                llm=GenerationLLM(),
+                tts=GenerationTTS(
+                    model="speech-2.8-hd",
+                    sample_rate=32000,
+                    timeout=60,
+                    max_duration=15.0,
+                    min_duration=5.0,
+                    words_per_second=2.5,
+                    bitrate=128000,
+                    format="mp3",
+                    channel=1,
+                ),
+                image=GenerationImage(),
+                lipsync=GenerationLipsync(),
+                seeds=GenerationSeeds(),
+            ),
+        })
+        provider = MiniMaxTTSProvider(tech_config)
+        assert provider.model == "speech-2.8-hd"
 
     def test_uses_config_timeout(self):
         """MiniMaxTTSProvider should read timeout from config."""
-        mock_config = MagicMock()
-        mock_config.get.side_effect = lambda key: {
-            "api.urls.minimax_tts": "https://api.minimax.io/v1/t2a_v2",
-            "api.keys.minimax": "test-key",
-            "generation.tts.model": "speech-2.8-hd",
-            "generation.tts.timeout": 120,
-            "generation.tts.sample_rate": 32000,
-            "generation.tts.bitrate": 128000,
-            "generation.tts.format": "mp3",
-            "generation.tts.channel": 1,
-        }.get(key)
-
-        provider = MiniMaxTTSProvider(mock_config)
+        tech_config = make_tech_config({
+            "generation": GenerationConfig(
+                llm=GenerationLLM(),
+                tts=GenerationTTS(
+                    model="speech-2.8-hd",
+                    sample_rate=32000,
+                    timeout=120,
+                    max_duration=15.0,
+                    min_duration=5.0,
+                    words_per_second=2.5,
+                    bitrate=128000,
+                    format="mp3",
+                    channel=1,
+                ),
+                image=GenerationImage(),
+                lipsync=GenerationLipsync(),
+                seeds=GenerationSeeds(),
+            ),
+        })
+        provider = MiniMaxTTSProvider(tech_config)
         assert provider.timeout == 120
 
     def test_uses_config_audio_settings(self):
         """TTS audio settings should come from config."""
-        mock_config = MagicMock()
-        mock_config.get.side_effect = lambda key: {
-            "api.urls.minimax_tts": "https://api.minimax.io/v1/t2a_v2",
-            "api.keys.minimax": "test-key",
-            "generation.tts.model": "speech-2.8-hd",
-            "generation.tts.timeout": 60,
-            "generation.tts.sample_rate": 48000,
-            "generation.tts.bitrate": 256000,
-            "generation.tts.format": "mp3",
-            "generation.tts.channel": 2,
-        }.get(key)
-
-        provider = MiniMaxTTSProvider(mock_config)
+        tech_config = make_tech_config({
+            "generation": GenerationConfig(
+                llm=GenerationLLM(),
+                tts=GenerationTTS(
+                    model="speech-2.8-hd",
+                    sample_rate=48000,
+                    timeout=60,
+                    max_duration=15.0,
+                    min_duration=5.0,
+                    words_per_second=2.5,
+                    bitrate=256000,
+                    format="mp3",
+                    channel=2,
+                ),
+                image=GenerationImage(),
+                lipsync=GenerationLipsync(),
+                seeds=GenerationSeeds(),
+            ),
+        })
+        provider = MiniMaxTTSProvider(tech_config)
         assert provider.sample_rate == 48000
         assert provider.bitrate == 256000
         assert provider.format == "mp3"
         assert provider.channel == 2
 
-    def test_raises_error_when_url_missing(self):
-        """Should raise ConfigMissingKeyError when api.urls.minimax_tts is missing."""
+    def test_rejects_non_technical_config(self):
+        """MiniMaxTTSProvider should raise TypeError when passed MagicMock instead of TechnicalConfig."""
         mock_config = MagicMock()
-        mock_config.get.return_value = None
-
-        with pytest.raises(ConfigMissingKeyError) as exc_info:
+        with pytest.raises(TypeError) as exc_info:
             MiniMaxTTSProvider(mock_config)
-        assert "api.urls.minimax_tts" in str(exc_info.value)
-
-    def test_raises_error_when_api_key_missing(self):
-        """Should raise ConfigMissingKeyError when api.keys.minimax is missing."""
-        mock_config = MagicMock()
-        mock_config.get.side_effect = lambda key: {
-            "api.urls.minimax_tts": "https://api.minimax.io/v1/t2a_v2",
-        }.get(key)
-
-        with pytest.raises(ConfigMissingKeyError) as exc_info:
-            MiniMaxTTSProvider(mock_config)
-        assert "api.keys.minimax" in str(exc_info.value)
-
-    def test_raises_error_when_model_missing(self):
-        """Should raise ConfigMissingKeyError when generation.tts.model is missing."""
-        mock_config = MagicMock()
-        mock_config.get.side_effect = lambda key: {
-            "api.urls.minimax_tts": "https://api.minimax.io/v1/t2a_v2",
-            "api.keys.minimax": "test-key",
-            "generation.tts.timeout": 60,
-            "generation.tts.sample_rate": 32000,
-            "generation.tts.bitrate": 128000,
-            "generation.tts.format": "mp3",
-            "generation.tts.channel": 1,
-        }.get(key)
-
-        with pytest.raises(ConfigMissingKeyError) as exc_info:
-            MiniMaxTTSProvider(mock_config)
-        assert "generation.tts.model" in str(exc_info.value)
-
-    def test_raises_error_when_sample_rate_missing(self):
-        """Should raise ConfigMissingKeyError when generation.tts.sample_rate is missing."""
-        mock_config = MagicMock()
-        mock_config.get.side_effect = lambda key: {
-            "api.urls.minimax_tts": "https://api.minimax.io/v1/t2a_v2",
-            "api.keys.minimax": "test-key",
-            "generation.tts.model": "speech-2.8-hd",
-            "generation.tts.timeout": 60,
-            "generation.tts.bitrate": 128000,
-            "generation.tts.format": "mp3",
-            "generation.tts.channel": 1,
-        }.get(key)
-
-        with pytest.raises(ConfigMissingKeyError) as exc_info:
-            MiniMaxTTSProvider(mock_config)
-        assert "generation.tts.sample_rate" in str(exc_info.value)
+        assert "TechnicalConfig Pydantic model" in str(exc_info.value)
 
     def test_uses_config_temp_dir(self):
         """Should use storage.temp_dir for temp file paths when configured."""
-        mock_config = MagicMock()
-        mock_config.get.side_effect = lambda key: {
-            "api.urls.minimax_tts": "https://api.minimax.io/v1/t2a_v2",
-            "api.keys.minimax": "test-key",
-            "generation.tts.model": "speech-2.8-hd",
-            "generation.tts.timeout": 60,
-            "generation.tts.sample_rate": 32000,
-            "generation.tts.bitrate": 128000,
-            "generation.tts.format": "mp3",
-            "generation.tts.channel": 1,
-            "storage.temp_dir": "/custom/temp",
-        }.get(key)
-
-        provider = MiniMaxTTSProvider(mock_config)
+        tech_config = make_tech_config({
+            "storage": StorageConfig(
+                temp_dir="/custom/temp",
+                s3=S3Config(
+                    endpoint="https://s3.example.com",
+                    access_key="key",
+                    secret_key="secret",
+                    bucket="bucket",
+                    public_url_base="https://s3.example.com/public"
+                ),
+                database=DatabaseConfig()
+            ),
+        })
+        provider = MiniMaxTTSProvider(tech_config)
         path = provider._get_temp_path("tts_minimax")
         assert path.startswith("/custom/temp")
 
 
 class TestEdgeTTSConfig:
     """Tests for EdgeTTSProvider config loading."""
-
-    def test_raises_error_when_model_missing_from_config(self):
-        """Should raise ConfigMissingKeyError when generation.tts.model is missing."""
-        mock_config = MagicMock()
-        mock_config.get.side_effect = lambda key: {
-            "generation.tts.timeout": 60,
-        }.get(key)
-
-        with pytest.raises(ConfigMissingKeyError) as exc_info:
-            EdgeTTSProvider(mock_config)
-        assert "generation.tts.model" in str(exc_info.value)
 
     def test_works_without_config(self):
         """EdgeTTSProvider should work without config (backward compat)."""
@@ -216,10 +227,26 @@ class TestGetWhisperTimestamps:
 
     def test_timeout_from_config(self):
         """Should use word_timestamp_timeout from config."""
-        mock_config = MagicMock()
-        mock_config.get.side_effect = lambda key: {
-            "generation.tts.word_timestamp_timeout": 180,
-        }.get(key)
+        tech_config = make_tech_config({
+            "generation": GenerationConfig(
+                llm=GenerationLLM(),
+                tts=GenerationTTS(
+                    model="speech-2.8-hd",
+                    sample_rate=32000,
+                    timeout=60,
+                    max_duration=15.0,
+                    min_duration=5.0,
+                    words_per_second=2.5,
+                    bitrate=128000,
+                    format="mp3",
+                    channel=1,
+                    word_timestamp_timeout=180,
+                ),
+                image=GenerationImage(),
+                lipsync=GenerationLipsync(),
+                seeds=GenerationSeeds(),
+            ),
+        })
 
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
@@ -227,15 +254,13 @@ class TestGetWhisperTimestamps:
                 with patch("pathlib.Path.mkdir"):
                     with patch("builtins.open", MagicMock()):
                         with patch("json.load", return_value={"segments": []}):
-                            result = get_whisper_timestamps("/fake/audio.mp3", config=mock_config)
-                            # Should have been called with timeout=180
+                            result = get_whisper_timestamps("/fake/audio.mp3", config=tech_config)
                             call_kwargs = mock_run.call_args[1]
                             assert call_kwargs["timeout"] == 180
 
     def test_default_timeout_when_config_missing(self):
         """Should use default timeout of 120 when config doesn't have word_timestamp_timeout."""
-        mock_config = MagicMock()
-        mock_config.get.return_value = None
+        tech_config = make_tech_config()
 
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
@@ -243,6 +268,6 @@ class TestGetWhisperTimestamps:
                 with patch("pathlib.Path.mkdir"):
                     with patch("builtins.open", MagicMock()):
                         with patch("json.load", return_value={"segments": []}):
-                            result = get_whisper_timestamps("/fake/audio.mp3", config=mock_config)
+                            result = get_whisper_timestamps("/fake/audio.mp3", config=tech_config)
                             call_kwargs = mock_run.call_args[1]
                             assert call_kwargs["timeout"] == 120

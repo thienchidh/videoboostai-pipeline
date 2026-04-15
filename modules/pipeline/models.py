@@ -48,9 +48,16 @@ class GenerationLLM(BaseModel):
 
 
 class GenerationTTS(BaseModel):
+    model: str = "speech-2.1-hd"
+    sample_rate: int = 32000
+    timeout: int = 60
     max_duration: float = 15.0
     min_duration: float = 5.0
     words_per_second: float = 2.5
+    bitrate: int = 128000
+    format: str = "mp3"
+    channel: int = 1
+    word_timestamp_timeout: int = 120
 
 
 class GenerationLipsync(BaseModel):
@@ -65,6 +72,9 @@ class GenerationImage(BaseModel):
     fallback_providers: list[str] = []
     aspect_ratio: str = "9:16"
     timeout: int = 120
+    model: str = "image-01"
+    poll_interval: int = 5
+    max_polls: int = 24
 
 
 class GenerationSeeds(BaseModel):
@@ -122,6 +132,7 @@ class DatabaseConfig(BaseModel):
 
 class StorageConfig(BaseModel):
     output_dir: str = "output"
+    temp_dir: Optional[str] = None
     s3: S3Config
     database: DatabaseConfig
 

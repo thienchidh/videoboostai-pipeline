@@ -65,6 +65,9 @@ class GenerationLipsync(BaseModel):
     prompt: str = "A person talking"
     resolution: str = "480p"
     max_wait: int = 300
+    poll_interval: int = 10
+    retries: int = 2
+    seed: Optional[int] = None
 
 
 class GenerationImage(BaseModel):

@@ -44,13 +44,27 @@ def make_mock_channel(characters=None, tts_config=None, image_style=None, voices
     mock_channel.image_style = img_style
     mock_channel.voices = voices or []
 
-    # Technical config with generation.tts
+    # Channel generation config
+    mock_channel_generation = MagicMock()
+    mock_channel_generation.models = MagicMock()
+    mock_channel_generation.models.tts = "edge"
+    mock_channel_generation.models.image = "kieai"
+    mock_channel_generation.models.video = "kieai"
+    mock_channel_generation.lipsync = MagicMock()
+    mock_channel_generation.lipsync.prompt = "A person talking"
+    mock_channel.generation = mock_channel_generation
+
+    # Technical config with generation.tts and parallel_scene_processing
     mock_generation_tts = MagicMock(spec=GenerationTTS)
     mock_generation_tts.min_duration = 5.0
     mock_generation_tts.max_duration = 15.0
 
+    mock_parallel = MagicMock()
+    mock_parallel.max_workers = 3
+
     mock_generation = MagicMock(spec=GenerationConfig)
     mock_generation.tts = mock_generation_tts
+    mock_generation.parallel_scene_processing = mock_parallel
 
     mock_technical = MagicMock(spec=TechnicalConfig)
     mock_technical.generation = mock_generation
@@ -112,7 +126,7 @@ class TestSceneProcessorHelpers:
         scene = SceneConfig(id=1)
         prompt = processor.build_scene_prompt(scene)
 
-        assert prompt == "a person talking"
+        assert prompt == "A person talking"
 
     def test_get_tts_config(self):
         """get_tts_config returns TTSConfig from channel."""

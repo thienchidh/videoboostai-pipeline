@@ -32,6 +32,18 @@ def test_pipeline_runner_completes_run_on_success():
     ctx.technical.generation = MagicMock()
     ctx.technical.generation.lipsync = MagicMock()
     ctx.technical.generation.lipsync.provider = "kieai"
+    ctx.technical.generation.parallel_scene_processing = MagicMock()
+    ctx.technical.generation.parallel_scene_processing.max_workers = 3
+    ctx.technical.api = MagicMock()
+    ctx.technical.api.urls = MagicMock()
+    ctx.technical.api.urls.minimax_image = "https://api.minimax.io/v1/image_generation"
+    ctx.technical.api.urls.minimax_tts = "https://api.minimax.io/v1/t2a_v2"
+    ctx.technical.api.urls.wavespeed = "https://api.wavespeed.ai"
+    ctx.technical.api.urls.kie_ai = "https://api.kie.ai/api/v1"
+    ctx.technical.observer = MagicMock()
+    ctx.technical.observer.host = "localhost"
+    ctx.technical.observer.port = 8765
+    ctx.technical.observer.enabled = False
 
     with patch("modules.pipeline.pipeline_runner.db") as mock_db:
         mock_db.configure = MagicMock()
@@ -116,6 +128,18 @@ def test_pipeline_runner_fails_run_on_error():
     ctx.technical.generation = MagicMock()
     ctx.technical.generation.lipsync = MagicMock()
     ctx.technical.generation.lipsync.provider = "kieai"
+    ctx.technical.generation.parallel_scene_processing = MagicMock()
+    ctx.technical.generation.parallel_scene_processing.max_workers = 3
+    ctx.technical.api = MagicMock()
+    ctx.technical.api.urls = MagicMock()
+    ctx.technical.api.urls.minimax_image = "https://api.minimax.io/v1/image_generation"
+    ctx.technical.api.urls.minimax_tts = "https://api.minimax.io/v1/t2a_v2"
+    ctx.technical.api.urls.wavespeed = "https://api.wavespeed.ai"
+    ctx.technical.api.urls.kie_ai = "https://api.kie.ai/api/v1"
+    ctx.technical.observer = MagicMock()
+    ctx.technical.observer.host = "localhost"
+    ctx.technical.observer.port = 8765
+    ctx.technical.observer.enabled = False
 
     with patch("modules.pipeline.pipeline_runner.db") as mock_db:
         mock_db.configure = MagicMock()
@@ -186,6 +210,18 @@ def test_pipeline_runner_wires_music_provider():
     ctx.technical.generation = MagicMock()
     ctx.technical.generation.lipsync = MagicMock()
     ctx.technical.generation.lipsync.provider = "kieai"
+    ctx.technical.generation.parallel_scene_processing = MagicMock()
+    ctx.technical.generation.parallel_scene_processing.max_workers = 3
+    ctx.technical.api = MagicMock()
+    ctx.technical.api.urls = MagicMock()
+    ctx.technical.api.urls.minimax_image = "https://api.minimax.io/v1/image_generation"
+    ctx.technical.api.urls.minimax_tts = "https://api.minimax.io/v1/t2a_v2"
+    ctx.technical.api.urls.wavespeed = "https://api.wavespeed.ai"
+    ctx.technical.api.urls.kie_ai = "https://api.kie.ai/api/v1"
+    ctx.technical.observer = MagicMock()
+    ctx.technical.observer.host = "localhost"
+    ctx.technical.observer.port = 8765
+    ctx.technical.observer.enabled = False
 
     with patch("modules.pipeline.pipeline_runner.MiniMaxMusicProvider") as MockProvider:
         mock_instance = MagicMock()

@@ -144,8 +144,8 @@ class VideoPipelineRunner:
             raise ValueError(f"Unknown TTS provider: {tts_name}")
 
         if tts_name == "edge":
-            return provider_cls(upload_func=None)
-        return provider_cls(api_key=self.ctx.technical.api_keys.minimax)
+            return provider_cls(config=self.ctx.technical, upload_func=None)
+        return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.minimax)
 
     def _build_image_provider(self):
         """Instantiate image provider via PluginRegistry."""
@@ -157,10 +157,10 @@ class VideoPipelineRunner:
             raise ValueError(f"Unknown image provider: {img_name}")
         # Use minimax_key for MiniMax, kie_key for Kie, wavespeed_key for WaveSpeed
         if img_name == "minimax":
-            return provider_cls(api_key=self.ctx.technical.api_keys.minimax)
+            return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.minimax)
         if img_name == "kieai":
-            return provider_cls(api_key=self.ctx.technical.api_keys.kie_ai)
-        return provider_cls(api_key=self.ctx.technical.api_keys.wavespeed)
+            return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.kie_ai)
+        return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.wavespeed)
 
     def _build_lipsync_provider(self):
         """Instantiate lipsync provider via PluginRegistry."""

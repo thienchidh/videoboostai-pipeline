@@ -135,3 +135,6 @@ research:
   content_angle: "tips"
   target_platform: "both"
   research_interval_hours: 24
+  schedule: "2h"           # "2h" = twice daily
+  threshold: 3             # trigger research if pending pool < 3
+  pending_pool_size: 5     # min ideas in pool before skip research

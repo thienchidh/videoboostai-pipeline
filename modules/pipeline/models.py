@@ -150,6 +150,9 @@ class ContentResearch(BaseModel):
     content_angle: str = "tips"
     target_platform: str = "both"
     research_interval_hours: int = 24
+    schedule: Optional[str] = "2h"           # "2h" = twice daily
+    threshold: int = 3                        # trigger research if pending pool < 3
+    pending_pool_size: int = 5               # min ideas in pool before skip research
 
 
 class CharacterConfig(BaseModel):

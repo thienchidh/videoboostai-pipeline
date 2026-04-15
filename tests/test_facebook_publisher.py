@@ -23,7 +23,7 @@ def test_facebook_publisher_completes_chunked_upload():
         {"id": "vid_456"},                                           # finish
     ]
 
-    def retry_side_effect(*_, **_kwargs):
+    def retry_side_effect(*_args, **_kwargs):
         return retry_responses.pop(0) if retry_responses else {"id": "vid_456"}
 
     publisher._retry_request = MagicMock(side_effect=retry_side_effect)

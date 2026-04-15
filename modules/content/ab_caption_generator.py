@@ -5,7 +5,7 @@ Extends CaptionGenerator to produce two distinct caption styles:
   Variant A — "Hook + Value" style: curiosity headline + body + CTA + hashtags
   Variant B — "Question + Engagement" style: engaging question + perspective + hashtags
 
-Both variants are LLM-generated (ollama) with template fallback.
+Template-based generation (no external LLM dependency).
 
 Usage:
     gen = ABCaptionGenerator()
@@ -18,7 +18,6 @@ import json
 import logging
 import random
 import re
-import subprocess
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -64,7 +63,7 @@ Hãy viết caption biến thể B theo phong cách "Question + Engagement" — 
 
 Không giải thích, chỉ trả về JSON hợp lệ."""
 
-# ── Dataclass for paired result ───────────────────────────────────────────────
+# ── Dataclass for paired result ────────────────────────────────────────────────
 
 @dataclass
 class ABCaptionResult:
@@ -87,28 +86,12 @@ class ABCaptionGenerator:
 
     Variant A — "Hook + Value": curiosity headline + informative body
     Variant B — "Question + Engagement": question + personal perspective
+
+    Template-based only (no external LLM dependency).
     """
 
-    def __init__(
-        self,
-        ollama_host: str = "http://localhost:11434",
-        model: str = "llama3.2",
-        use_llm: bool = True,
-    ):
-        self.ollama_host = ollama_host
-        self.model = model
-        self.use_llm = use_llm and self._check_ollama()
-
-    def _check_ollama(self) -> bool:
-        try:
-            result = subprocess.run(
-                ["curl", "-s", f"{self.ollama_host}/api/tags", "--max-time", "3"],
-                capture_output=True,
-                text=True,
-            )
-            return result.returncode == 0
-        except Exception:
-            return False
+    def __init__(self):
+        pass
 
     def _extract_topic(self, script: str) -> str:
         words = re.findall(r"[a-zA-ZÀ-ỹ]{4,}", script.lower())
@@ -135,47 +118,6 @@ class ABCaptionGenerator:
                 return best
         return "general"
 
-    def _call_llm(self, prompt: str) -> Optional[Dict]:
-        """Call ollama for JSON caption extraction."""
-        if not self.use_llm:
-            return None
-        try:
-            result = subprocess.run(
-                [
-                    "curl", "-s", f"{self.ollama_host}/api/generate",
-                    "-d", json.dumps({
-                        "model": self.model,
-                        "prompt": prompt,
-                        "stream": False,
-                        "options": {"temperature": 0.85, "num_predict": 250}
-                    }),
-                ],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                timeout=35,
-            )
-            if result.returncode != 0:
-                logger.warning(f"Ollama call failed: {result.stderr}")
-                return None
-
-            response_text = result.stdout.strip()
-            try:
-                data = json.loads(response_text)
-                text = data.get("response", "")
-            except json.JSONDecodeError:
-                m = re.search(r'\{.*\}', response_text, re.DOTALL)
-                if m:
-                    text = m.group()
-                else:
-                    return None
-
-            return json.loads(text) if text else None
-
-        except Exception as e:
-            logger.warning(f"LLM call error: {e}")
-            return None
-
     def _build_caption(
         self,
         parsed: Optional[Dict],
@@ -184,36 +126,31 @@ class ABCaptionGenerator:
         category: str,
         platform: str,
     ) -> GeneratedCaption:
-        """Build a GeneratedCaption from parsed JSON or template fallback."""
+        """Build a GeneratedCaption from template (parsed is always None)."""
         hashtag_set = HASHTAG_SETS.get(category, HASHTAG_SETS["general"])
 
-        if parsed:
-            headline = parsed.get("headline", f"{'🔥' if style == 'a' else '❓'} {topic.title()}")
-            body = parsed.get("body", f"Nội dung thú vị về {topic}")
-            cta = parsed.get("cta", random.choice(CTA_TEMPLATES))
+        # Template fallback (LLM path removed)
+        if style == "a":
+            headline = random.choice(HEADLINE_TEMPLATES).format(topic=topic)
+            body_sample = [
+                f"Đây là điều {topic} mà ít người để ý.",
+                f"{topic.title()} — bạn đã thử chưa?",
+                f"Khám phá {topic} ngay hôm nay!",
+            ]
         else:
-            # Template fallback
-            if style == "a":
-                headline = random.choice(HEADLINE_TEMPLATES).format(topic=topic)
-                body_sample = [
-                    f"Đây là điều {topic} mà ít người để ý.",
-                    f"{topic.title()} — bạn đã thử chưa?",
-                    f"Khám phá {topic} ngay hôm nay!",
-                ]
-            else:
-                headline_samples = [
-                    f"Bạn có biết về {topic}?",
-                    f"{topic.title()} — bạn nghĩ sao?",
-                    f"Tại sao {topic} lại quan trọng?",
-                ]
-                headline = random.choice(headline_samples)
-                body_sample = [
-                    f"Chia sẻ góc nhìn của bạn về {topic} nhé!",
-                    f"{topic.title()} — đây là quan điểm của mình.",
-                    f"Mình nghĩ {topic} rất đáng để tìm hiểu.",
-                ]
-            body = random.choice(body_sample)
-            cta = random.choice(CTA_TEMPLATES)
+            headline_samples = [
+                f"Bạn có biết về {topic}?",
+                f"{topic.title()} — bạn nghĩ sao?",
+                f"Tại sao {topic} lại quan trọng?",
+            ]
+            headline = random.choice(headline_samples)
+            body_sample = [
+                f"Chia sẻ góc nhìn của bạn về {topic} nhé!",
+                f"{topic.title()} — đây là quan điểm của mình.",
+                f"Mình nghĩ {topic} rất đáng để tìm hiểu.",
+            ]
+        body = random.choice(body_sample)
+        cta = random.choice(CTA_TEMPLATES)
 
         # Truncate body for TikTok
         if platform == "tiktok":
@@ -246,14 +183,6 @@ class ABCaptionGenerator:
         """
         topic = self._extract_topic(script)
         category = self._detect_category(script)
-
-        if self.use_llm:
-            parsed = self._call_llm(_VARIANT_A_PROMPT.format(script=script[:300]))
-            if parsed:
-                logger.info(f"[AB-Gen] Variant A generated via LLM for: {topic}")
-                return self._build_caption(parsed, "a", topic, category, platform)
-            logger.info("[AB-Gen] LLM failed for Variant A — using template fallback")
-
         return self._build_caption(None, "a", topic, category, platform)
 
     def generate_caption_variant_B(
@@ -267,14 +196,6 @@ class ABCaptionGenerator:
         """
         topic = self._extract_topic(script)
         category = self._detect_category(script)
-
-        if self.use_llm:
-            parsed = self._call_llm(_VARIANT_B_PROMPT.format(script=script[:300]))
-            if parsed:
-                logger.info(f"[AB-Gen] Variant B generated via LLM for: {topic}")
-                return self._build_caption(parsed, "b", topic, category, platform)
-            logger.info("[AB-Gen] LLM failed for Variant B — using template fallback")
-
         return self._build_caption(None, "b", topic, category, platform)
 
     def generate_ab_captions(
@@ -304,7 +225,7 @@ if __name__ == "__main__":
     )
     platform = sys.argv[2] if len(sys.argv) > 2 else "tiktok"
 
-    gen = ABCaptionGenerator(use_llm=False)
+    gen = ABCaptionGenerator()
     result = gen.generate_ab_captions(test_script, platform)
 
     print(f"\n=== Variant A ({platform}) ===")

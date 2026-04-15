@@ -145,7 +145,8 @@ class TopicResearcher:
                     topic["source_keyword"] = kw
                     topic["researched_at"] = datetime.now().isoformat()
                     all_topics.append(topic)
-                    for kw_extracted in topic.get("keywords", []):
+                    extracted = self.extract_keywords_from_topic(topic)
+                    for kw_extracted in extracted:
                         try:
                             from db import save_keyword
                             save_keyword(kw_extracted, source_topic_id=None)

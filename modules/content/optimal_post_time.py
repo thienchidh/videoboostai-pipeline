@@ -15,6 +15,7 @@ from datetime import date, datetime, timezone
 from typing import Optional
 
 from db import get_session
+from modules.pipeline.models import CTRData
 import db_models as models
 
 logger = logging.getLogger(__name__)
@@ -230,11 +231,10 @@ class OptimalPostTimeEngine:
             if not ctr_data:
                 continue
 
-            # CTR is stored as a dict: {"ctr": 0.0234, "impressions": 1234, ...}
+            # CTR is stored as a CTRData model or a raw float.
             if isinstance(ctr_data, dict):
-                ctr = ctr_data.get("ctr", 0) or 0.0
-            else:
-                ctr = float(ctr_data) if ctr_data else 0.0
+                ctr_data = CTRData.model_validate(ctr_data)
+            ctr = float(ctr_data.ctr if hasattr(ctr_data, 'ctr') else ctr_data or 0)
 
             if hour not in hourly:
                 hourly[hour] = {"total_ctr": 0.0, "count": 0}

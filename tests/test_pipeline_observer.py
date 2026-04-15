@@ -20,13 +20,15 @@ class TestPipelineObserver:
 
     @pytest.fixture
     def observer_app(self):
-        """Import and return the FastAPI app."""
+        """Import and return the FastAPI app (or None if FastAPI not installed)."""
         from modules.ops.pipeline_observer import app
         return app
 
     @pytest.fixture
     def test_client(self, observer_app):
-        """Create a test client for the FastAPI app."""
+        """Create a test client for the FastAPI app. Skips if FastAPI not installed."""
+        if observer_app is None:
+            pytest.skip("FastAPI not installed")
         from fastapi.testclient import TestClient
         return TestClient(observer_app)
 

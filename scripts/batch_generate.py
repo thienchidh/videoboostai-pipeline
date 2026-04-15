@@ -83,7 +83,9 @@ class BatchGenerator:
 
     def __init__(self, platform: str = None, max_items: int = 20,
                  dry_run: bool = False, content_calenar_id: int = None,
-                 config_path: str = None, upload_to_socials: bool = False):
+                 config_path: str = None, upload_to_socials: bool = False,
+                 max_retries: int = None, backoff_base_seconds: int = None,
+                 backoff_cap_seconds: int = None):
         """
         Args:
             platform: 'facebook', 'tiktok', or None (all)
@@ -92,13 +94,28 @@ class BatchGenerator:
             content_calenar_id: if set, process only this calendar item
             config_path: path to video config JSON (default: configs/business/video_config_productivity.json)
             upload_to_socials: if True, post to FB/TT with Variant-A after video gen
+            max_retries: max retry attempts per item (default: BATCH_MAX_RETRIES)
+            backoff_base_seconds: initial backoff delay in seconds (default: BATCH_BACKOFF_BASE_SECONDS)
+            backoff_cap_seconds: max backoff delay cap in seconds (default: BATCH_BACKOFF_CAP_SECONDS)
         """
+        from modules.pipeline.backoff import (
+            BATCH_MAX_RETRIES, BATCH_BACKOFF_BASE_SECONDS, BATCH_BACKOFF_CAP_SECONDS,
+            BackoffCalculator,
+        )
         self.platform = platform
         self.max_items = max_items
         self.dry_run = dry_run
         self.specific_calendar_id = content_calenar_id
         self.config_path = config_path or str(DEFAULT_CONFIG)
         self.upload_to_socials = upload_to_socials
+        self.max_retries = max_retries if max_retries is not None else BATCH_MAX_RETRIES
+        self.backoff_base_seconds = backoff_base_seconds if backoff_base_seconds is not None else BATCH_BACKOFF_BASE_SECONDS
+        self.backoff_cap_seconds = backoff_cap_seconds if backoff_cap_seconds is not None else BATCH_BACKOFF_CAP_SECONDS
+        self.backoff = BackoffCalculator(
+            base_seconds=self.backoff_base_seconds,
+            cap_seconds=self.backoff_cap_seconds,
+            factor=10,
+        )
         self.results: List[Dict] = []
         self._publisher = None
 
@@ -553,6 +570,37 @@ class BatchGenerator:
             logger.info(f"  Calendar {calendar_id} → {status}")
         except Exception as e:
             logger.error(f"  Failed to update calendar status: {e}")
+
+    def _create_or_update_failure_queue(self, run_id: int, step_name: str,
+                                         scene_index: int = None, attempt: int = 1,
+                                         last_error: str = None, next_retry_at=None,
+                                         status: str = "pending",
+                                         existing_id: int = None) -> int:
+        """Create or update a FailedStep DB entry. Returns failed_step id."""
+        from db import create_failed_step, update_failed_step
+        if existing_id is not None:
+            update_failed_step(
+                failed_step_id=existing_id,
+                attempts=attempt,
+                last_error=last_error,
+                next_retry_at=next_retry_at,
+                status=status,
+            )
+            return existing_id
+        else:
+            fid = create_failed_step(
+                run_id=run_id,
+                step_name=step_name,
+                scene_index=scene_index,
+                last_error=last_error,
+                next_retry_at=next_retry_at,
+            )
+            return fid
+
+    def _resolve_failure_queue_entry(self, failed_step_id: int) -> None:
+        """Mark a FailedStep entry as resolved."""
+        from db import resolve_failed_step
+        resolve_failed_step(failed_step_id)
 
     def _fail_item(self, item: Dict, error: str) -> Dict:
         """Mark item as failed and return error result dict."""

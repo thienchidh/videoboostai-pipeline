@@ -278,6 +278,7 @@ connectSSE();
 
 _FASTAPI_AVAILABLE = False
 _SSEAvailable = False
+app = None  # always defined; None when FastAPI is unavailable
 
 try:
     from fastapi import FastAPI, Response, Request

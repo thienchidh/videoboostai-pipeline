@@ -170,6 +170,44 @@ class TestContentPipelineReResearch:
         )
 
 
+@patch("modules.content.topic_researcher.requests.get")
+def test_web_search_trending_retries_on_failure(mock_get):
+    from unittest.mock import MagicMock
+    mock_get.side_effect = [
+        Exception("network error"),
+        Exception("network error"),
+        MagicMock(status_code=200, json=lambda: {"results": {"web": []}}),
+    ]
+    from modules.content.topic_researcher import TopicResearcher
+    with patch("modules.content.topic_researcher.TopicResearcher._get_you_search_key", return_value="fake-key"):
+        researcher = TopicResearcher(niche_keywords=["test"], project_id=1)
+        result = researcher.web_search_trending("test query", count=5)
+    assert mock_get.call_count >= 2
+
+
+@patch("modules.content.topic_researcher.requests.get")
+def test_web_search_trending_returns_empty_on_all_failures(mock_get):
+    mock_get.side_effect = Exception("persistent failure")
+    from modules.content.topic_researcher import TopicResearcher
+    with patch("modules.content.topic_researcher.TopicResearcher._get_you_search_key", return_value="fake-key"):
+        researcher = TopicResearcher(niche_keywords=["test"], project_id=1)
+        result = researcher.web_search_trending("test query", count=5)
+    assert result == []
+
+
+def test_extract_keywords_from_topic():
+    from modules.content.topic_researcher import TopicResearcher
+    researcher = TopicResearcher(niche_keywords=["test"], project_id=1)
+    topic = {
+        "title": "5 Best Productivity Apps for 2024",
+        "description": "Discover the top productivity tools for remote work",
+    }
+    keywords = researcher.extract_keywords_from_topic(topic)
+    assert "productivity" in keywords
+    assert "tools" in keywords
+    assert "2024" not in keywords  # excluded because isdigit
+
+
 def test_keyword_pool_save_and_get():
     from db import save_keyword, get_keywords_for_research
     keyword_id = save_keyword("productivity apps", source_topic_id=None)

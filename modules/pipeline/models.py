@@ -473,8 +473,8 @@ class CTRData(BaseModel):
 
 class ContentPipelineConfig(BaseModel):
     """Business config for content pipeline - social pages and content settings."""
-    page: Dict[str, Dict[str, Any]]
-    content: Dict[str, Any]
+    page: PageConfig = PageConfig()
+    content: ContentSettings = ContentSettings()
 
     @classmethod
     def load(cls, path: str | Path) -> "ContentPipelineConfig":
@@ -483,7 +483,18 @@ class ContentPipelineConfig(BaseModel):
             raise FileNotFoundError(f"Content pipeline config not found: {path}")
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
-        return cls(**data)
+        # Build sub-models from flat dict structure
+        page_data = data.get("page", {})
+        facebook_data = page_data.get("facebook", {})
+        tiktok_data = page_data.get("tiktok", {})
+        content_data = data.get("content", {})
+        return cls(
+            page=PageConfig(
+                facebook=PagePlatformConfig(**facebook_data) if facebook_data else PagePlatformConfig(),
+                tiktok=PagePlatformConfig(**tiktok_data) if tiktok_data else PagePlatformConfig(),
+            ),
+            content=ContentSettings(**content_data) if content_data else ContentSettings(),
+        )
 
     @classmethod
     def load_or_default(cls, path: str | Path) -> "ContentPipelineConfig":
@@ -491,14 +502,18 @@ class ContentPipelineConfig(BaseModel):
         try:
             return cls.load(path)
         except FileNotFoundError:
-            return cls(**{
-                "page": {
-                    "facebook": {"page_id": "YOUR_PAGE_ID", "page_name": "NangSuatThongMinh"},
-                    "tiktok": {"account_id": "YOUR_TIKTOK_ACCOUNT_ID", "account_name": "@NangSuatThongMinh"}
-                },
-                "content": {
-                    "auto_schedule": True
-                }
-            })
+            return cls(
+                page=PageConfig(
+                    facebook=PagePlatformConfig(
+                        page_id="YOUR_PAGE_ID",
+                        page_name="NangSuatThongMinh"
+                    ),
+                    tiktok=PagePlatformConfig(
+                        account_id="YOUR_TIKTOK_ACCOUNT_ID",
+                        account_name="@NangSuatThongMinh"
+                    ),
+                ),
+                content=ContentSettings(auto_schedule=True),
+            )
 
 

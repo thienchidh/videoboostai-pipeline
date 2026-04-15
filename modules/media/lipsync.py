@@ -17,6 +17,7 @@ import requests
 
 from core.video_utils import LipsyncQuotaError
 from core.plugins import LipsyncProvider, register_provider
+from modules.pipeline.models import GenerationLipsync, LipsyncRequest
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
         return None
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
+                 output_path: str, config: Optional[GenerationLipsync] = None) -> Optional[str]:
         cfg = config or {}
         default_retries = self.config.get("generation.lipsync.retries", 2) if self.config else 2
         retries = cfg.get("retries", default_retries)
@@ -200,20 +201,21 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
         return None
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
-        """Multi-talk: audio_path should be (left_audio, right_audio) tuple or dict."""
+                 output_path: str, config: Optional[GenerationLipsync] = None) -> Optional[str]:
+        """Multi-talk: audio_path can be a LipsyncRequest with left_audio/right_audio."""
         cfg = config or {}
         default_retries = self.config.get("generation.lipsync.retries", 2) if self.config else 2
-        retries = cfg.get("retries", default_retries)
+        retries = cfg.get("retries", default_retries) if isinstance(cfg, dict) else default_retries
 
-        # Handle multi-audio: audio_path can be a dict with 'left' and 'right'
-        if isinstance(audio_path, dict):
-            left_audio = audio_path.get("left")
-            right_audio = audio_path.get("right")
-        elif isinstance(audio_path, tuple):
-            left_audio, right_audio = audio_path
+        # Handle multi-audio: audio_path can be a LipsyncRequest with left/right
+        if isinstance(audio_path, LipsyncRequest):
+            left_audio = audio_path.left_audio
+            right_audio = audio_path.right_audio
+            lip_config = audio_path.config
         else:
-            left_audio = right_audio = audio_path
+            left_audio = audio_path
+            right_audio = None
+            lip_config = config
 
         for attempt in range(retries):
             image_url = self.upload_file(image_path)
@@ -293,7 +295,7 @@ class KieAIInfinitalkProvider(LipsyncProvider):
         )
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
+                 output_path: str, config: Optional[GenerationLipsync] = None) -> Optional[str]:
         """
         Kie.ai Infinitalk lip-sync: image_url + audio_url → video.
 
@@ -301,7 +303,7 @@ class KieAIInfinitalkProvider(LipsyncProvider):
             image_path: Local path to reference image
             audio_path: Local path to audio file (mp3/wav/etc)
             output_path: Path to save output video
-            config: Optional {
+            config: Optional GenerationLipsync {
                 prompt: str,       # text prompt for generation
                 resolution: str,    # "480p" or "720p"
                 max_wait: int,      # polling timeout in seconds

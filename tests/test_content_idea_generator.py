@@ -213,3 +213,24 @@ class TestContentIdeaGenerator:
         assert len(scenes) == 2
         # The too-long scene should have been regenerated
         assert scenes[0]["tts"] == "ngắn gọn và đúng vào việc thôi"
+
+    def test_validate_scene_duration_skips_when_no_tts_config(self):
+        """When channel config has no tts, validation returns True (skip)."""
+        from modules.content.content_idea_generator import ContentIdeaGenerator
+        gen = ContentIdeaGenerator(
+            project_id=1,
+            content_angle="tips",
+            niche_keywords=["test"],
+            channel_config={
+                "name": "Test",
+                "channel_id": "test",
+                "characters": [{"name": "Mentor", "voice_id": "x"}],
+                "watermark": {"text": "@Test", "enable": True, "font_size": 30, "opacity": 0.15, "motion": "bounce", "bounce_speed": 80, "bounce_padding": 20, "velocity_x": 1.2, "velocity_y": 0.8, "margin": 8},
+                "style": "3D render",
+                "research": {"niche_keywords": ["test"], "content_angle": "tips", "target_platform": "both", "research_interval_hours": 24, "pending_pool_size": 5, "threshold": 3},
+                # no "tts" key — simulating channel config without TTS bounds
+            },
+        )
+        # Should not raise — returns True (skip validation) when tts_cfg is None
+        result = gen._validate_scene_duration("some text that is definitely way too long " * 10, None, wps=2.5)
+        assert result is True

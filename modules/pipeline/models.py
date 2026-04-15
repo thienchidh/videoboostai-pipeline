@@ -334,7 +334,7 @@ class ChannelConfig(BaseModel):
     channel_id: str
     name: str
     characters: list[CharacterConfig]
-    tts: TTSConfig
+    tts: Optional[TTSConfig] = None
     watermark: WatermarkConfig
     style: str
     research: ContentResearch

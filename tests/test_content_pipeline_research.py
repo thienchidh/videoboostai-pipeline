@@ -82,7 +82,7 @@ class TestContentPipelineReResearch:
 
         mock_idea_gen_instance = MagicMock()
         mock_idea_gen_instance.generate_ideas_from_topics.side_effect = mock_generate_ideas
-        mock_idea_gen_instance.save_ideas_to_db.return_value = [1, 2, 3, 4]
+        mock_idea_gen_instance.save_ideas_to_db.return_value = [1, 2]
         mock_idea_gen_instance.update_idea_script = MagicMock()
         mock_idea_gen_instance.target_platform = "both"
 
@@ -125,7 +125,7 @@ class TestContentPipelineReResearch:
             patch("core.paths.PROJECT_ROOT", tmp_path), \
             patch("modules.pipeline.models.ChannelConfig.load",
                   return_value=mock_channel_instance), \
-            patch("modules.content.content_pipeline.ContentPipelineConfig.load",
+            patch("modules.content.content_pipeline.ContentPipelineConfig",
                   return_value=MagicMock(page={"facebook": {}, "tiktok": {}}, content={"auto_schedule": False})), \
             patch("db.get_pending_topic_sources", return_value=[]), \
             patch("utils.embedding.check_duplicate_ideas", side_effect=mock_check_dup), \

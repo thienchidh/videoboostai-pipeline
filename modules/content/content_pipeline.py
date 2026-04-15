@@ -196,10 +196,18 @@ class ContentPipeline:
                 logger.info("  All ideas from this batch are duplicates, trying more topics from pending pool...")
                 continue
             elif not new_batch:
-                # Fresh research: if all dupes and no more topics, stop
+                # Fresh research: if all dupes and no more topics, re-research more topics
                 if len(topics_tried) >= len(topics):
-                    logger.info("  No more topics to try")
-                    break
+                    logger.info("  All ideas from this batch are duplicates, re-researching more topics...")
+                    topics = self.researcher.research_from_keywords(count=num_ideas)
+                    results["topics_found"] = len(topics)
+                    topics_tried = set()  # reset - we have new topics
+                    source_id = self.researcher.save_to_db(topics, source_query=", ".join(self.niche_keywords))
+                    results["source_id"] = source_id
+                    if not topics:
+                        logger.info("  No more topics to try")
+                        break
+                    continue
 
         if not ideas:
             logger.warning("No new ideas after dedup. All topics were duplicates of recent content.")

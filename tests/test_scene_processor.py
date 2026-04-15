@@ -308,3 +308,62 @@ class TestSingleCharSceneProcessor:
             video_path, timestamps = processor.process(scene, scene_output, mock_tts, mock_img, mock_lip)
 
         assert video_path is None
+
+
+class TestAlignWordTimestamps:
+    """Tests for align_word_timestamps function."""
+
+    def test_count_match_replaces_words_keeps_timestamps(self):
+        """When whisper and script word counts match, replace words, keep timestamps."""
+        from modules.pipeline.scene_processor import align_word_timestamps
+
+        whisper = [
+            {"word": "tám", "start": 0.0, "end": 0.3},
+            {"word": "mươi", "start": 0.3, "end": 0.6},
+            {"word": "phần", "start": 0.6, "end": 0.9},
+            {"word": "trăm", "start": 0.9, "end": 1.2},
+        ]
+        script_words = ["80%", "nhân", "viên", "tự"]
+
+        result = align_word_timestamps(whisper, script_words)
+
+        assert result[0]["word"] == "80%"
+        assert result[1]["word"] == "nhân"
+        assert result[2]["word"] == "viên"
+        assert result[3]["word"] == "tự"
+        # Timestamps preserved
+        assert result[0]["start"] == 0.0
+        assert result[0]["end"] == 0.3
+        assert result[3]["start"] == 0.9
+        assert result[3]["end"] == 1.2
+
+    def test_count_mismatch_returns_whisper_intact(self):
+        """When word counts differ, return original Whisper timestamps unchanged."""
+        from modules.pipeline.scene_processor import align_word_timestamps
+
+        whisper = [
+            {"word": "tám", "start": 0.0, "end": 0.3},
+            {"word": "mươi", "start": 0.3, "end": 0.6},
+        ]
+        script_words = ["80%", "nhân", "viên", "tự", "nhận"]  # 5 words vs 2
+
+        result = align_word_timestamps(whisper, script_words)
+
+        assert result == whisper
+        assert result[0]["word"] == "tám"
+        assert result[1]["word"] == "mươi"
+
+    def test_empty_whisper_returns_empty(self):
+        """Empty Whisper timestamps returns empty list."""
+        from modules.pipeline.scene_processor import align_word_timestamps
+
+        result = align_word_timestamps([], ["word"])
+        assert result == []
+
+    def test_empty_script_returns_whisper(self):
+        """Empty script words returns Whisper timestamps unchanged."""
+        from modules.pipeline.scene_processor import align_word_timestamps
+
+        whisper = [{"word": "tám", "start": 0.0, "end": 0.3}]
+        result = align_word_timestamps(whisper, [])
+        assert result == whisper

@@ -22,7 +22,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from modules.content.caption_generator import (
-    CaptionGenerator,
     GeneratedCaption,
     HASHTAG_SETS,
     CTA_TEMPLATES,
@@ -30,38 +29,6 @@ from modules.content.caption_generator import (
 )
 
 logger = logging.getLogger(__name__)
-
-# ── Prompt templates ────────────────────────────────────────────────────────────
-
-_VARIANT_A_PROMPT = """Bạn là chuyên gia viết caption cho video TikTok/Facebook Reels.
-
-Script video: "{script}"
-
-Hãy viết caption biến thể A theo phong cách "Hook + Value" — tạo curiosity bằng headline gây sốc/bất ngờ, sau đó cung cấp giá trị trong body.
-
-Định dạng JSON:
-{{
-  "headline": "Headline gây tò mò / sốc (dưới 10 chữ, không dấu gạch ngang)",
-  "body": "Nội dung body truyền tải giá trị (1-2 câu, hấp dẫn, có thông tin hữu ích)",
-  "cta": "Lời kêu gọi hành động (1 câu ngắn gọn)"
-}}
-
-Không giải thích, chỉ trả về JSON hợp lệ."""
-
-_VARIANT_B_PROMPT = """Bạn là chuyên gia viết caption cho video TikTok/Facebook Reels.
-
-Script video: "{script}"
-
-Hãy viết caption biến thể B theo phong cách "Question + Engagement" — đặt câu hỏi gây tương tác ở đầu, sau đó chia sẻ góc nhìn/câu chuyện cá nhân.
-
-Định dạng JSON:
-{{
-  "headline": "Câu hỏi gây tương tác hoặc góc nhìn cá nhân (dưới 10 chữ)",
-  "body": "Body chia sẻ góc nhìn / câu chuyện (1-2 câu, gần gũi, có cảm xúc)",
-  "cta": "Lời kêu gọi hành động (1 câu ngắn gọn)"
-}}
-
-Không giải thích, chỉ trả về JSON hợp lệ."""
 
 # ── Dataclass for paired result ────────────────────────────────────────────────
 

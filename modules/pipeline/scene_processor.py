@@ -126,7 +126,7 @@ class SceneProcessor:
         log(f"  🎯 Running Whisper for word timestamps...")
         try:
             result = subprocess.run(
-                [str(get_whisper()), audio_path, "--model", "small", "--word_timestamps", "True",
+                [str(get_whisper()), audio_path, "--model", "small", "--word_timestamps",
                  "--output_format", "json", "--output_dir", str(output_dir)],
                 capture_output=True, encoding="utf-8", errors="replace", timeout=120
             )

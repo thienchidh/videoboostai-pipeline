@@ -192,7 +192,7 @@ def get_whisper_timestamps(audio_path: str, output_dir: Optional[str] = None) ->
     logger.debug(f"Running Whisper for word timestamps...")
     try:
         result = subprocess.run(
-            [str(get_whisper()), audio_path, "--model", "small", "--word_timestamps", "True",
+            [str(get_whisper()), audio_path, "--model", "small", "--word_timestamps",
              "--output_format", "json", "--output_dir", output_dir],
             capture_output=True, text=True, timeout=120
         )

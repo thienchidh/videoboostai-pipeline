@@ -35,12 +35,29 @@ generation:
     model: "MiniMax-M2.7"
     max_tokens: 1536
     timeout: 60
+    retry_attempts: 3
+    retry_backoff_max: 10
+  content:
+    scene_count: 3
+    checkpoint_path: ".content_pipeline_checkpoint.json"
+  research:
+    schedule_hour: 9
+    schedule_minute: 0
   image:
     provider: "kieai"
     fallback_providers: ["minimax"]
     aspect_ratio: "9:16"  # TikTok/Reels format
     timeout: 120
+    poll_interval: 5
+    max_polls: 24
   tts:
+    model: "speech-2.8-hd"
+    sample_rate: 32000
+    bitrate: 128000
+    format: "mp3"
+    channel: 1
+    timeout: 60
+    word_timestamp_timeout: 120
     max_duration: 15.0    # seconds - kie.ai hard limit per scene
     min_duration: 5.0     # seconds - minimum to avoid too-short clips
     words_per_second: 2.5  # estimated for Vietnamese TTS
@@ -48,13 +65,18 @@ generation:
     provider: "kieai"
     prompt: "A person talking"  # mô tả cho lipsync model
     resolution: "480p"           # 480p | 720p | 1080p
-    max_wait: 300                # giây chờ job hoàn thành
+    max_wait: 900                # giây chờ job hoàn thành (15 phút)
+    poll_interval: 10           # giây giữa các poll
+    retries: 2                   # số lần retry cho generation
   seeds:
     image: 42      # seed cho image generation
     video: 12345    # seed cho video generation
   parallel_scene_processing:
     enabled: true   # true | false — parallelize TTS + image across scenes
     max_workers: 3 # max concurrent API calls per phase (max 5)
+
+  pipeline:
+    max_retries: 3   # max retries for scene processing errors
 
 logging:
   level: INFO            # DEBUG | INFO | WARNING | ERROR
@@ -64,6 +86,7 @@ logging:
 # STORAGE - S3 and database configuration
 # ================================================
 storage:
+  output_dir: "output"  # output directory for generated videos
   s3:
     endpoint: "https://s3.trachanhtv.top"
     access_key: "minio-admin"
@@ -85,3 +108,30 @@ observer:
   host: "0.0.0.0"
   port: 8765
   enabled: false   # set to true to enable live monitoring
+
+# ================================================
+# EMBEDDING - Semantic deduplication settings
+# ================================================
+embedding:
+  model: "distiluse-base-multilingual-cased-v2"
+  similarity_threshold: 0.75
+  translation_max_tokens: 200
+
+# ================================================
+# RESEARCH - Content research configuration
+# ================================================
+research:
+  max_attempts: 3
+  backoff_base: 3.0
+  backoff_max: 60.0
+  backoff_factor: 2.0
+
+idea_gen:
+  max_attempts: 5
+  max_research_loops: 3
+  backoff_base: 2.0
+  backoff_max: 30.0
+  backoff_factor: 2.0
+
+keyword_pool:
+  ttl_days: 30

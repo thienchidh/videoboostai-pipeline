@@ -17,6 +17,7 @@ import requests
 
 from core.video_utils import LipsyncQuotaError
 from core.plugins import LipsyncProvider, register_provider
+from modules.pipeline.models import GenerationLipsync, LipsyncRequest
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +27,17 @@ logger = logging.getLogger(__name__)
 class WaveSpeedLipsyncProvider(LipsyncProvider):
     """WaveSpeed AI LTX lipsync video generation."""
 
-    def __init__(self, api_key: str, base_url: str = "https://api.wavespeed.ai",
-                 upload_func: Optional[callable] = None):
-        self.api_key = api_key
+    def __init__(self, config=None, api_key=None, upload_func=None):
+        self.config = config
+        base_url = config.api_urls.wavespeed if config else None
+        if not base_url:
+            from modules.pipeline.exceptions import ConfigMissingKeyError
+            raise ConfigMissingKeyError("api.urls.wavespeed", "WaveSpeedLipsyncProvider")
         self.base_url = base_url
+        self.api_key = api_key or (config.api_keys.wavespeed if config else None)
         self.upload_func = upload_func
+        self.poll_interval = config.generation.lipsync.poll_interval if config and config.generation and config.generation.lipsync else 10
+        self.max_wait = config.generation.lipsync.max_wait if config and config.generation and config.generation.lipsync else 300
 
     def upload_file(self, file_path: str) -> Optional[str]:
         """Upload file to WaveSpeed media storage."""
@@ -52,12 +59,13 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
             logger.warning(f"Upload error: {e}")
         return None
 
-    def wait_for_job(self, job_id: str, max_wait: int = 300) -> Optional[str]:
+    def wait_for_job(self, job_id: str, max_wait: int = None) -> Optional[str]:
         """Poll for job completion. Return output URL or None."""
         url = f"{self.base_url}/api/v3/predictions/{job_id}/result"
         headers = {"Authorization": f"Bearer {self.api_key}"}
         elapsed = 0
-        interval = 10
+        interval = self.poll_interval
+        max_wait = max_wait or self.max_wait
         while elapsed < max_wait:
             try:
                 resp = requests.get(url, headers=headers, timeout=30)
@@ -81,10 +89,12 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
         return None
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
-        cfg = config or {}
-        retries = cfg.get("retries", 2)
-        resolution = cfg.get("resolution", "480p")
+                 output_path: str, config: Optional[GenerationLipsync] = None) -> Optional[str]:
+        retries = config.retries if config and config.retries else (
+            self.config.generation.lipsync.retries if self.config and self.config.generation and self.config.generation.lipsync else 2
+        )
+        resolution = config.resolution if config else "480p"
+        seed = config.seed if config and config.seed else None
 
         for attempt in range(retries):
             logger.debug(f"  🎬 LTX Lipsync (attempt {attempt+1})...")
@@ -104,8 +114,8 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
                 "audio": audio_url,
                 "resolution": resolution
             }
-            if cfg.get("seed"):
-                payload["seed"] = cfg["seed"]
+            if seed is not None:
+                payload["seed"] = seed
 
             try:
                 resp = requests.post(url, headers=headers, json=payload, timeout=30)
@@ -123,7 +133,7 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
                     continue
                 job_id = data["data"]["id"]
                 logger.debug(f"  ✅ Job: {job_id}")
-                result_url = self.wait_for_job(job_id, max_wait=300)
+                result_url = self.wait_for_job(job_id)
                 if result_url:
                     resp = requests.get(result_url, timeout=120)
                     with open(output_path, "wb") as f:
@@ -141,11 +151,17 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
 class WaveSpeedMultiTalkProvider(LipsyncProvider):
     """WaveSpeed InfiniteTalk multi-character video."""
 
-    def __init__(self, api_key: str, base_url: str = "https://api.wavespeed.ai",
-                 upload_func: Optional[callable] = None):
-        self.api_key = api_key
+    def __init__(self, config=None, api_key=None, upload_func=None):
+        self.config = config
+        base_url = config.api_urls.wavespeed if config else None
+        if not base_url:
+            from modules.pipeline.exceptions import ConfigMissingKeyError
+            raise ConfigMissingKeyError("api.urls.wavespeed", "WaveSpeedMultiTalkProvider")
         self.base_url = base_url
+        self.api_key = api_key or (config.api_keys.wavespeed if config else None)
         self.upload_func = upload_func
+        self.poll_interval = config.generation.lipsync.poll_interval if config and config.generation and config.generation.lipsync else 10
+        self.max_wait = config.generation.lipsync.max_wait if config and config.generation and config.generation.lipsync else 300
 
     def upload_file(self, file_path: str) -> Optional[str]:
         if self.upload_func:
@@ -163,10 +179,12 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
             logger.warning(f"Upload error: {e}")
         return None
 
-    def wait_for_job(self, job_id: str, max_wait: int = 300) -> Optional[str]:
+    def wait_for_job(self, job_id: str, max_wait: int = None) -> Optional[str]:
         url = f"{self.base_url}/api/v3/predictions/{job_id}/result"
         headers = {"Authorization": f"Bearer {self.api_key}"}
         elapsed = 0
+        interval = self.poll_interval
+        max_wait = max_wait or self.max_wait
         while elapsed < max_wait:
             try:
                 resp = requests.get(url, headers=headers, timeout=30)
@@ -177,27 +195,30 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
                     return outputs[0]
                 elif status == "failed":
                     return None
-                time.sleep(10)
-                elapsed += 10
+                time.sleep(interval)
+                elapsed += interval
             except Exception:
-                time.sleep(10)
-                elapsed += 10
+                time.sleep(interval)
+                elapsed += interval
         return None
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
-        """Multi-talk: audio_path should be (left_audio, right_audio) tuple or dict."""
-        cfg = config or {}
-        retries = cfg.get("retries", 2)
+                 output_path: str, config: Optional[GenerationLipsync] = None) -> Optional[str]:
+        """Multi-talk: audio_path can be a LipsyncRequest with left_audio/right_audio."""
+        retries = config.retries if config and config.retries else (
+            self.config.generation.lipsync.retries if self.config and self.config.generation and self.config.generation.lipsync else 2
+        )
+        resolution = config.resolution if config else "480p"
 
-        # Handle multi-audio: audio_path can be a dict with 'left' and 'right'
-        if isinstance(audio_path, dict):
-            left_audio = audio_path.get("left")
-            right_audio = audio_path.get("right")
-        elif isinstance(audio_path, tuple):
-            left_audio, right_audio = audio_path
+        # Handle multi-audio: audio_path can be a LipsyncRequest with left/right
+        if isinstance(audio_path, LipsyncRequest):
+            left_audio = audio_path.left_audio
+            right_audio = audio_path.right_audio
+            lip_config = audio_path.config
         else:
-            left_audio = right_audio = audio_path
+            left_audio = audio_path
+            right_audio = None
+            lip_config = config
 
         for attempt in range(retries):
             image_url = self.upload_file(image_path)
@@ -216,7 +237,7 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
                 "left_audio": left_url,
                 "right_audio": right_url,
                 "order": "left_right",
-                "resolution": cfg.get("resolution", "480p")
+                "resolution": resolution
             }
             try:
                 resp = requests.post(url, headers=headers, json=payload, timeout=30)
@@ -259,20 +280,25 @@ class KieAIInfinitalkProvider(LipsyncProvider):
     Supports webhook callbacks via x-webhook-key header.
     """
 
-    def __init__(self, api_key: str, webhook_key: str = None,
-                 base_url: str = "https://api.kie.ai/api/v1",
-                 upload_func: Optional[callable] = None):
-        self.api_key = api_key
-        self.webhook_key = webhook_key if webhook_key else ""
+    def __init__(self, config=None, api_key=None, webhook_key=None, upload_func=None):
+        self.config = config
+        base_url = config.api_urls.kie_ai if config else None
+        if not base_url:
+            from modules.pipeline.exceptions import ConfigMissingKeyError
+            raise ConfigMissingKeyError("api.urls.kie_ai", "KieAIInfinitalkProvider")
         self.base_url = base_url
+        self.api_key = api_key or (config.api_keys.kie_ai if config else None)
+        self.webhook_key = webhook_key if webhook_key else ""
         self.upload_func = upload_func
+        self.poll_interval = config.generation.lipsync.poll_interval if config and config.generation and config.generation.lipsync else 10
+        self.max_wait = config.generation.lipsync.max_wait if config and config.generation and config.generation.lipsync else 300
         self._client = KieAIClient(
             api_key=self.api_key,
             webhook_key=self.webhook_key,
         )
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[Dict] = None) -> Optional[str]:
+                 output_path: str, config: Optional[GenerationLipsync] = None) -> Optional[str]:
         """
         Kie.ai Infinitalk lip-sync: image_url + audio_url → video.
 
@@ -280,16 +306,17 @@ class KieAIInfinitalkProvider(LipsyncProvider):
             image_path: Local path to reference image
             audio_path: Local path to audio file (mp3/wav/etc)
             output_path: Path to save output video
-            config: Optional {
+            config: Optional GenerationLipsync {
                 prompt: str,       # text prompt for generation
                 resolution: str,    # "480p" or "720p"
                 max_wait: int,      # polling timeout in seconds
             }
         """
-        cfg = config or {}
-        prompt = cfg.get("prompt", "A person talking")
-        resolution = cfg.get("resolution", "480p")
-        max_wait = cfg.get("max_wait", 300)
+        prompt = config.prompt if config and config.prompt else "A person talking"
+        resolution = config.resolution if config and config.resolution else "480p"
+        default_max_wait = self.max_wait if self.config else 300
+        max_wait = config.max_wait if config and config.max_wait else default_max_wait
+        default_poll_interval = self.poll_interval if self.config else 10
 
         # Upload image and audio if upload_func provided
         image_url = None
@@ -298,10 +325,12 @@ class KieAIInfinitalkProvider(LipsyncProvider):
         if self.upload_func:
             image_url = self.upload_func(image_path)
             audio_url = self.upload_func(audio_path)
-        if not image_url:
-            image_url = cfg.get("image_url")
-        if not audio_url:
-            audio_url = cfg.get("audio_url")
+
+        # Fallback: allow dict-style config for image_url/audio_url
+        if not image_url and config and isinstance(config, dict):
+            image_url = config.get("image_url")
+        if not audio_url and config and isinstance(config, dict):
+            audio_url = config.get("audio_url")
 
         if not image_url or not audio_url:
             logger.warning(
@@ -331,7 +360,7 @@ class KieAIInfinitalkProvider(LipsyncProvider):
         logger.info(f"Kie.ai Infinitalk task: {task_id}")
 
         # Poll for completion
-        poll_result = self._client.poll_task(task_id, max_wait=max_wait)
+        poll_result = self._client.poll_task(task_id, max_wait=max_wait, interval=default_poll_interval)
         if not poll_result.get("success"):
             error_str = str(poll_result.get("error", "")).lower()
             quota_keywords = ("quota", "credit", "insufficient", "exceed", "limit", "429",

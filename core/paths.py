@@ -5,7 +5,6 @@ All path computations flow through PROJECT_ROOT, computed once at import time.
 
 Auto-detection functions:
 - get_python()         — current Python interpreter
-- get_karaoke_python() — Python with PIL/Pillow (venv > current > system)
 - find_font(name)      — search common font directories for a font file
 - get_font_path()      — LiberationSans-Bold auto-detected (default)
 - get_ffmpeg()         — ffmpeg on PATH
@@ -37,44 +36,6 @@ FONTS_DIR        = PROJECT_ROOT / "fonts"
 def get_python() -> Path:
     """Return Path to the currently running Python interpreter."""
     return Path(sys.executable)
-
-
-def get_karaoke_python() -> Path:
-    """Return Path to Python with PIL/Pillow available.
-
-    Search order:
-    1. sys.executable (current interpreter, most likely has PIL in a venv)
-    2. PROJECT_ROOT/venv/Scripts/python.exe (Windows venv)
-    3. PROJECT_ROOT/venv/bin/python3 (Linux/macOS venv)
-    4. shutil.which("python3") then ("python") from PATH
-    """
-    candidates = [
-        Path(sys.executable),
-        PROJECT_ROOT / "venv" / "Scripts" / "python.exe",   # Windows
-        PROJECT_ROOT / "venv" / "bin" / "python3",            # Linux/macOS
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            try:
-                subprocess.run(
-                    [str(candidate), "-c", "from PIL import Image"],
-                    capture_output=True,
-                    timeout=10,
-                )
-                return candidate
-            except Exception:
-                continue
-
-    # Fallback: search PATH
-    for name in ("python3", "python"):
-        found = shutil.which(name)
-        if found:
-            return Path(found)
-
-    raise RuntimeError(
-        "No Python with PIL found. Ensure Pillow is installed in your Python environment. "
-        "Run: pip install Pillow"
-    )
 
 
 # ── Font detection ─────────────────────────────────────────────────────────────

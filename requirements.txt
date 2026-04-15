@@ -27,7 +27,6 @@ edge-tts>=7.0.0
 # Note: openai-whisper installs torch (~2GB). For CI/testing, mock in tests/
 openai-whisper>=20231117
 
-# Scheduler (for cron_manager.py)
 schedule>=1.1.0
 
 # S3 Storage (MinIO) for media uploads
@@ -35,6 +34,12 @@ boto3>=1.26.0
 
 # Retry / backoff
 tenacity>=8.2.0
+
+# Pipeline Observer API (modules/ops/pipeline_observer.py)
+fastapi>=0.100.0
+uvicorn>=0.23.0
+httpx>=0.24.0
+sse-starlette>=1.6.0
 
 # Testing
 pytest>=7.0.0

@@ -28,17 +28,20 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.video_utils import log
 
-# Global flags for video pipeline (set these before calling run_* functions)
-DRY_RUN = False
-DRY_RUN_TTS = False
-DRY_RUN_IMAGES = False
-UPLOAD_TO_SOCIALS = False
-USE_STATIC_LIPSYNC = False
+# Re-export flags from video_pipeline_v3 (the canonical source)
+from scripts.video_pipeline_v3 import DRY_RUN, DRY_RUN_TTS, DRY_RUN_IMAGES, USE_STATIC_LIPSYNC, UPLOAD_TO_SOCIALS
 
 # Load log level from TechnicalConfig
 _log_cfg = None
 try:
-    from modules.pipeline.models import TechnicalConfig
+    from modules.pipeline.models import (
+    TechnicalConfig,
+    ChannelConfig,
+    ContentPipelineConfig,
+    PageConfig,
+    PagePlatformConfig,
+    ContentSettings,
+)
     _tech = TechnicalConfig.load()
     _log_cfg = _tech.logging.level
 except Exception:
@@ -50,6 +53,50 @@ logger = logging.getLogger(__name__)
 
 
 # ==================== CONTENT PIPELINE ====================
+
+def _build_content_pipeline_config(channel_id: str) -> ContentPipelineConfig:
+    """Build ContentPipelineConfig from channel config file.
+
+    Args:
+        channel_id: Channel identifier
+
+    Returns:
+        ContentPipelineConfig with page and content settings from channel config
+    """
+    try:
+        channel_cfg = ChannelConfig.load(channel_id)
+    except FileNotFoundError:
+        channel_cfg = None
+
+    if channel_cfg and channel_cfg.social:
+        facebook_cfg = channel_cfg.social.facebook
+        tiktok_cfg = channel_cfg.social.tiktok
+    else:
+        facebook_cfg = None
+        tiktok_cfg = None
+
+    return ContentPipelineConfig(
+        page=PageConfig(
+            facebook=PagePlatformConfig(
+                page_name=facebook_cfg.page_name if facebook_cfg else None,
+                page_id=facebook_cfg.page_id if facebook_cfg else None,
+                auto_publish=facebook_cfg.auto_publish if facebook_cfg else False,
+                access_token=facebook_cfg.access_token if facebook_cfg else None,
+            ) if facebook_cfg else PagePlatformConfig(),
+            tiktok=PagePlatformConfig(
+                account_name=tiktok_cfg.account_name if tiktok_cfg else None,
+                account_id=tiktok_cfg.account_id if tiktok_cfg else None,
+                auto_publish=tiktok_cfg.auto_publish if tiktok_cfg else False,
+            ) if tiktok_cfg else PagePlatformConfig(),
+        ),
+        content=ContentSettings(
+            auto_schedule=True,
+            niche_keywords=channel_cfg.research.niche_keywords if channel_cfg and channel_cfg.research else [],
+            content_angle=channel_cfg.research.content_angle if channel_cfg and channel_cfg.research else "tips",
+            target_platform=channel_cfg.research.target_platform if channel_cfg and channel_cfg.research else "both",
+        ),
+    )
+
 
 def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = False):
     """Run content generation cycle: research -> ideas -> scripts.
@@ -70,7 +117,7 @@ def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = 
     )
     pipeline = ContentPipeline(
         project_id=project_id,
-        config=None,
+        config=_build_content_pipeline_config(channel_id),
         dry_run=dry_run,
         channel_id=channel_id,
     )
@@ -195,7 +242,7 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
 
     pipeline = ContentPipeline(
         project_id=project_id,
-        config=None,
+        config=_build_content_pipeline_config(channel_id),
         dry_run=False,
         channel_id=channel_id,
         skip_lipsync=skip_lipsync,
@@ -224,12 +271,30 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
     success_count = sum(1 for v in video_results if v.get("result", {}).get("success"))
     fail_count = len(video_results) - success_count
 
-    ideas = pipeline.idea_gen.get_ideas_by_status(status="script_ready", limit=ideas_count)
-    logger.info(f"  Found {len(ideas)} ideas ready for production")
+    # Fallback: if content cycle found no new ideas (all duplicate),
+    # try existing script_ready ideas from DB — limit to ideas_count to produce
+    # exactly the requested number of videos
+    if results.get("status") == "no_new_ideas" and not video_results:
+        logger.info("  Content cycle found no new ideas — falling back to existing script_ready ideas from DB")
+        ideas = pipeline.idea_gen.get_ideas_by_status(status="script_ready", limit=ideas_count)
+        logger.info(f"  Found {len(ideas)} existing script_ready ideas for fallback production (limit={ideas_count})")
 
-    if not ideas and not video_results:
-        logger.warning("  No ideas generated and no videos produced!")
-        return {"ideas": [], "videos": []}
+        for idea in ideas:
+            idea_id = idea.get("id")
+            script_json = idea.get("script_json")
+            if not script_json:
+                continue
+            logger.info(f"  Producing video for existing idea {idea_id}: {idea.get('title', '')[:50]}")
+            prod_result = pipeline.produce_video(idea_id)
+            video_results.append({
+                "idea_id": idea_id,
+                "result": prod_result,
+            })
+            if prod_result.get("success"):
+                success_count += 1
+            else:
+                fail_count += 1
+    # else: new ideas from run_full_cycle are already produced (produce_video called in run_full_cycle loop)
 
     logger.info("")
     logger.info("=" * 60)
@@ -281,7 +346,7 @@ if __name__ == "__main__":
     elif args.channel:
         channels = [args.channel]
     else:
-        channels = ["nang_suat_thong_minh"]  # Default
+        raise ValueError("No channel specified: use --channel or --all")
 
     for ch in channels:
         logger.info(f"\n{'='*50}")

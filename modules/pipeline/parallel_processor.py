@@ -35,7 +35,7 @@ from core.video_utils import (
 )
 from core.video_utils import LipsyncQuotaError  # noqa: F401
 from modules.pipeline.config import PipelineContext
-from modules.pipeline.models import SceneConfig
+from modules.pipeline.models import SceneCharacter, SceneConfig
 from modules.pipeline.exceptions import SceneDurationError
 from modules.pipeline.checkpoint import (
     CheckpointHelper, STEP_TTS, STEP_IMAGE, STEP_LIPSYNC, STEP_CROP, STEP_DONE
@@ -159,7 +159,7 @@ class ParallelSceneProcessor:
             if not chars:
                 return scene_id, {"audio_path": None, "timestamps": [], "text": tts_text}
 
-            char_name = chars[0].get("name") if isinstance(chars[0], dict) else chars[0]
+            char_name = chars[0].name if isinstance(chars[0], SceneCharacter) else chars[0]
             char_cfg = self._get_character(char_name)
             if not char_cfg:
                 log(f"  ❌ Phase1: Character '{char_name}' not found for scene {scene_id}")
@@ -238,7 +238,7 @@ class ParallelSceneProcessor:
             if not chars:
                 return scene_id, {"image_path": None, "gender": "female", "prompt": ""}
 
-            char_name = chars[0].get("name") if isinstance(chars[0], dict) else chars[0]
+            char_name = chars[0].name if isinstance(chars[0], SceneCharacter) else chars[0]
             char_cfg = self._get_character(char_name)
             if not char_cfg:
                 return scene_id, {"image_path": None, "gender": "female", "prompt": ""}

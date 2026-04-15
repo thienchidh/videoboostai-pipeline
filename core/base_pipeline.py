@@ -17,7 +17,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.paths import PROJECT_ROOT, get_karaoke_python as _resolve_karaoke_python
+from core.paths import PROJECT_ROOT
+from modules.pipeline.config import PipelineContext
 from core.video_utils import (
     log,
     deep_merge,
@@ -39,14 +40,9 @@ from core.video_utils import (
 logger = logging.getLogger(__name__)
 
 
-def get_karaoke_python() -> str:
-    """Return python with moviepy installed (wrapper for core.paths)."""
-    return str(_resolve_karaoke_python())
-
-
 # Re-export everything from video_utils for backward compatibility
 __all__ = [
-    "get_karaoke_python", "log", "deep_merge",
+    "log", "deep_merge",
     "crop_to_9x16", "concat_videos", "add_subtitles",
     "add_background_music",
     "get_video_duration", "get_audio_duration",
@@ -66,13 +62,13 @@ class BasePipeline(ABC):
     - build_scene_prompt() — build image generation prompt for a scene
     """
 
-    def __init__(self, config: Dict[str, Any], run_dir: Optional[Path] = None):
+    def __init__(self, ctx: PipelineContext, run_dir: Optional[Path] = None):
         """
         Args:
-            config: Full merged config dict (from PipelineContext)
+            ctx: PipelineContext with technical, channel, and scenario configs
             run_dir: Override run output directory
         """
-        self.config = config
+        self.ctx = ctx
         self.timestamp = int(time.time())
         self.project_root = PROJECT_ROOT
 
@@ -82,9 +78,9 @@ class BasePipeline(ABC):
         else:
             self.output_dir = self.project_root / "output"
             self.output_dir.mkdir(parents=True, exist_ok=True)
-            # Extract channel_id and slug from config for new output dir structure
-            channel_id = self.config.get("channel_id", "default")
-            slug = self.config.get("slug") or self.config.get("scenario", {}).get("slug") or "run"
+            # Extract channel_id and slug from ctx for new output dir structure
+            channel_id = self.ctx.channel_id
+            slug = self.ctx.scenario.slug if self.ctx.scenario else "run"
             self.run_dir = self.output_dir / channel_id / f"{slug}_{self.timestamp}"
             self.run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -122,7 +118,7 @@ class BasePipeline(ABC):
 
     def run_scene(self, scene_idx: int) -> Optional[str]:
         """Process one scene by index. Returns video path or None."""
-        scenes = self.config.get("scenes", [])
+        scenes = self.ctx.scenario.scenes if self.ctx.scenario else []
         if scene_idx < 0 or scene_idx >= len(scenes):
             log(f"❌ Scene index {scene_idx} out of range")
             return None
@@ -143,21 +139,15 @@ class BasePipeline(ABC):
         For bounce mode, use bounce_watermark.py directly.
         Note: bounce mode is implemented in VideoPipelineV3.add_watermark().
         """
-        wm_cfg = self.config.get("watermark", {})
-        if not wm_cfg.get("enable", False):
+        wm_cfg = self.ctx.channel.watermark
+        if not wm_cfg.enable:
             log(f"  ℹ️ Watermark disabled")
             return video_path
 
-        text = wm_cfg.get("text")
-        if not text:
-            raise ValueError("config.watermark.text is required when watermark is enabled")
-        font_size = wm_cfg.get("font_size")
-        if not font_size:
-            raise ValueError("config.watermark.font_size is required when watermark is enabled")
-        opacity = wm_cfg.get("opacity")
-        if not (isinstance(opacity, (int, float)) and opacity >= 0):
-            raise ValueError("config.watermark.opacity is required when watermark is enabled")
-        font_path = self.config.get("fonts", {}).get("watermark")
+        text = wm_cfg.text
+        font_size = wm_cfg.font_size
+        opacity = wm_cfg.opacity
+        font_path = self.ctx.channel.fonts.watermark if self.ctx.channel.fonts else None
 
         log(f"  💧 Adding watermark: '{text}' (opacity={opacity})")
         return add_static_watermark(

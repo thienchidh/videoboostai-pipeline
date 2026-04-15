@@ -31,11 +31,14 @@ USE_STATIC_LIPSYNC = False
 def _regenerate_script_with_llm(original_script: str, scene_id: int,
                                 actual_duration: float,
                                 min_duration: float, max_duration: float,
-                                llm_api_key: str) -> str:
+                                llm_api_key: str,
+                                wps: float = 2.5) -> str:
     """Regenerate script using MiniMax LLM to fit duration bounds.
-    
-    Calculates real words-per-second from actual TTS output.
-    
+
+    Uses configured wps (not derived from actual TTS output) to avoid the circular
+    trap: slow TTS → low derived wps → large target word count → LLM generates
+    terse script → fast TTS → still fails duration check.
+
     Args:
         original_script: The original TTS script that was too short/long
         scene_id: ID of the scene (for logging)
@@ -43,26 +46,28 @@ def _regenerate_script_with_llm(original_script: str, scene_id: int,
         min_duration: Minimum allowed duration (5.0s)
         max_duration: Maximum allowed duration (15.0s)
         llm_api_key: MiniMax API key for LLM calls
-    
+        wps: Words per second from config (default 2.5)
+
     Returns:
         New script that fits within duration bounds
     """
     from modules.llm.minimax import MiniMaxLLMProvider
-    
-    # Calculate real wps from actual TTS output
+
+    # Calculate target word count using configured wps (not derived from slow TTS output).
+    # Deriving real_wps from actual_duration is circular: slow TTS → low real_wps →
+    # large target_words → LLM generates short script → fast TTS → still too short.
+    # Use the configured wps which reflects expected human speaking rate.
     original_word_count = len(original_script.split())
-    real_wps = actual_duration / original_word_count if original_word_count > 0 else 2.5
-    
+    effective_wps = wps  # Use configured words-per-second as the target rate
+
     if actual_duration < min_duration:
         target_duration = (min_duration + max_duration) / 2  # Aim for middle
-        direction = "expand"
         issue = "too short"
     else:
         target_duration = max_duration * 0.9  # Aim for 90% of max
-        direction = "shorten"
         issue = "too long"
-    
-    target_words = int(target_duration / real_wps)  # Use real wps for accurate target
+
+    target_words = int(target_duration / effective_wps)
     
     system_prompt = f"""Bạn là một chuyên gia viết kịch bản video TikTok/Reels tiếng Việt.
 Nhiệm vụ: Viết lại kịch bản TTS cho một scene video.
@@ -129,10 +134,6 @@ class VideoPipelineV3:
             resume=resume,
         )
 
-        # Mirror key state for external consumers
-        self.config = {
-            "video": {"title": self.ctx.scenario.title if self.ctx.scenario else "Untitled"},
-        }
         self.avatars_dir = self._runner.run_dir / "avatars"
         self.media_dir = self._runner.media_dir
 
@@ -150,8 +151,15 @@ class VideoPipelineV3:
     def run(self):
         """Run the pipeline. Auto-retries with script adjustment on duration errors."""
         import shutil
-        
-        max_retries = 3
+
+        # Read max_retries and wps from config (strict: require key to exist)
+        max_retries = self.ctx.technical.generation.pipeline.max_retries
+        if not max_retries:
+            raise ValueError("generation.pipeline.max_retries is required in technical config")
+        wps = self.ctx.technical.generation.tts.words_per_second
+        if not wps:
+            raise ValueError("generation.tts.words_per_second is required in technical config")
+
         for attempt in range(1, max_retries + 1):
             try:
                 video_path, word_timestamps = self._runner.run()
@@ -173,7 +181,8 @@ class VideoPipelineV3:
                     actual_duration=e.actual_duration,
                     min_duration=e.min_duration,
                     max_duration=e.max_duration,
-                    llm_api_key=self.ctx.technical.api_keys.minimax
+                    llm_api_key=self.ctx.technical.api_keys.minimax,
+                    wps=wps,
                 )
                 
                 # Find and update the scene in ctx.scenario.scenes
@@ -182,8 +191,10 @@ class VideoPipelineV3:
                     if scene.id == e.scene_id:
                         old_tts = scene.tts
                         scene.tts = adjusted_script
+                        old_tts_preview = (old_tts[:50] + "...") if old_tts else "None"
+                        adjusted_preview = (adjusted_script[:50] + "...") if adjusted_script else "None"
                         log(f"  🔄 Scene {e.scene_id} script updated: "
-                            f"'{old_tts[:50]}...' → '{adjusted_script[:50]}...'")
+                            f"'{old_tts_preview}' → '{adjusted_preview}'")
                         updated = True
                         break
                 

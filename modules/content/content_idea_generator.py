@@ -13,7 +13,8 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from modules.llm import get_llm_provider
-from modules.pipeline.models import ChannelConfig
+from modules.pipeline.models import ChannelConfig, TechnicalConfig
+from modules.pipeline.exceptions import ConfigMissingKeyError
 
 logger = logging.getLogger(__name__)
 
@@ -27,32 +28,42 @@ class ContentIdeaGenerator:
 
     def __init__(self, project_id: int = None, target_platform: str = "both",
                  content_angle: str = "tips", niche_keywords: List[str] = None,
-                 llm_config: Optional[Dict] = None,
-                 channel_config: Optional[Dict] = None):
+                 llm_config: Optional["GenerationLLM"] = None,
+                 channel_config: Optional[ChannelConfig] = None,
+                 technical_config: TechnicalConfig = None):
         """
         Args:
             project_id: project ID for DB storage
             target_platform: 'facebook', 'tiktok', or 'both'
             content_angle: 'tips', 'educational', 'motivational', 'story'
             niche_keywords: list of niche keywords
-            llm_config: Optional dict with 'provider', 'model', 'api_key' keys.
-                         If None, resolves from config automatically.
-            channel_config: Optional channel config dict. If provided, validated
-                           via Pydantic ChannelConfig — missing required fields
-                           raise ValidationError.
+            llm_config: GenerationLLM Pydantic model. If provided, used directly.
+                        If not, reads from technical_config.generation.llm.
+            channel_config: ChannelConfig Pydantic model. Required for script generation.
+            technical_config: TechnicalConfig Pydantic model. Used to resolve api_key
+                              if llm_config is not provided.
         """
+        from modules.pipeline.models import GenerationLLM
+
         self.project_id = project_id
         self.target_platform = target_platform
         self.content_angle = content_angle
         self.niche_keywords = niche_keywords or []
-        self._llm_config = llm_config or {}
 
-        # Validate channel config with Pydantic — raise on missing required fields
-        if channel_config:
-            validated = ChannelConfig(**channel_config)
-            self._channel_config = validated
+        # Resolve llm_config: prefer explicit param, fall back to technical_config
+        if llm_config is not None:
+            if not isinstance(llm_config, GenerationLLM):
+                raise TypeError(f"llm_config must be a GenerationLLM Pydantic model, got {type(llm_config).__name__}")
+            self._llm = llm_config
+        elif technical_config is not None:
+            self._llm = technical_config.generation.llm
         else:
-            self._channel_config = None
+            # Neither provided — defer to per-scene TechnicalConfig.load() (lazy)
+            self._llm = None
+
+        # Store channel config (already validated by caller)
+        self._channel_config = channel_config
+        self._technical_config = technical_config
 
     def generate_ideas_from_topics(self, topics: List[Dict], count: int = 5) -> List[Dict]:
         """Generate content ideas from researched topics."""
@@ -101,32 +112,39 @@ class ContentIdeaGenerator:
 
     def _generate_scenes(self, title: str, keywords: List[str], angle: str,
                           description: str = "", num_scenes: int = 3) -> List[Dict]:
-        """Generate scene scripts using LLM provider with exponential backoff retry."""
+        """Generate scene scripts using LLM provider with exponential backoff retry.
+
+        After initial generation, each scene's TTS is validated against channel
+        duration bounds. Scenes that exceed bounds are regenerated (TTS text only)
+        via _regenerate_scene_tts before being returned.
+        """
         from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 
-        api_key = self._llm_config.get("api_key", "")
+        from modules.pipeline.models import TechnicalConfig
+
+        # Resolve api_key — from technical_config if not provided via GenerationLLM (it doesn't have api_key)
+        if not self._llm or not self._llm.model:
+            raise ConfigMissingKeyError("generation.llm.model", "ContentIdeaGenerator")
+        tech_cfg = self._technical_config if self._technical_config else TechnicalConfig.load()
+        api_key = tech_cfg.api_keys.minimax
         if not api_key:
-            # Read minimax key from technical config
-            from modules.pipeline.models import TechnicalConfig
-            api_key = TechnicalConfig.load().api_keys.minimax
-            if not api_key:
-                raise RuntimeError("minimax API key not found in config")
+            raise RuntimeError("minimax API key not found in config")
 
         llm = get_llm_provider(
-            name=self._llm_config.get("provider", "minimax"),
+            name=self._llm.provider if self._llm else "minimax",
             api_key=api_key,
-            model=self._llm_config.get("model", "MiniMax-M2.7"),
+            model=self._llm.model if self._llm else "MiniMax-M2.7",
         )
         prompt = self._build_scene_prompt(title, keywords, angle, description, num_scenes)
 
         @retry(
-            stop=stop_after_attempt(3),
-            wait=wait_exponential(multiplier=1, min=1, max=10),
+            stop=stop_after_attempt(self._llm.retry_attempts if self._llm else 3),
+            wait=wait_exponential(multiplier=1, min=1, max=self._llm.retry_backoff_max if self._llm else 10),
             before_sleep=before_sleep_log(logger, logging.WARNING),
             reraise=True,
         )
         def _call_llm():
-            text = llm.chat(prompt, max_tokens=1536)
+            text = llm.chat(prompt, max_tokens=self._llm.max_tokens if self._llm else 1536)
             scenes = self._parse_scenes(text)
             if not scenes:
                 raise ValueError("Invalid scene format")
@@ -134,6 +152,28 @@ class ContentIdeaGenerator:
 
         scenes = _call_llm()
         logger.info(f"Generated {len(scenes)} scenes from LLM")
+
+        # Validate each scene's TTS duration and regenerate if out of bounds
+        if self._channel_config and self._channel_config.tts:
+            tts_cfg = self._channel_config.tts
+            wps = 2.5
+            if self._technical_config and hasattr(self._technical_config, 'generation'):
+                gen_cfg = self._technical_config.generation
+                if hasattr(gen_cfg, 'tts') and gen_cfg.tts and hasattr(gen_cfg.tts, 'words_per_second'):
+                    wps = gen_cfg.tts.words_per_second
+
+            for scene in scenes:
+                tts_text = scene.get("tts", "")
+                if not tts_text:
+                    continue
+                if not self._validate_scene_duration(tts_text, tts_cfg, wps):
+                    logger.warning(f"  ⚠️ Scene {scene.get('id', '?')} TTS out of bounds "
+                                  f"({len(tts_text.split())} words), regenerating...")
+                    regenerated = self._regenerate_scene_tts(
+                        tts_text, tts_cfg, api_key=api_key, wps=wps
+                    )
+                    scene["tts"] = regenerated
+
         return scenes
 
     def _build_scene_prompt(self, title: str, keywords: List[str], angle: str,
@@ -149,7 +189,11 @@ class ContentIdeaGenerator:
         char_list_str = ", ".join(all_char_names)
 
         tts = cfg.tts
-        tts_context = f"\nGiới hạn thời lượng: tối đa {tts.max_duration}s, tối thiểu {tts.min_duration}s"
+        tts_context = (
+            f"\nGiới hạn thời lượng: tối đa {tts.max_duration}s, tối thiểu {tts.min_duration}s mỗi scene. "
+            f"Mỗi scene phải có khoảng {int(tts.min_duration * 2.5)}-{int(tts.max_duration * 2.5)} từ "
+            f"(với tốc độ 2.5 từ/giây)."
+        )
 
         # Build image style string from channel config for consistent art generation
         img_style = cfg.image_style
@@ -189,7 +233,7 @@ CẤU TRÚC SCENE:
 
 MỖI SCENE CẦN CÓ:
 - id: số nguyên (1, 2, 3...)
-- script: lời thoại tiếng Việt có dấu, mỗi scene 3-8 câu
+- script: lời thoại tiếng Việt có dấu, 25-35 từ, mỗi câu không quá 10 từ
 - background: mô tả cảnh nền 5-15 từ, BẮT BUỘC chứa phong cách hình ảnh cố định [{art_style_str}] - ví dụ: "văn phòng hiện đại, {art_style_str}"
 - character: tên MỘT nhân vật duy nhất được chọn từ [{char_list_str}]
 
@@ -211,6 +255,89 @@ Trả về CHỈ JSON array, không kèm markdown."""
                 except json.JSONDecodeError:
                     pass
         return []
+
+    def _estimate_tts_duration(self, text: str, wps: float = 2.5) -> float:
+        """Estimate TTS duration in seconds from text word count."""
+        if not text or not text.strip():
+            return 0.0
+        word_count = len(text.split())
+        return word_count / wps
+
+    def _validate_scene_duration(self, scene_tts: str, tts_cfg,
+                                  wps: float = 2.5) -> bool:
+        """Return True if estimated TTS duration is within min/max bounds.
+
+        Args:
+            scene_tts: The TTS script text for one scene.
+            tts_cfg: TTSConfig with min_duration and max_duration.
+            wps: Words per second (from channel config, default 2.5).
+
+        Returns:
+            True if min_duration <= estimated_duration <= max_duration.
+        """
+        if not scene_tts or not scene_tts.strip():
+            return True
+        if tts_cfg is None:
+            return True
+        duration = self._estimate_tts_duration(scene_tts, wps)
+        return tts_cfg.min_duration <= duration <= tts_cfg.max_duration
+
+    def _regenerate_scene_tts(self, original_tts: str, tts_cfg,
+                               api_key: str, wps: float = 2.5,
+                               max_retries: int = 3) -> str:
+        """Regenerate scene TTS text to fit duration bounds.
+
+        Args:
+            original_tts: The original TTS text that exceeded bounds.
+            tts_cfg: TTSConfig with min_duration and max_duration.
+            api_key: MiniMax API key for LLM calls.
+            wps: Words per second for duration estimation.
+            max_retries: Number of LLM retry attempts (default 3).
+
+        Returns:
+            New TTS text that fits bounds, or original_tts if all retries fail.
+        """
+        from modules.llm.minimax import MiniMaxLLMProvider
+
+        target_duration = tts_cfg.max_duration * 0.9
+        target_words = int(target_duration / wps)
+
+        system_prompt = f"""Bạn là chuyên gia viết kịch bản TTS tiếng Việt ngắn gọn.
+Nhiệm vụ: Viết lại kịch bản TTS cho một scene video.
+
+YÊU CẦU:
+- VIẾT TIẾNG VIỆT CÓ DẤU, tự nhiên như người nói thật
+- Độ dài: CHÍNH XÁC khoảng {target_words} từ (tương đương {target_duration:.0f} giây TTS)
+- KHÔNG thêm lời chào mở đầu như "Xin chào", "Hôm nay"
+- KHÔNG thêm kết luận kiểu "Cảm ơn đã xem"
+- Câu ngắn gọn, mỗi câu không quá 10 từ
+
+Output: Chỉ output kịch bản TTS thuần túy, không có mở đầu hay kết thúc."""
+
+        user_prompt = f"""Kịch bản gốc (hiện tại quá dài):
+"{original_tts}"
+
+Hãy viết lại kịch bản này để có độ dài phù hợp (khoảng {target_words} từ)."""
+
+        for attempt in range(max_retries):
+            try:
+                llm = MiniMaxLLMProvider(api_key=api_key)
+                new_tts = llm.chat(prompt=user_prompt, system=system_prompt, max_tokens=512)
+                new_tts = new_tts.strip()
+                if not new_tts:
+                    logger.warning(f"  🤖 Regenerated TTS was empty (attempt {attempt+1}/{max_retries})")
+                    continue
+                if self._validate_scene_duration(new_tts, tts_cfg, wps):
+                    logger.info(f"  🤖 Scene TTS regenerated ({attempt+1} attempt): "
+                               f"{len(original_tts.split())} → {len(new_tts.split())} words")
+                    return new_tts
+                else:
+                    logger.warning(f"  🤖 Regenerated TTS still out of bounds (attempt {attempt+1}/{max_retries})")
+            except Exception as e:
+                logger.warning(f"  🤖 LLM regeneration error: {e} (attempt {attempt+1}/{max_retries})")
+
+        logger.warning(f"  ⚠️ All {max_retries} regeneration attempts failed — keeping original TTS")
+        return original_tts
 
     def _validate_scenes(self, scenes: List[Dict]) -> List[Dict]:
         """Validate and normalize scene structure.

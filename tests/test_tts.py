@@ -19,8 +19,12 @@ class TestEdgeTTSProvider:
         """EdgeTTSProvider.generate should return (path, timestamps) tuple."""
         provider = EdgeTTSProvider()
 
+        def _close_coro(coro):
+            """Close unawaited coroutine to suppress RuntimeWarning."""
+            coro.close()
+
         with patch("asyncio.set_event_loop_policy") as mock_set_policy:
-            with patch("asyncio.run") as mock_run:
+            with patch("asyncio.run", side_effect=_close_coro) as mock_run:
                 with patch("asyncio.WindowsProactorEventLoopPolicy", return_value=MagicMock(), create=True):
                     with patch("edge_tts.Communicate") as MockComm:
                         mock_comm = MagicMock()
@@ -57,8 +61,12 @@ class TestEdgeTTSProvider:
         """EdgeTTSProvider.generate returns None when edge-tts fails."""
         provider = EdgeTTSProvider()
 
+        def _raise_and_close(coro):
+            coro.close()
+            raise Exception("edge-tts error")
+
         with patch("asyncio.set_event_loop_policy") as mock_set_policy:
-            with patch("asyncio.run", side_effect=Exception("edge-tts error")):
+            with patch("asyncio.run", side_effect=_raise_and_close):
                 result = provider.generate("test text", "female_voice", 1.0, "/tmp/test.mp3")
 
                 # On error should return None (not tuple)

@@ -13,13 +13,14 @@ from modules.pipeline.models import S3Config
 _s3_config = None
 
 
-def configure(config: dict = None):
-    """Update S3 config from a config dict. All required fields must be present."""
+def configure(config: S3Config):
+    """Update S3 config from an S3Config Pydantic model."""
     global _s3_config
-    if config is None:
-        raise MissingConfigError("s3 config is required but not provided")
-    validated = S3Config(**config)
-    _s3_config = validated
+    if not isinstance(config, S3Config):
+        raise TypeError(
+            f"configure() requires an S3Config Pydantic model, got {type(config).__name__} instead."
+        )
+    _s3_config = config
 
 
 def get_s3_config():

@@ -9,55 +9,19 @@ from datetime import datetime, date, timezone
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
+from modules.pipeline.db_config import DatabaseConnectionConfig
 from modules.pipeline.exceptions import MissingConfigError
 import db_models as models
-
-# Database connection config (updated by configure())
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "database": "videopipeline",
-    "user": "videopipeline",
-    "password": "videopipeline123",
-}
 
 # SQLAlchemy engine + session factory (set by configure())
 _engine = None
 _SessionFactory = None
 
 
-def configure(config: dict = None):
-    """Configure database connection. Supports env var fallback."""
-    global _engine, _SessionFactory
-
-    if config is None:
-        config = {}
-
-    host = config.get("host") or os.getenv("POSTGRES_HOST", "localhost")
-    port = config.get("port") or int(os.getenv("POSTGRES_PORT", "5432"))
-    database = config.get("name") or config.get("database") or os.getenv("POSTGRES_DB", "videopipeline")
-    user = config.get("user") or os.getenv("POSTGRES_USER", "videopipeline")
-    password = config.get("password") or os.getenv("POSTGRES_PASSWORD", "videopipeline123")
-
-    if not all([host, database, user]):
-        raise MissingConfigError("database host, name, user are required")
-
-    DB_CONFIG.update({
-        "host": host,
-        "port": port,
-        "database": database,
-        "user": user,
-        "password": password,
-    })
-
-    _engine = create_engine(
-        f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}",
-        pool_size=1,
-        max_overflow=10,
-        pool_timeout=30,
-        echo=False,
-    )
-    _SessionFactory = sessionmaker(bind=_engine)
+def configure(config: DatabaseConnectionConfig):
+    """Delegate to db.configure(). db.configure() now accepts DatabaseConnectionConfig directly."""
+    import db as _db_module
+    _db_module.configure(config)
 
 
 def _ensure_configured():

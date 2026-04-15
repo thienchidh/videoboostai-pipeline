@@ -1,0 +1,20 @@
+title: năng suất – Wiktionary tiếng Việt
+scenes:
+- id: 1
+  script: 90% người đọc Wiktionary đều hiểu sai từ 'năng suất'! Bạn có chắc mình không
+    nằm trong số đó?
+  background: văn phòng hiện đại với kệ sách, 3D render, warm, eye-level, modern office,
+    professional
+  character: Mentor
+- id: 2
+  script: 'Wiktionary định nghĩa: làm ra nhiều thứ trong ít thời gian. Nhưng thực
+    tế, bạn có làm đúng việc hay chỉ đang bận?'
+  background: bàn làm việc với laptop và đồ uống, 3D render, warm, eye-level, modern
+    office, professional
+  character: Mentor
+- id: 3
+  script: 'Hãy comment: hôm nay bạn hoàn thành bao nhiêu công việc thực sự quan trọng?
+    Mình sẽ đọc hết!'
+  background: không gian văn phòng sáng sủa, 3D render, warm, eye-level, modern office,
+    professional
+  character: Mentor

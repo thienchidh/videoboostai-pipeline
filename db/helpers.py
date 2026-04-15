@@ -3,6 +3,7 @@ db/helpers.py - Database helper functions.
 """
 import db_models as models
 from datetime import datetime, date, timezone
+from modules.pipeline.models import CTRData
 from typing import Optional, List, Dict, Any
 from contextlib import contextmanager
 
@@ -995,10 +996,12 @@ def ab_ctr_correlation(days: int = 30) -> dict:
             })
             pd["tests"] += 1
             if t.ctr_a:
-                ctr_val = t.ctr_a.get("ctr", 0) if isinstance(t.ctr_a, dict) else float(t.ctr_a or 0)
+                ctr_a = CTRData.model_validate(t.ctr_a) if isinstance(t.ctr_a, dict) else t.ctr_a
+                ctr_val = float(ctr_a.ctr or 0)
                 pd["ctr_a_sum"] += ctr_val
             if t.ctr_b:
-                ctr_val = t.ctr_b.get("ctr", 0) if isinstance(t.ctr_b, dict) else float(t.ctr_b or 0)
+                ctr_b = CTRData.model_validate(t.ctr_b) if isinstance(t.ctr_b, dict) else t.ctr_b
+                ctr_val = float(ctr_b.ctr or 0)
                 pd["ctr_b_sum"] += ctr_val
         for plat, pd in by_platform.items():
             n = pd["tests"]

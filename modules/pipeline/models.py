@@ -43,11 +43,21 @@ class GenerationLLM(BaseModel):
     model: str = "MiniMax-M2.7"
     max_tokens: int = 1536
     timeout: int = 60
+    retry_attempts: int = 3
+    retry_backoff_max: int = 10
 
 
 class GenerationTTS(BaseModel):
+    model: str = "speech-2.1-hd"
+    sample_rate: int = 32000
+    timeout: int = 60
     max_duration: float = 15.0
     min_duration: float = 5.0
+    words_per_second: float = 2.5
+    bitrate: int = 128000
+    format: str = "mp3"
+    channel: int = 1
+    word_timestamp_timeout: int = 120
 
 
 class GenerationLipsync(BaseModel):
@@ -55,6 +65,9 @@ class GenerationLipsync(BaseModel):
     prompt: str = "A person talking"
     resolution: str = "480p"
     max_wait: int = 300
+    poll_interval: int = 10
+    retries: int = 2
+    seed: Optional[int] = None
 
 
 class GenerationImage(BaseModel):
@@ -62,6 +75,9 @@ class GenerationImage(BaseModel):
     fallback_providers: list[str] = []
     aspect_ratio: str = "9:16"
     timeout: int = 120
+    model: str = "image-01"
+    poll_interval: int = 5
+    max_polls: int = 24
 
 
 class GenerationSeeds(BaseModel):
@@ -69,9 +85,23 @@ class GenerationSeeds(BaseModel):
     video: int = 12345
 
 
+class GenerationPipeline(BaseModel):
+    max_retries: int = 3
+
+
 class ParallelSceneConfig(BaseModel):
     enabled: bool = True
     max_workers: int = 3
+
+
+class GenerationContent(BaseModel):
+    scene_count: int = 3
+    checkpoint_path: str = ".content_pipeline_checkpoint.json"
+
+
+class ResearchConfig(BaseModel):
+    schedule_hour: int = 9
+    schedule_minute: int = 0
 
 
 class GenerationConfig(BaseModel):
@@ -81,6 +111,9 @@ class GenerationConfig(BaseModel):
     lipsync: GenerationLipsync
     seeds: GenerationSeeds
     parallel_scene_processing: ParallelSceneConfig = ParallelSceneConfig()
+    content: GenerationContent = GenerationContent()
+    research: ResearchConfig = ResearchConfig()
+    pipeline: GenerationPipeline = GenerationPipeline()
 
 
 class S3Config(BaseModel):
@@ -101,6 +134,8 @@ class DatabaseConfig(BaseModel):
 
 
 class StorageConfig(BaseModel):
+    output_dir: str = "output"
+    temp_dir: Optional[str] = None
     s3: S3Config
     database: DatabaseConfig
 
@@ -116,6 +151,12 @@ class ObserverConfig(BaseModel):
     enabled: bool = False
 
 
+class EmbeddingConfig(BaseModel):
+    model: str = "distiluse-base-multilingual-cased-v2"
+    similarity_threshold: float = 0.75
+    translation_max_tokens: int = 200
+
+
 class TechnicalConfig(BaseModel):
     api_keys: APIKeys
     api_urls: APIURLs
@@ -124,6 +165,39 @@ class TechnicalConfig(BaseModel):
     storage: StorageConfig
     logging: LoggingConfig = LoggingConfig()
     observer: Optional[ObserverConfig] = None
+    embedding: EmbeddingConfig = EmbeddingConfig()
+
+    def get(self, key: str, default=None):
+        """Dict-like access for backward compatibility with code using config.get('a.b.c').
+
+        Translates YAML-style paths to Pydantic attribute paths:
+        - 'api.urls.minimax_tts' -> api_urls.minimax_tts (api -> api_urls, drop 'urls')
+        - 'api.keys.minimax' -> api_keys.minimax
+        - 'generation.tts.model' -> generation.tts.model (direct Pydantic attrs)
+        - 'storage.temp_dir' -> storage.temp_dir
+        """
+        parts = key.split('.')
+
+        # Handle 'api.urls.X' -> 'api_urls.X' (drop 'urls', combine first and last)
+        if len(parts) >= 3 and parts[0] == 'api' and parts[1] == 'urls':
+            # 'api.urls.minimax_tts' -> 'api_urls.minimax_tts'
+            parts = ['api_urls', parts[2]]
+        elif parts[0] == 'api_keys':
+            # 'api_keys.minimax' -> 'api_keys.minimax' (no change needed)
+            pass
+        elif parts[0] == 'api':
+            # 'api.keys.X' -> 'api_keys.X'
+            parts = ['api_keys'] + parts[2:]
+
+        obj = self
+        for part in parts:
+            if obj is None:
+                return default
+            if hasattr(obj, part):
+                obj = getattr(obj, part)
+            else:
+                return default
+        return obj
 
     @classmethod
     def load(cls) -> "TechnicalConfig":
@@ -140,6 +214,8 @@ class TechnicalConfig(BaseModel):
         }
         if 'observer' in data:
             restructured['observer'] = data['observer']
+        if 'embedding' in data:
+            restructured['embedding'] = data['embedding']
         return cls(**restructured)
 
 
@@ -150,6 +226,9 @@ class ContentResearch(BaseModel):
     content_angle: str = "tips"
     target_platform: str = "both"
     research_interval_hours: int = 24
+    schedule: Optional[str] = "2h"           # "2h" = twice daily
+    threshold: int = 3                        # trigger research if pending pool < 3
+    pending_pool_size: int = 5               # min ideas in pool before skip research
 
 
 class CharacterConfig(BaseModel):
@@ -269,7 +348,7 @@ class ChannelConfig(BaseModel):
     channel_id: str
     name: str
     characters: list[CharacterConfig]
-    tts: TTSConfig
+    tts: Optional[TTSConfig] = None
     watermark: WatermarkConfig
     style: str
     research: ContentResearch
@@ -362,10 +441,54 @@ class ScenarioConfig(BaseModel):
         return instance
 
 
+class PagePlatformConfig(BaseModel):
+    page_id: Optional[str] = None
+    page_name: Optional[str] = None
+    account_name: Optional[str] = None
+    account_id: Optional[str] = None
+    auto_publish: bool = False
+    access_token: Optional[str] = None
+
+
+class PageConfig(BaseModel):
+    facebook: PagePlatformConfig = PagePlatformConfig()
+    tiktok: PagePlatformConfig = PagePlatformConfig()
+
+
+class ContentSettings(BaseModel):
+    auto_schedule: bool = True
+    niche_keywords: list[str] = []
+    content_angle: str = "tips"
+    target_platform: str = "both"
+    research_interval_hours: int = 24
+    schedule: str = "2h"
+    threshold: int = 3
+    pending_pool_size: int = 5
+
+
+class CheckpointData(BaseModel):
+    last_processed_idea_index: int = -1
+    source_id: Optional[int] = None
+    idea_ids_processed: list[int] = []
+    timestamp: Optional[str] = None
+
+
+class LipsyncRequest(BaseModel):
+    left_audio: Optional[str] = None
+    right_audio: Optional[str] = None
+    config: Optional["GenerationLipsync"] = None
+
+
+class CTRData(BaseModel):
+    ctr: float = 0.0
+    impressions: int = 0
+    clicks: int = 0
+
+
 class ContentPipelineConfig(BaseModel):
     """Business config for content pipeline - social pages and content settings."""
-    page: Dict[str, Dict[str, Any]]
-    content: Dict[str, Any]
+    page: PageConfig = PageConfig()
+    content: ContentSettings = ContentSettings()
 
     @classmethod
     def load(cls, path: str | Path) -> "ContentPipelineConfig":
@@ -374,7 +497,18 @@ class ContentPipelineConfig(BaseModel):
             raise FileNotFoundError(f"Content pipeline config not found: {path}")
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
-        return cls(**data)
+        # Build sub-models from flat dict structure
+        page_data = data.get("page", {})
+        facebook_data = page_data.get("facebook", {})
+        tiktok_data = page_data.get("tiktok", {})
+        content_data = data.get("content", {})
+        return cls(
+            page=PageConfig(
+                facebook=PagePlatformConfig(**facebook_data) if facebook_data else PagePlatformConfig(),
+                tiktok=PagePlatformConfig(**tiktok_data) if tiktok_data else PagePlatformConfig(),
+            ),
+            content=ContentSettings(**content_data) if content_data else ContentSettings(),
+        )
 
     @classmethod
     def load_or_default(cls, path: str | Path) -> "ContentPipelineConfig":
@@ -382,14 +516,18 @@ class ContentPipelineConfig(BaseModel):
         try:
             return cls.load(path)
         except FileNotFoundError:
-            return cls(**{
-                "page": {
-                    "facebook": {"page_id": "YOUR_PAGE_ID", "page_name": "NangSuatThongMinh"},
-                    "tiktok": {"account_id": "YOUR_TIKTOK_ACCOUNT_ID", "account_name": "@NangSuatThongMinh"}
-                },
-                "content": {
-                    "auto_schedule": True
-                }
-            })
+            return cls(
+                page=PageConfig(
+                    facebook=PagePlatformConfig(
+                        page_id="YOUR_PAGE_ID",
+                        page_name="NangSuatThongMinh"
+                    ),
+                    tiktok=PagePlatformConfig(
+                        account_id="YOUR_TIKTOK_ACCOUNT_ID",
+                        account_name="@NangSuatThongMinh"
+                    ),
+                ),
+                content=ContentSettings(auto_schedule=True),
+            )
 
 

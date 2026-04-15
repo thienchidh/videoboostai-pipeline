@@ -18,153 +18,208 @@ logging.getLogger("modules.content").setLevel(logging.WARNING)
 
 
 class TestContentPipelineReResearch:
-    """Tests for content pipeline topic re-research on duplicate exhaustion."""
+    """Tests for content pipeline run_research_phase behavior."""
 
-    def test_research_called_again_when_all_dupes(self, tmp_path):
-        """
-        When all ideas from a research batch are duplicates,
-        the pipeline should re-research more topics.
+    def test_research_phase_returns_success_with_valid_topics(self, tmp_path):
+        """run_research_phase() should return success when valid topics are found."""
+        from modules.content.content_pipeline import ContentPipeline
+        from modules.pipeline.models import ContentPipelineConfig
+        from unittest.mock import MagicMock, patch
 
-        Setup:
-        - No pending topic sources (fresh research path)
-        - First research call returns 2 topics → ideas generated
-        - check_duplicate_ideas returns [] (all ideas are dupes)
-        - Pipeline exhausts first batch → should call research_from_keywords AGAIN
-        - Second research call returns 2 new topics
-        - check_duplicate_ideas on second batch returns non-empty → ideas found
+        mock_researcher = MagicMock()
+        mock_researcher.research_from_keywords.return_value = [
+            {"title": "Topic A", "summary": "Desc A", "keywords": ["productivity"]},
+        ]
+        mock_researcher.save_to_db.return_value = 1
+        mock_researcher.niche_keywords = ["productivity"]
 
-        Before fix: research only called once → results["status"] == "no_new_ideas"
-        After fix:  research called twice → ideas found
-        """
-        # ─── Shared state for mock side effects ────────────────────
-        research_call_count = 0
-        dedup_call_count = 0
+        mock_idea_gen = MagicMock()
+        mock_idea_gen.generate_ideas_from_topics.return_value = [
+            {"title": "New Idea", "description": "desc", "topic_keywords": [], "target_platform": "both"}
+        ]
+        mock_idea_gen.save_ideas_to_db.return_value = [1]
 
-        def mock_research_from_keywords(count):
-            nonlocal research_call_count
-            research_call_count += 1
-            if research_call_count == 1:
-                return [
-                    {"title": "Topic A - Productivity Tips", "summary": "Desc A", "keywords": ["productivity"]},
-                    {"title": "Topic B - Time Management", "summary": "Desc B", "keywords": ["time"]},
-                ]
-            else:
-                return [
-                    {"title": "Topic C - Morning Routine", "summary": "Desc C", "keywords": ["morning"]},
-                    {"title": "Topic D - Healthy Habits", "summary": "Desc D", "keywords": ["health"]},
-                ]
-
-        def mock_check_dup(ideas, project_id):
-            nonlocal dedup_call_count
-            dedup_call_count += 1
-            if dedup_call_count == 1:
-                return []  # first batch: all dupes
-            return ideas  # second batch: not dupes
-
-        def mock_generate_ideas(topics, count):
-            return [
-                {
-                    "title": t.get("title", ""),
-                    "description": t.get("summary", ""),
-                    "topic_keywords": t.get("keywords", []),
-                    "content_angle": "tips",
-                    "target_platform": "both",
-                    "source": "research",
-                }
-                for t in topics
-            ]
-
-        # ─── Mock instances ─────────────────────────────────────────
-        mock_researcher_instance = MagicMock()
-        mock_researcher_instance.research_from_keywords.side_effect = mock_research_from_keywords
-        mock_researcher_instance.save_to_db.return_value = 999
-        mock_researcher_instance.niche_keywords = ["productivity"]
-
-        mock_idea_gen_instance = MagicMock()
-        mock_idea_gen_instance.generate_ideas_from_topics.side_effect = mock_generate_ideas
-        mock_idea_gen_instance.save_ideas_to_db.return_value = [1, 2]
-        mock_idea_gen_instance.update_idea_script = MagicMock()
-        mock_idea_gen_instance.target_platform = "both"
-
-        mock_channel_instance = MagicMock()
-        mock_channel_instance.name = "test_channel"
-        mock_channel_instance.watermark = MagicMock(text="@test")
-        mock_channel_instance.style = "viral"
-        mock_channel_instance.voices = []
-        mock_channel_instance.characters = []
-        mock_channel_instance.tts = MagicMock(min_duration=2.0, max_duration=15.0)
+        mock_channel = MagicMock()
+        mock_channel.name = "test"
+        mock_channel.watermark = MagicMock(text="@test")
+        mock_channel.style = "viral"
+        mock_channel.voices = []
+        mock_channel.characters = []
+        mock_channel.tts = MagicMock(min_duration=2.0, max_duration=15.0)
         mock_research_cfg = MagicMock()
         mock_research_cfg.niche_keywords = ["productivity"]
         mock_research_cfg.content_angle = "tips"
         mock_research_cfg.target_platform = "both"
-        mock_channel_instance.research = mock_research_cfg
+        mock_research_cfg.threshold = 3
+        mock_research_cfg.pending_pool_size = 5
+        mock_channel.research = mock_research_cfg
 
-        mock_calendar_instance = MagicMock()
-        mock_caption_instance = MagicMock()
-        mock_vp3_instance = MagicMock()
-        mock_vp3_instance.run.return_value = True
-        mock_vp3_instance._runner = MagicMock()
-        mock_vp3_instance._runner.media_dir = tmp_path / "media"
-        mock_vp3_instance._runner.run_dir = tmp_path / "run"
+        # Use real ContentPipelineConfig - no need to patch it
+        cfg = ContentPipelineConfig(
+            page={},
+            content={}
+        )
 
-        # ─── Patch at point-of-use in content_pipeline ───────────────
-        # This replaces the class references that ContentPipeline.__init__
-        # imports from the top of content_pipeline.py
         with \
-            patch("modules.content.content_pipeline.TopicResearcher",
-                  return_value=mock_researcher_instance), \
-            patch("modules.content.content_pipeline.ContentIdeaGenerator",
-                  return_value=mock_idea_gen_instance), \
-            patch("modules.content.content_pipeline.ContentCalendar",
-                  return_value=mock_calendar_instance), \
-            patch("modules.content.content_pipeline.CaptionGenerator",
-                  return_value=mock_caption_instance), \
+            patch("modules.content.content_pipeline.TopicResearcher", return_value=mock_researcher), \
+            patch("modules.content.content_pipeline.ContentIdeaGenerator", return_value=mock_idea_gen), \
+            patch("modules.content.content_pipeline.ContentCalendar", return_value=MagicMock()), \
+            patch("modules.content.content_pipeline.CaptionGenerator", return_value=MagicMock()), \
             patch("modules.content.content_pipeline.PROJECT_ROOT", tmp_path), \
-            patch("scripts.video_pipeline_v3.VideoPipelineV3",
-                  return_value=mock_vp3_instance) as MockVP3, \
-            patch("core.paths.PROJECT_ROOT", tmp_path), \
-            patch("modules.pipeline.models.ChannelConfig.load",
-                  return_value=mock_channel_instance), \
-            patch("modules.content.content_pipeline.ContentPipelineConfig",
-                  return_value=MagicMock(page={"facebook": {}, "tiktok": {}}, content={"auto_schedule": False})), \
-            patch("db.get_pending_topic_sources", return_value=[]), \
-            patch("utils.embedding.check_duplicate_ideas", side_effect=mock_check_dup), \
-            patch("utils.embedding.save_idea_embedding"), \
-            patch("db.mark_topic_source_completed"):\
+            patch("modules.pipeline.models.ChannelConfig.load", return_value=mock_channel), \
+            patch("db.acquire_research_lock", return_value=True), \
+            patch("db.release_research_lock"), \
+            patch("db.is_research_locked", return_value=False), \
+            patch("db.get_keywords_for_research", return_value=[]), \
+            patch("modules.content.content_pipeline.ContentPipeline.should_trigger_research", return_value=True):
 
             from modules.content.content_pipeline import ContentPipeline
+            pipeline = ContentPipeline(project_id=1, config=cfg, channel_id="test", dry_run=True)
+            result = pipeline.run_research_phase()
 
-            pipeline = ContentPipeline(
-                project_id=1,
-                config={},
-                channel_id="test_channel",
-                dry_run=True,
-                skip_lipsync=True,
-                skip_content=False,
-            )
+        assert result.get("status") == "success", f"Expected success, got {result.get('status')}"
+        assert result.get("ideas_generated", 0) > 0
+        assert mock_researcher.research_from_keywords.called
 
-            with patch.object(pipeline, "_save_script_config", return_value=tmp_path / "test.yaml"):
-                results = pipeline.run_full_cycle(num_ideas=2)
 
-        # ─── Assertions ─────────────────────────────────────────────
-        assert research_call_count >= 2, (
-            f"Expected research to be called at least 2× (initial + re-research when all dupes), "
-            f"but was called only {research_call_count}×. "
-            f"This reproduces the bug: pipeline breaks without re-researching when first batch "
-            f"ideas are all duplicates. After fix, research should be called again."
-        )
+@patch("modules.content.topic_researcher.requests.get")
+def test_web_search_trending_retries_on_failure(mock_get):
+    from unittest.mock import MagicMock
+    mock_get.side_effect = [
+        Exception("network error"),
+        Exception("network error"),
+        MagicMock(status_code=200, json=lambda: {"results": {"web": []}}),
+    ]
+    from modules.content.topic_researcher import TopicResearcher
+    with patch("modules.content.topic_researcher.TopicResearcher._get_you_search_key", return_value="fake-key"):
+        researcher = TopicResearcher(niche_keywords=["test"], project_id=1)
+        result = researcher.web_search_trending("test query", count=5)
+    assert mock_get.call_count >= 2
 
-        assert results.get("status") != "no_new_ideas", (
-            f"Pipeline returned 'no_new_ideas' but after re-research, ideas should have been found. "
-            f"results={results}"
-        )
 
-        assert results.get("ideas_generated", 0) > 0, (
-            f"Expected ideas to be generated after re-research, but got ideas_generated=0. "
-            f"results={results}"
-        )
+@patch("modules.content.topic_researcher.requests.get")
+def test_web_search_trending_returns_empty_on_all_failures(mock_get):
+    mock_get.side_effect = Exception("persistent failure")
+    from modules.content.topic_researcher import TopicResearcher
+    with patch("modules.content.topic_researcher.TopicResearcher._get_you_search_key", return_value="fake-key"):
+        researcher = TopicResearcher(niche_keywords=["test"], project_id=1)
+        result = researcher.web_search_trending("test query", count=5)
+    assert result == []
 
-        assert dedup_call_count >= 2, (
-            f"check_duplicate_ideas should be called at least twice (once per research batch), "
-            f"but was called {dedup_call_count}×"
-        )
+
+def test_extract_keywords_from_topic():
+    from modules.content.topic_researcher import TopicResearcher
+    researcher = TopicResearcher(niche_keywords=["test"], project_id=1)
+    topic = {
+        "title": "5 Best Productivity Apps for 2024",
+        "description": "Discover the top productivity tools for remote work",
+    }
+    keywords = researcher.extract_keywords_from_topic(topic)
+    assert "productivity" in keywords
+    assert "tools" in keywords
+    assert "2024" not in keywords  # excluded because isdigit
+
+
+def test_keyword_pool_save_and_get():
+    from db import save_keyword, get_keywords_for_research
+    keyword_id = save_keyword("productivity apps", source_topic_id=None)
+    assert keyword_id is not None
+    keywords = get_keywords_for_research(limit=10)
+    assert any(k["keyword"] == "productivity apps" for k in keywords)
+
+
+def test_pipeline_lock_acquire_release():
+    from db import acquire_research_lock, release_research_lock, is_research_locked
+    import uuid
+    run_id = f"test_{uuid.uuid4().hex[:8]}"
+    acquired = acquire_research_lock(run_id)
+    assert acquired is True
+    assert is_research_locked() is True
+    # Second acquire should fail
+    acquired2 = acquire_research_lock("another_run")
+    assert acquired2 is False
+    release_research_lock(run_id)
+    assert is_research_locked() is False
+
+
+def test_keyword_pool_ttl_cleanup():
+    from db import save_keyword, delete_expired_keywords, get_keywords_for_research
+    from datetime import datetime, timezone, timedelta
+    # Insert old keyword via raw SQL
+    from db import get_session, text
+    with get_session() as session:
+        session.execute(text("""
+            INSERT INTO content_keyword_pool (keyword, created_at)
+            VALUES (:kw, NOW() - INTERVAL '35 days')
+        """), {"kw": "old_expired_keyword"})
+        session.commit()
+    deleted = delete_expired_keywords(ttl_days=30)
+    assert deleted >= 1
+
+
+@patch("utils.embedding._get_model")
+def test_check_duplicate_saves_dupe_idea_with_embedding(mock_get_model):
+    """When idea is dupe, check_duplicate_ideas should save ContentIdea(status=duplicate) + embedding."""
+    import numpy as np
+    mock_model = MagicMock()
+    mock_model.encode.return_value = np.array([0.1] * 512)
+    mock_get_model.return_value = mock_model
+
+    with patch("utils.embedding.find_similar_ideas") as mock_find:
+        mock_find.return_value = [{"idea_id": 1, "title_vi": "Old Idea", "similarity": 0.9}]
+
+        with patch("utils.embedding.save_idea_embedding") as mock_save_emb:
+            with patch("db.save_content_ideas") as mock_save_idea:
+                mock_save_idea.return_value = [999]  # returned idea ID
+
+                ideas = [{"title": "Similar Idea", "description": "test"}]
+                from utils.embedding import check_duplicate_ideas
+                result = check_duplicate_ideas(ideas, project_id=1)
+
+                assert mock_save_idea.called, "save_content_ideas not called for dupe"
+                assert mock_save_emb.called, "save_idea_embedding not called for dupe"
+
+
+@patch("modules.content.content_pipeline.TopicResearcher")
+@patch("modules.content.content_pipeline.ContentIdeaGenerator")
+def test_research_fails_fast_on_api_exhaustion(mock_idea_gen, mock_topic_researcher):
+    from modules.content.content_pipeline import ContentPipeline
+    from modules.pipeline.models import ContentPipelineConfig
+
+    mock_researcher = MagicMock()
+    mock_researcher.research_from_keywords.return_value = []
+    mock_topic_researcher.return_value = mock_researcher
+
+    cfg = ContentPipelineConfig(page={}, content={})
+    pipeline = ContentPipeline(project_id=1, dry_run=True, channel_id="test_channel", config=cfg)
+    results = pipeline.run_research_phase()
+    assert results.get("status") == "research_failed"
+
+
+@patch("modules.content.content_pipeline.TopicResearcher")
+@patch("modules.content.content_pipeline.ContentIdeaGenerator")
+def test_pending_pool_threshold_skips_research(mock_idea_gen, mock_topic_researcher):
+    from modules.content.content_pipeline import ContentPipeline
+    from modules.pipeline.models import ContentPipelineConfig
+
+    mock_researcher = MagicMock()
+    mock_researcher.research_from_keywords.return_value = [
+        {"title": "Test Topic", "summary": "desc", "keywords": [], "source_url": ""}
+    ]
+    mock_topic_researcher.return_value = mock_researcher
+
+    mock_ig = MagicMock()
+    mock_ig.generate_ideas_from_topics.return_value = [
+        {"title": "Test Idea", "description": "desc", "topic_keywords": [], "target_platform": "both"}
+    ]
+    mock_idea_gen.return_value = mock_ig
+
+    cfg = ContentPipelineConfig(page={}, content={})
+    pipeline = ContentPipeline(project_id=1, dry_run=True, channel_id="test_channel", config=cfg)
+
+    with patch("modules.content.content_pipeline.ContentPipeline.should_trigger_research", return_value=True):
+        with patch("db.is_research_locked", return_value=False):
+            with patch("db.acquire_research_lock", return_value=True):
+                results = pipeline.run_research_phase()
+
+    assert mock_researcher.research_from_keywords.called

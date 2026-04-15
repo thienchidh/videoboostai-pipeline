@@ -74,24 +74,28 @@ class VideoPipelineRunner:
 
         self.timestamp = timestamp if timestamp is not None else int(time.time())
 
-        # Setup directories (runtime, not from config)
-        self.output_dir = PROJECT_ROOT / "output"
+        # Read output_dir and max_workers from config
+        self.output_dir = PROJECT_ROOT / (ctx.technical.storage.output_dir if ctx.technical.storage else "output")
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.run_dir = self.output_dir / ctx.channel_id / f"{ctx.scenario.slug}_{self.timestamp}"
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.media_dir = self.run_dir / "final"
         self.media_dir.mkdir(parents=True, exist_ok=True)
 
+        # Read max_workers from config
+        self.max_workers = ctx.technical.generation.parallel_scene_processing.max_workers
+
         # Configure database if database section is present in config
         db_cfg = ctx.technical.storage.database
         if db_cfg:
-            db.configure({
-                'host': db_cfg.host,
-                'port': db_cfg.port,
-                'name': db_cfg.name,
-                'user': db_cfg.user,
-                'password': db_cfg.password,
-            })
+            from modules.pipeline.db_config import DatabaseConnectionConfig
+            db.configure(DatabaseConnectionConfig(
+                host=db_cfg.host,
+                port=db_cfg.port,
+                name=db_cfg.name,
+                user=db_cfg.user,
+                password=db_cfg.password,
+            ))
 
         # Init DB and create run record
         db.init_db()
@@ -111,14 +115,7 @@ class VideoPipelineRunner:
 
         # Configure S3 once (used by lipsync provider for media uploads)
         s3 = ctx.technical.storage.s3
-        configure_s3({
-            'endpoint': s3.endpoint,
-            'access_key': s3.access_key,
-            'secret_key': s3.secret_key,
-            'bucket': s3.bucket,
-            'region': s3.region,
-            'public_url_base': s3.public_url_base,
-        })
+        configure_s3(s3)
 
         # Instantiate providers via PluginRegistry
         self.tts_provider = self._build_tts_provider()
@@ -141,8 +138,8 @@ class VideoPipelineRunner:
             raise ValueError(f"Unknown TTS provider: {tts_name}")
 
         if tts_name == "edge":
-            return provider_cls(upload_func=None)
-        return provider_cls(api_key=self.ctx.technical.api_keys.minimax)
+            return provider_cls(config=self.ctx.technical, upload_func=None)
+        return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.minimax)
 
     def _build_image_provider(self):
         """Instantiate image provider via PluginRegistry."""
@@ -154,10 +151,10 @@ class VideoPipelineRunner:
             raise ValueError(f"Unknown image provider: {img_name}")
         # Use minimax_key for MiniMax, kie_key for Kie, wavespeed_key for WaveSpeed
         if img_name == "minimax":
-            return provider_cls(api_key=self.ctx.technical.api_keys.minimax)
+            return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.minimax)
         if img_name == "kieai":
-            return provider_cls(api_key=self.ctx.technical.api_keys.kie_ai)
-        return provider_cls(api_key=self.ctx.technical.api_keys.wavespeed)
+            return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.kie_ai)
+        return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.wavespeed)
 
     def _build_lipsync_provider(self):
         """Instantiate lipsync provider via PluginRegistry."""
@@ -176,10 +173,11 @@ class VideoPipelineRunner:
 
         if lipsync_name == "kieai":
             return provider_cls(
+                config=self.ctx.technical,
                 api_key=self.ctx.technical.api_keys.kie_ai,
                 upload_func=upload_fn,
             )
-        return provider_cls(api_key=self.ctx.technical.api_keys.wavespeed, upload_func=upload_fn)
+        return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.wavespeed, upload_func=upload_fn)
 
     def _build_music_provider(self):
         """Instantiate music provider via PluginRegistry."""
@@ -199,9 +197,14 @@ class VideoPipelineRunner:
         if self._dry_run or self._dry_run_images:
             return mock_generate_image(prompt, output_path)
 
+        # Get aspect_ratio from channel config (required)
+        aspect_ratio = self.ctx.channel.video.aspect_ratio if self.ctx.channel.video else "9:16"
+        if not aspect_ratio:
+            raise ValueError("channel config video.aspect_ratio is required")
+
         # Primary provider
         try:
-            result = self.image_provider.generate(prompt, output_path, aspect_ratio="9:16")
+            result = self.image_provider.generate(prompt, output_path, aspect_ratio=aspect_ratio)
         except Exception as e:
             log(f"  ⚠️ Image provider raised: {type(e).__name__}: {e}")
             result = None
@@ -225,16 +228,17 @@ class VideoPipelineRunner:
             if not fb_cls:
                 log(f"  ⚠️ Fallback provider '{fb_name}' not registered")
                 continue
-            # Pick API key
+            # Pick API key + config for provider
+            fb_config = self.ctx.technical
             if fb_name == "minimax":
-                fb_provider = fb_cls(api_key=self.ctx.technical.api_keys.minimax)
+                fb_provider = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.minimax)
             elif fb_name == "kieai":
-                fb_provider = fb_cls(api_key=self.ctx.technical.api_keys.kie_ai)
+                fb_provider = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.kie_ai)
             else:
-                fb_provider = fb_cls(api_key=self.ctx.technical.api_keys.wavespeed)
+                fb_provider = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.wavespeed)
             log(f"  → Trying fallback provider: {fb_name}")
             try:
-                fb_result = fb_provider.generate(prompt, output_path, aspect_ratio="9:16")
+                fb_result = fb_provider.generate(prompt, output_path, aspect_ratio=aspect_ratio)
             except Exception as e:
                 log(f"  ⚠️ Fallback '{fb_name}' error: {type(e).__name__}: {e}")
                 fb_result = None
@@ -266,13 +270,7 @@ class VideoPipelineRunner:
         elif self.ctx.technical.generation.lipsync:
             lipsync_cfg = self.ctx.technical.generation.lipsync
 
-        config = {
-            'prompt': lipsync_cfg.prompt,
-            'resolution': lipsync_cfg.resolution,
-            'max_wait': lipsync_cfg.max_wait,
-        }
-
-        return self.lipsync_provider.generate(image_path, audio_path, output_path, config=config)
+        return self.lipsync_provider.generate(image_path, audio_path, output_path, config=lipsync_cfg)
 
     def _make_lipsync_wrapper(self):
         """Create a lipsync wrapper that uses static video when USE_STATIC_LIPSYNC flag is set."""
@@ -347,7 +345,7 @@ class VideoPipelineRunner:
 
             # Process scenes in parallel using ThreadPoolExecutor
             log(f"\n🔄 Processing {len(scenes)} scenes in parallel...")
-            with ThreadPoolExecutor(max_workers=4) as executor:
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                 futures = {}
                 for scene in scenes:
                     scene_id = scene.id or 0
@@ -455,8 +453,9 @@ class VideoPipelineRunner:
             log(f"{'='*60}")
 
             subtitle_cfg = self.ctx.channel.subtitle
+            sub_font_size = subtitle_cfg.font_size if subtitle_cfg and subtitle_cfg.font_size else 60
             add_subtitles(video_for_subtitles, full_script, combined_timestamps or None,
-                         str(subtitled_video), font_size=subtitle_cfg.font_size if subtitle_cfg else 60, run_dir=self.run_dir)
+                         str(subtitled_video), font_size=sub_font_size, run_dir=self.run_dir)
 
             # Add background music
             bg_music = self.ctx.channel.background_music

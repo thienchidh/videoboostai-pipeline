@@ -8,8 +8,11 @@ import sys
 import json
 import time
 import logging
+import requests
 from datetime import datetime
 from typing import List, Dict, Optional, Any
+
+from modules.pipeline.backoff import Backoff
 
 logger = logging.getLogger(__name__)
 
@@ -29,52 +32,60 @@ class TopicResearcher:
         self.project_id = project_id
 
     def web_search_trending(self, query: str, count: int = 10) -> List[Dict]:
-        """Search web for trending topics using YouSearch API."""
-        try:
-            import requests
-            api_key = self._get_you_search_key()
-            if not api_key:
-                logger.warning(f"YouSearch API key not configured for query: '{query}'")
-                return []
-
-            headers = {"X-API-Key": api_key}
-            params = {"query": query, "count": count}
-            logger.info(f"YouSearch request: query='{query}', count={count}")
-
-            response = requests.get(
-                "https://ydc-index.io/v1/search",
-                headers=headers,
-                params=params,
-                timeout=15
-            )
-            logger.info(f"YouSearch response status: {response.status_code}")
-
-            if response.status_code != 200:
-                logger.warning(f"YouSearch API error: status={response.status_code}, body={response.text[:200]}")
-                return []
-
-            data = response.json()
-            results = data.get("results", {}).get("web", [])
-            logger.info(f"YouSearch returned {len(results)} results for query: '{query}'")
-
-            topics = []
-            for item in results[:count]:
-                title = item.get("title", "")
-                description = item.get("description", "") or item.get("url", "")
-                url = item.get("url", "")
-                # Extract keywords from title/description words
-                words = (title + " " + description).split()
-                keywords = list(set(w.lower() for w in words if len(w) > 4))[:5]
-                topics.append({
-                    "title": title,
-                    "summary": description[:200],
-                    "keywords": keywords,
-                    "source_url": url
-                })
-            return topics
-        except Exception as e:
-            logger.warning(f"YouSearch request failed: {e}")
+        """Search web for trending topics using YouSearch API (up to 3 retries with backoff)."""
+        api_key = self._get_you_search_key()
+        if not api_key:
+            logger.warning(f"YouSearch API key not configured for query: '{query}'")
             return []
+
+        headers = {"X-API-Key": api_key}
+        params = {"query": query, "count": count}
+        logger.info(f"YouSearch request: query='{query}', count={count}")
+
+        backoff = Backoff(base_delay=2.0, max_delay=30.0, factor=2.0)
+        last_error = ""
+        for attempt in range(3):
+            try:
+                response = requests.get(
+                    "https://ydc-index.io/v1/search",
+                    headers=headers,
+                    params=params,
+                    timeout=15
+                )
+                logger.info(f"YouSearch response status: {response.status_code}")
+                if response.status_code != 200:
+                    last_error = f"HTTP {response.status_code}"
+                    logger.warning(f"YouSearch API error (attempt {attempt+1}/3): status={response.status_code}, body={response.text[:200]}")
+                    backoff.sleep(attempt)
+                    continue
+
+                data = response.json()
+                results = data.get("results", {}).get("web", [])
+                logger.info(f"YouSearch returned {len(results)} results for query: '{query}'")
+
+                topics = []
+                for item in results[:count]:
+                    title = item.get("title", "")
+                    description = item.get("description", "") or item.get("url", "")
+                    url = item.get("url", "")
+                    # Extract keywords from title/description words
+                    words = (title + " " + description).split()
+                    keywords = list(set(w.lower() for w in words if len(w) > 4))[:5]
+                    topics.append({
+                        "title": title,
+                        "summary": description[:200],
+                        "keywords": keywords,
+                        "source_url": url
+                    })
+                return topics
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"YouSearch request failed (attempt {attempt+1}/3): {e}")
+                backoff.sleep(attempt)
+                continue
+
+        logger.error(f"YouSearch exhausted all retries, last error: {last_error}")
+        return []
 
     def _get_you_search_key(self) -> str:
         """Get YouSearch API key from TechnicalConfig."""
@@ -84,6 +95,19 @@ class TopicResearcher:
         except Exception:
             pass
         return ""
+
+    def extract_keywords_from_topic(self, topic: Dict) -> List[str]:
+        """Extract 3-5 keywords from topic title + description for next research cycle."""
+        title = topic.get("title", "")
+        description = topic.get("description", "") or topic.get("url", "")
+        text = title + " " + description
+        words = text.split()
+        keywords = set()
+        for w in words:
+            w_lower = w.lower().strip(".,!?;:'\"()[]{}")
+            if len(w_lower) > 4 and not w_lower.isdigit():
+                keywords.add(w_lower)
+        return list(keywords)[:5]
 
     def research_from_keywords(self, keywords: List[str] = None, count: int = 10,
                                days_recent: int = 30) -> List[Dict]:
@@ -121,6 +145,13 @@ class TopicResearcher:
                     topic["source_keyword"] = kw
                     topic["researched_at"] = datetime.now().isoformat()
                     all_topics.append(topic)
+                    extracted = self.extract_keywords_from_topic(topic)
+                    for kw_extracted in extracted:
+                        try:
+                            from db import save_keyword
+                            save_keyword(kw_extracted, source_topic_id=None)
+                        except Exception:
+                            pass  # Non-fatal
             time.sleep(0.5)  # Rate limit
 
         return all_topics

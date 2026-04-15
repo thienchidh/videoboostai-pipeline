@@ -40,6 +40,10 @@ class SceneProcessor:
         self.project_root = PROJECT_ROOT
         self.timestamp = int(time.time())
 
+        # Read max_workers from config (strict: require key to exist)
+        max_workers = ctx.technical.generation.parallel_scene_processing.max_workers
+        self.max_workers = max_workers
+
     def _run_tts(self, tts_fn, tts_text: str, voice, speed: float, audio_output: str):
         """Helper to run TTS generation (for parallel execution)."""
         log(f"  🔊 Generating TTS...")
@@ -61,7 +65,7 @@ class SceneProcessor:
         return None
 
     def resolve_voice(self, character, scene: Dict[str, Any]) -> Tuple[str, str, float, str]:
-        """Resolve (provider, model, speed, gender) from voice_id or fallback to character tts_voice.
+        """Resolve (provider, model, speed, gender) from voice_id or fallback to channel config.
 
         Returns:
             (provider_name, model_name, speed, gender)
@@ -80,15 +84,25 @@ class SceneProcessor:
                     voice.gender or "female",
                 )
 
-        # Fallback: use character tts_voice/tts_speed directly (backward compat)
-        return "edge", getattr(character, 'tts_voice', "female_voice"), getattr(character, 'tts_speed', 1.0), "female"
+        # Fallback: use channel config's generation.models.tts as provider
+        fallback_provider = self.ctx.channel.generation.models.tts if self.ctx.channel.generation else None
+        # Fallback: use first voice from catalog as voice_id
+        fallback_voice_id = "female_voice"
+        voices = self.ctx.channel.voices or []
+        if voices:
+            fallback_voice_id = voices[0].id
+
+        return fallback_provider or "edge", getattr(character, 'tts_voice', fallback_voice_id), getattr(character, 'tts_speed', 1.0), "female"
 
     def get_video_prompt(self, scene: SceneConfig) -> str:
         """Get video prompt from scene config, with image_style appended from channel config."""
         explicit = scene.video_prompt
         if not explicit:
-            # Fallback: use scene background directly
-            explicit = scene.background or "a person talking"
+            # Fallback: use channel config's generation.lipsync.prompt
+            if self.ctx.channel.generation and self.ctx.channel.generation.lipsync:
+                explicit = self.ctx.channel.generation.lipsync.prompt
+            else:
+                explicit = "A person talking"
 
         # Append image_style from channel config for consistent visual style
         image_style = self.ctx.channel.image_style
@@ -107,9 +121,13 @@ class SceneProcessor:
         return explicit
 
     def build_scene_prompt(self, scene: SceneConfig) -> str:
-        """Build scene prompt from scene background and channel prompt config."""
-        # prompt config is not in standard config - use scene background directly
-        return scene.background or "a person talking"
+        """Build scene prompt from scene background and channel config."""
+        # Use channel config's generation.lipsync.prompt as fallback
+        if scene.background:
+            return scene.background
+        if self.ctx.channel.generation and self.ctx.channel.generation.lipsync:
+            return self.ctx.channel.generation.lipsync.prompt
+        return "A person talking"
 
     def get_tts_config(self):
         return self.ctx.channel.tts
@@ -149,6 +167,38 @@ class SceneProcessor:
         except Exception as e:
             log(f"  ⚠️ Whisper error: {e}")
         return None
+
+
+def align_word_timestamps(whisper_timestamps: List[Dict], script_words: List[str]) -> List[Dict]:
+    """Replace Whisper words with script words when count matches.
+
+    Args:
+        whisper_timestamps: [{"word": "...", "start": 0.0, "end": 0.5}, ...] from Whisper
+        script_words: [word, ...] from scenario script (already split by whitespace)
+
+    Returns:
+        Aligned timestamps with script words + Whisper timestamps if count matches,
+        otherwise original Whisper timestamps unchanged.
+    """
+    if not whisper_timestamps:
+        return whisper_timestamps
+    if not script_words:
+        return whisper_timestamps
+
+    n_whisper = len(whisper_timestamps)
+    n_script = len(script_words)
+
+    if n_whisper == n_script:
+        return [
+            {
+                "word": script_words[i],
+                "start": whisper_timestamps[i]["start"],
+                "end": whisper_timestamps[i]["end"]
+            }
+            for i in range(n_whisper)
+        ]
+    else:
+        return whisper_timestamps
 
 
 class SingleCharSceneProcessor(SceneProcessor):
@@ -255,10 +305,13 @@ class SingleCharSceneProcessor(SceneProcessor):
         if not word_timestamps:
             word_timestamps = self.get_whisper_timestamps(str(audio_file), scene_output)
         if word_timestamps:
+            # Align Whisper words with script words when counts match
+            script_words = tts_text.split()
+            word_timestamps = align_word_timestamps(word_timestamps, script_words)
             ts_file = scene_output / "words_timestamps.json"
             with open(ts_file, "w", encoding="utf-8") as f:
                 json.dump(word_timestamps, f, ensure_ascii=False)
-            log(f"  📝 Saved {len(word_timestamps)} word timestamps")
+            log(f"  📝 Saved {len(word_timestamps)} word timestamps (aligned)")
 
         # 5. Lipsync (depends on both audio and image)
         video_raw = scene_output / "video_raw.mp4"

@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.paths import PROJECT_ROOT, get_karaoke_python, get_ffmpeg, get_ffprobe, get_font_path
+from core.paths import PROJECT_ROOT, get_ffmpeg, get_ffprobe, get_font_path
 
 
 # ==================== LOGGING ====================

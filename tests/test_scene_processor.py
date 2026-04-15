@@ -44,13 +44,27 @@ def make_mock_channel(characters=None, tts_config=None, image_style=None, voices
     mock_channel.image_style = img_style
     mock_channel.voices = voices or []
 
-    # Technical config with generation.tts
+    # Channel generation config
+    mock_channel_generation = MagicMock()
+    mock_channel_generation.models = MagicMock()
+    mock_channel_generation.models.tts = "edge"
+    mock_channel_generation.models.image = "kieai"
+    mock_channel_generation.models.video = "kieai"
+    mock_channel_generation.lipsync = MagicMock()
+    mock_channel_generation.lipsync.prompt = "A person talking"
+    mock_channel.generation = mock_channel_generation
+
+    # Technical config with generation.tts and parallel_scene_processing
     mock_generation_tts = MagicMock(spec=GenerationTTS)
     mock_generation_tts.min_duration = 5.0
     mock_generation_tts.max_duration = 15.0
 
+    mock_parallel = MagicMock()
+    mock_parallel.max_workers = 3
+
     mock_generation = MagicMock(spec=GenerationConfig)
     mock_generation.tts = mock_generation_tts
+    mock_generation.parallel_scene_processing = mock_parallel
 
     mock_technical = MagicMock(spec=TechnicalConfig)
     mock_technical.generation = mock_generation
@@ -112,7 +126,7 @@ class TestSceneProcessorHelpers:
         scene = SceneConfig(id=1)
         prompt = processor.build_scene_prompt(scene)
 
-        assert prompt == "a person talking"
+        assert prompt == "A person talking"
 
     def test_get_tts_config(self):
         """get_tts_config returns TTSConfig from channel."""
@@ -294,3 +308,62 @@ class TestSingleCharSceneProcessor:
             video_path, timestamps = processor.process(scene, scene_output, mock_tts, mock_img, mock_lip)
 
         assert video_path is None
+
+
+class TestAlignWordTimestamps:
+    """Tests for align_word_timestamps function."""
+
+    def test_count_match_replaces_words_keeps_timestamps(self):
+        """When whisper and script word counts match, replace words, keep timestamps."""
+        from modules.pipeline.scene_processor import align_word_timestamps
+
+        whisper = [
+            {"word": "tám", "start": 0.0, "end": 0.3},
+            {"word": "mươi", "start": 0.3, "end": 0.6},
+            {"word": "phần", "start": 0.6, "end": 0.9},
+            {"word": "trăm", "start": 0.9, "end": 1.2},
+        ]
+        script_words = ["80%", "nhân", "viên", "tự"]
+
+        result = align_word_timestamps(whisper, script_words)
+
+        assert result[0]["word"] == "80%"
+        assert result[1]["word"] == "nhân"
+        assert result[2]["word"] == "viên"
+        assert result[3]["word"] == "tự"
+        # Timestamps preserved
+        assert result[0]["start"] == 0.0
+        assert result[0]["end"] == 0.3
+        assert result[3]["start"] == 0.9
+        assert result[3]["end"] == 1.2
+
+    def test_count_mismatch_returns_whisper_intact(self):
+        """When word counts differ, return original Whisper timestamps unchanged."""
+        from modules.pipeline.scene_processor import align_word_timestamps
+
+        whisper = [
+            {"word": "tám", "start": 0.0, "end": 0.3},
+            {"word": "mươi", "start": 0.3, "end": 0.6},
+        ]
+        script_words = ["80%", "nhân", "viên", "tự", "nhận"]  # 5 words vs 2
+
+        result = align_word_timestamps(whisper, script_words)
+
+        assert result == whisper
+        assert result[0]["word"] == "tám"
+        assert result[1]["word"] == "mươi"
+
+    def test_empty_whisper_returns_empty(self):
+        """Empty Whisper timestamps returns empty list."""
+        from modules.pipeline.scene_processor import align_word_timestamps
+
+        result = align_word_timestamps([], ["word"])
+        assert result == []
+
+    def test_empty_script_returns_whisper(self):
+        """Empty script words returns Whisper timestamps unchanged."""
+        from modules.pipeline.scene_processor import align_word_timestamps
+
+        whisper = [{"word": "tám", "start": 0.0, "end": 0.3}]
+        result = align_word_timestamps(whisper, [])
+        assert result == whisper

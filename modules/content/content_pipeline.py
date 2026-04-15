@@ -586,6 +586,17 @@ class ContentPipeline:
                         output_video = str(f)
                         break
 
+            # Save captions to final/ folder
+            run_dir = pipeline._runner.run_dir if hasattr(pipeline, '_runner') and pipeline._runner is not None else None
+            if run_dir:
+                final_dir = run_dir / "final"
+                fb_text = fb_caption.for_facebook() if fb_caption else ""
+                tt_text = tt_caption.for_tiktok() if tt_caption else ""
+                if fb_text:
+                    (final_dir / "caption_facebook.txt").write_text(fb_text, encoding="utf-8")
+                if tt_text:
+                    (final_dir / "caption_tiktok.txt").write_text(tt_text, encoding="utf-8")
+
             return {
                 "success": result is not None,
                 "output_video": output_video,

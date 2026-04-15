@@ -27,7 +27,6 @@ edge-tts>=7.0.0
 # Note: openai-whisper installs torch (~2GB). For CI/testing, mock in tests/
 openai-whisper>=20231117
 
-# Scheduler (for cron_manager.py)
 schedule>=1.1.0
 
 # S3 Storage (MinIO) for media uploads

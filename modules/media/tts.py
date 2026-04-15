@@ -26,6 +26,7 @@ from core.base_pipeline import (
 from core.paths import get_edge_tts, get_whisper
 from core.plugins import TTSProvider, register_provider
 from modules.pipeline.exceptions import ConfigMissingKeyError
+from modules.pipeline.models import TechnicalConfig
 
 
 # ==================== MINIMAX TTS ====================
@@ -33,59 +34,32 @@ from modules.pipeline.exceptions import ConfigMissingKeyError
 class MiniMaxTTSProvider(TTSProvider):
     """MiniMax API text-to-speech provider."""
 
-    def __init__(self, config, api_key: str = None):
-        self._config = config
+    def __init__(self, config: TechnicalConfig, api_key: str = None):
+        """Initialize TTS provider with TechnicalConfig Pydantic model.
 
-        # Support both Pydantic TechnicalConfig and dict-like config
-        if hasattr(config, 'generation'):
-            # Pydantic TechnicalConfig
-            base_url = config.api_urls.minimax_tts if hasattr(config.api_urls, 'minimax_tts') else None
-            self.api_key = api_key or getattr(config.api_keys, 'minimax', None)
-            gen = config.generation
-            tts = gen.tts if hasattr(gen, 'tts') else None
-            self.model = tts.model if tts and hasattr(tts, 'model') else None
-            self.timeout = tts.timeout if tts and hasattr(tts, 'timeout') else None
-            self.sample_rate = tts.sample_rate if tts and hasattr(tts, 'sample_rate') else None
-            self.bitrate = tts.bitrate if tts and hasattr(tts, 'bitrate') else None
-            self.format = tts.format if tts and hasattr(tts, 'format') else None
-            self.channel = tts.channel if tts and hasattr(tts, 'channel') else None
-            storage = config.storage if hasattr(config, 'storage') else None
-            self._temp_dir = storage.temp_dir if storage and hasattr(storage, 'temp_dir') else None
-        elif hasattr(config, 'get'):
-            # Dict-like config (backward compatibility)
-            base_url = config.get("api.urls.minimax_tts")
-            self.api_key = api_key or config.get("api.keys.minimax")
-            self.model = config.get("generation.tts.model")
-            self.timeout = config.get("generation.tts.timeout")
-            self.sample_rate = config.get("generation.tts.sample_rate")
-            self.bitrate = config.get("generation.tts.bitrate")
-            self.format = config.get("generation.tts.format")
-            self.channel = config.get("generation.tts.channel")
-            self._temp_dir = config.get("storage.temp_dir")
-        else:
-            raise ConfigMissingKeyError("config", "MiniMaxTTSProvider")
-
-        if not base_url:
-            raise ConfigMissingKeyError("api.urls.minimax_tts", "MiniMaxTTSProvider")
-        self.base_url = base_url
-        if not self.api_key:
-            raise ConfigMissingKeyError("api.keys.minimax", "MiniMaxTTSProvider")
-        if not self.model:
-            raise ConfigMissingKeyError("generation.tts.model", "MiniMaxTTSProvider")
-        if self.timeout is None:
-            raise ConfigMissingKeyError("generation.tts.timeout", "MiniMaxTTSProvider")
-        if self.sample_rate is None:
-            raise ConfigMissingKeyError("generation.tts.sample_rate", "MiniMaxTTSProvider")
-        if self.bitrate is None:
-            raise ConfigMissingKeyError("generation.tts.bitrate", "MiniMaxTTSProvider")
-        if not self.format:
-            raise ConfigMissingKeyError("generation.tts.format", "MiniMaxTTSProvider")
-        if self.channel is None:
-            raise ConfigMissingKeyError("generation.tts.channel", "MiniMaxTTSProvider")
+        Args:
+            config: TechnicalConfig instance. Raises TypeError if not.
+            api_key: Override API key. If not provided, read from config.api_keys.
+        """
+        if not isinstance(config, TechnicalConfig):
+            raise TypeError(
+                f"MiniMaxTTSProvider.__init__ requires a TechnicalConfig Pydantic model, "
+                f"got {type(config).__name__} instead."
+            )
+        self._config: TechnicalConfig = config
+        self._api_key = api_key or config.api_keys.minimax
+        self.base_url = config.api_urls.minimax_tts
+        self.model = config.generation.tts.model
+        self.sample_rate = getattr(config.generation.tts, 'sample_rate', 32000)
+        self.timeout = config.generation.tts.timeout
+        self.bitrate = config.generation.tts.bitrate
+        self.format = config.generation.tts.format
+        self.channel = config.generation.tts.channel
+        self._temp_dir = config.storage.temp_dir
 
     def _get_temp_path(self, prefix: str) -> str:
         """Get platform-aware temp file path."""
-        temp_dir = self._config.get("storage.temp_dir") if self._config else None
+        temp_dir = self._temp_dir
         if temp_dir:
             return os.path.join(temp_dir, f"{prefix}_{int(time.time()*1000)}.mp3")
         fd, path = tempfile.mkstemp(suffix=".mp3", prefix=prefix)
@@ -147,7 +121,7 @@ class MiniMaxTTSProvider(TTSProvider):
             "audio_setting": {"sample_rate": self.sample_rate, "bitrate": self.bitrate, "format": self.format, "channel": self.channel},
             "language_boost": "Vietnamese"
         }
-        word_timestamp_timeout = self._config.get("generation.tts.word_timestamp_timeout") if self._config else None
+        word_timestamp_timeout = getattr(self._config.generation.tts, 'word_timestamp_timeout', 120)
         if word_timestamp_timeout is None:
             word_timestamp_timeout = 120
         try:
@@ -171,11 +145,11 @@ class MiniMaxTTSProvider(TTSProvider):
 class EdgeTTSProvider(TTSProvider):
     """Edge TTS provider using Python API (edge-tts package)."""
 
-    def __init__(self, config=None, upload_func=None):
-        """
+    def __init__(self, config: TechnicalConfig = None, upload_func=None):
+        """Initialize Edge TTS provider with TechnicalConfig Pydantic model.
+
         Args:
-            config: TechnicalConfig (Pydantic) for reading settings.
-                   Supports both Pydantic object and dict-like for backward compatibility.
+            config: TechnicalConfig instance. Optional for backward compatibility.
             upload_func: callable(file_path) -> download_url for audio upload
         """
         self._config = config
@@ -183,24 +157,12 @@ class EdgeTTSProvider(TTSProvider):
 
         # Edge TTS requires model name from config (e.g., "speech-2.8-hd")
         # Model name is stored in GenerationModels.tts, NOT in GenerationTTS
-        if config:
-            if hasattr(config, 'generation'):
-                # Pydantic TechnicalConfig
-                # model is in GenerationModels.tts (e.g., "edge" or "speech-2.8-hd")
-                models_obj = getattr(config, 'models', None)
-                self._model = getattr(models_obj, 'tts', None) if models_obj else None
-                storage_obj = getattr(config, 'storage', None)
-                self._temp_dir = getattr(storage_obj, 'temp_dir', None) if storage_obj else None
-            else:
-                # Dict-like config (for testing backward compatibility)
-                self._model = config.get("generation.tts.model") if hasattr(config, 'get') else None
-                self._temp_dir = config.get("storage.temp_dir") if hasattr(config, 'get') else None
-            # Edge TTS requires model — but model can be None/empty since edge_tts uses voice names
-            # Only validate if model string is explicitly required by the pipeline
-            if self._model is None:
-                self._model = "edge"  # Default for EdgeTTS provider
+        if config and isinstance(config, TechnicalConfig):
+            # model is in GenerationModels.tts (e.g., "edge" or "speech-2.8-hd")
+            self._model = config.models.tts if config.models else "edge"
+            self._temp_dir = config.storage.temp_dir
         else:
-            self._model = None
+            self._model = "edge"
             self._temp_dir = None
 
     def _get_temp_path(self, prefix: str) -> str:

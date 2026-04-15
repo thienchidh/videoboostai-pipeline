@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 from core.base_pipeline import log
 from core.plugins import ImageProvider, register_provider
 from modules.pipeline.exceptions import ConfigMissingKeyError
+from modules.pipeline.models import TechnicalConfig
 
 
 # ==================== MINIMAX IMAGE ====================
@@ -27,21 +28,27 @@ from modules.pipeline.exceptions import ConfigMissingKeyError
 class MiniMaxImageProvider(ImageProvider):
     """MiniMax image generation (image-01 model)."""
 
-    def __init__(self, config=None, api_key: str = None):
-        self.config = config
-        base_url = config.get("api.urls.minimax_image") if config else None
-        if not base_url:
-            raise ConfigMissingKeyError("api.urls.minimax_image", "MiniMaxImageProvider")
-        self.base_url = base_url
-        self.api_key = api_key or (config.get("api.keys.minimax") if config else None)
-        if not self.api_key:
-            raise ConfigMissingKeyError("api.keys.minimax", "MiniMaxImageProvider")
-        self.timeout = config.get("generation.image.timeout") if config else 120
-        self.model = config.get("generation.image.model") if config else "image-01"
+    def __init__(self, config: TechnicalConfig, api_key: str = None):
+        """Initialize MiniMax image provider with TechnicalConfig Pydantic model.
+
+        Args:
+            config: TechnicalConfig instance. Raises TypeError if not.
+            api_key: Override API key. If not provided, read from config.api_keys.
+        """
+        if not isinstance(config, TechnicalConfig):
+            raise TypeError(
+                f"MiniMaxImageProvider.__init__ requires a TechnicalConfig Pydantic model, "
+                f"got {type(config).__name__} instead."
+            )
+        self._config: TechnicalConfig = config
+        self.base_url = config.api_urls.minimax_image
+        self._api_key = api_key or config.api_keys.minimax
+        self.timeout = config.generation.image.timeout
+        self.model = config.generation.image.model if hasattr(config.generation.image, 'model') else "image-01"
 
     def generate(self, prompt: str, output_path: str,
                  aspect_ratio: str = "9:16") -> Optional[str]:
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         payload = {"model": self.model, "prompt": prompt, "aspect_ratio": aspect_ratio, "num_images": 1}
         logger.info(f"MiniMax image request: aspect_ratio={aspect_ratio}, prompt_len={len(prompt)}")
         payload_str = json.dumps(payload, ensure_ascii=False, indent=2)
@@ -80,23 +87,29 @@ class MiniMaxImageProvider(ImageProvider):
 class WaveSpeedImageProvider(ImageProvider):
     """WaveSpeed AI image generation via MiniMax image-01."""
 
-    def __init__(self, config=None, api_key: str = None):
-        self.config = config
-        base_url = config.get("api.urls.wavespeed") if config else None
-        if not base_url:
-            raise ConfigMissingKeyError("api.urls.wavespeed", "WaveSpeedImageProvider")
-        self.base_url = base_url
-        self.api_key = api_key or (config.get("api.keys.wavespeed") if config else None)
-        if not self.api_key:
-            raise ConfigMissingKeyError("api.keys.wavespeed", "WaveSpeedImageProvider")
-        self.timeout = config.get("generation.image.timeout") if config else 120
-        self.poll_interval = config.get("generation.image.poll_interval") if config else 5
-        self.max_polls = config.get("generation.image.max_polls") if config else 24
+    def __init__(self, config: TechnicalConfig, api_key: str = None):
+        """Initialize WaveSpeed image provider with TechnicalConfig Pydantic model.
+
+        Args:
+            config: TechnicalConfig instance. Raises TypeError if not.
+            api_key: Override API key. If not provided, read from config.api_keys.
+        """
+        if not isinstance(config, TechnicalConfig):
+            raise TypeError(
+                f"WaveSpeedImageProvider.__init__ requires a TechnicalConfig Pydantic model, "
+                f"got {type(config).__name__} instead."
+            )
+        self._config: TechnicalConfig = config
+        self.base_url = config.api_urls.wavespeed
+        self._api_key = api_key or config.api_keys.wavespeed
+        self.timeout = config.generation.image.timeout
+        self.poll_interval = getattr(config.generation.image, 'poll_interval', 5)
+        self.max_polls = getattr(config.generation.image, 'max_polls', 24)
         self.submit_url = f"{self.base_url}/api/v3/minimax/image-01/text-to-image"
 
     def _submit_job(self, prompt: str, size: str) -> Optional[str]:
         """Submit image job, return job_id or None."""
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         payload = {"prompt": prompt, "size": size}
         try:
             resp = requests.post(self.submit_url, headers=headers, json=payload, timeout=30)
@@ -110,7 +123,7 @@ class WaveSpeedImageProvider(ImageProvider):
 
     def _poll_job(self, job_id: str) -> Optional[str]:
         """Poll for job completion, return image URL or None."""
-        headers = {"Authorization": f"Bearer {self.api_key}"}
+        headers = {"Authorization": f"Bearer {self._api_key}"}
         get_url = f"{self.base_url}/api/v3/predictions/{job_id}/result"
         for attempt in range(self.max_polls):
             time.sleep(self.poll_interval)
@@ -168,22 +181,27 @@ class KieImageProvider(ImageProvider):
          GET  https://api.kie.ai/api/v1/jobs/recordInfo?taskId=xxx
     """
 
-    def __init__(self, config=None, api_key: str = None):
-        self.config = config
-        base_url = config.get("api.urls.kie_ai") if config else None
-        if not base_url:
-            raise ConfigMissingKeyError("api.urls.kie_ai", "KieImageProvider")
-        self.base_url = base_url
-        self.api_key = api_key or (config.get("api.keys.kie_ai") if config else None)
-        if not self.api_key:
-            raise ConfigMissingKeyError("api.keys.kie_ai", "KieImageProvider")
-        # Use config values if present, otherwise use defaults
-        self.timeout = config.get("generation.image.timeout") if config else 120
-        self.poll_interval = config.get("generation.image.poll_interval") if config else 5
-        self.max_polls = config.get("generation.image.max_polls") if config else 24
+    def __init__(self, config: TechnicalConfig, api_key: str = None):
+        """Initialize Kie Z Image provider with TechnicalConfig Pydantic model.
+
+        Args:
+            config: TechnicalConfig instance. Raises TypeError if not.
+            api_key: Override API key. If not provided, read from config.api_keys.
+        """
+        if not isinstance(config, TechnicalConfig):
+            raise TypeError(
+                f"KieImageProvider.__init__ requires a TechnicalConfig Pydantic model, "
+                f"got {type(config).__name__} instead."
+            )
+        self._config: TechnicalConfig = config
+        self.base_url = config.api_urls.kie_ai
+        self._api_key = api_key or config.api_keys.kie_ai
+        self.timeout = config.generation.image.timeout
+        self.poll_interval = getattr(config.generation.image, 'poll_interval', 5)
+        self.max_polls = getattr(config.generation.image, 'max_polls', 24)
         self.session = requests.Session()
         self.session.headers.update({
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
         })
 

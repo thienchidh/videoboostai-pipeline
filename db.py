@@ -3,6 +3,7 @@
 db.py - PostgreSQL database module for video pipeline state management.
 Uses SQLAlchemy 2.0 with sync engine + sessionmaker.
 """
+import logging
 import os
 from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
@@ -12,65 +13,61 @@ from sqlalchemy import create_engine, text, func
 from sqlalchemy.orm import sessionmaker, Session
 
 from modules.pipeline.exceptions import MissingConfigError
+from modules.pipeline.db_config import DatabaseConnectionConfig
 import db_models as models
 
-# Database connection config (updated by configure())
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "database": "videopipeline",
-    "user": "videopipeline",
-    "password": "videopipeline123",
-}
+logger = logging.getLogger(__name__)
 
 # SQLAlchemy engine + session factory (set by configure())
 _engine = None
 _SessionFactory = None
+_config: DatabaseConnectionConfig = None
 
 
-def configure(config: dict = None):
-    """Configure database connection. Supports env var fallback.
+def configure(config: DatabaseConnectionConfig):
+    """Configure database connection from a DatabaseConnectionConfig Pydantic model.
 
-    Config dict values take priority. Missing fields fall back to env vars
-    (POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD).
-    If no config dict is provided, uses env vars or defaults.
+    Raises:
+        TypeError: If config is not a DatabaseConnectionConfig instance.
     """
-    global _engine, _SessionFactory
+    global _engine, _SessionFactory, _config
 
-    if config is None:
-        config = {}
+    if not isinstance(config, DatabaseConnectionConfig):
+        raise TypeError(
+            f"db.configure() requires a DatabaseConnectionConfig Pydantic model, "
+            f"got {type(config).__name__} instead. "
+            f"Use TechnicalConfig.load().storage.database or construct DatabaseConnectionConfig(...) directly."
+        )
 
-    host = config.get("host") or os.getenv("POSTGRES_HOST", "localhost")
-    port = config.get("port") or int(os.getenv("POSTGRES_PORT", "5432"))
-    database = config.get("name") or config.get("database") or os.getenv("POSTGRES_DB", "videopipeline")
-    user = config.get("user") or os.getenv("POSTGRES_USER", "videopipeline")
-    password = config.get("password") or os.getenv("POSTGRES_PASSWORD", "videopipeline123")
-
-    if not all([host, database, user]):
-        raise MissingConfigError("database host, name, user are required")
-
-    DB_CONFIG.update({
-        "host": host,
-        "port": port,
-        "database": database,
-        "user": user,
-        "password": password,
-    })
-
-    _engine = create_engine(
-        f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}",
-        pool_size=1,
-        max_overflow=10,
-        pool_timeout=30,
-        echo=False,
+    _config = config
+    connection_string = (
+        f"postgresql://{config.user}:{config.password}@"
+        f"{config.host}:{config.port}/{config.name}"
     )
+    _engine = create_engine(connection_string, pool_pre_ping=True)
     _SessionFactory = sessionmaker(bind=_engine)
+    logger.info(f"Database configured: {config.host}:{config.port}/{config.name}")
+
+
+def get_config() -> DatabaseConnectionConfig:
+    """Return the current database config. Raises if not yet configured."""
+    if _config is None:
+        raise RuntimeError("Database not configured. Call db.configure() first.")
+    return _config
 
 
 def _ensure_configured():
     """Ensure configure() has been called before any DB operation."""
     if _SessionFactory is None:
-        configure()
+        # Auto-configure with defaults from environment or hardcoded fallbacks
+        default_config = DatabaseConnectionConfig(
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=int(os.getenv("POSTGRES_PORT", "5432")),
+            name=os.getenv("POSTGRES_DB", "videopipeline"),
+            user=os.getenv("POSTGRES_USER", "videopipeline"),
+            password=os.getenv("POSTGRES_PASSWORD", "videopipeline123"),
+        )
+        configure(default_config)
 
 
 @contextmanager

@@ -264,6 +264,60 @@ Trả về CHỈ JSON array, không kèm markdown."""
         duration = self._estimate_tts_duration(scene_tts, wps)
         return tts_cfg.min_duration <= duration <= tts_cfg.max_duration
 
+    def _regenerate_scene_tts(self, original_tts: str, tts_cfg,
+                               api_key: str, wps: float = 2.5,
+                               max_retries: int = 3) -> str:
+        """Regenerate scene TTS text to fit duration bounds.
+
+        Args:
+            original_tts: The original TTS text that exceeded bounds.
+            tts_cfg: TTSConfig with min_duration and max_duration.
+            api_key: MiniMax API key for LLM calls.
+            wps: Words per second for duration estimation.
+            max_retries: Number of LLM retry attempts (default 3).
+
+        Returns:
+            New TTS text that fits bounds, or original_tts if all retries fail.
+        """
+        from modules.llm.minimax import MiniMaxLLMProvider
+
+        target_duration = tts_cfg.max_duration * 0.9
+        target_words = int(target_duration / wps)
+
+        system_prompt = f"""Bạn là chuyên gia viết kịch bản TTS tiếng Việt ngắn gọn.
+Nhiệm vụ: Viết lại kịch bản TTS cho một scene video.
+
+YÊU CẦU:
+- VIẾT TIẾNG VIỆT CÓ DẤU, tự nhiên như người nói thật
+- Độ dài: CHÍNH XÁC khoảng {target_words} từ (tương đương {target_duration:.0f} giây TTS)
+- KHÔNG thêm lời chào mở đầu như "Xin chào", "Hôm nay"
+- KHÔNG thêm kết luận kiểu "Cảm ơn đã xem"
+- Câu ngắn gọn, mỗi câu không quá 10 từ
+
+Output: Chỉ output kịch bản TTS thuần túy, không có mở đầu hay kết thúc."""
+
+        user_prompt = f"""Kịch bản gốc (hiện tại quá dài):
+"{original_tts}"
+
+Hãy viết lại kịch bản này để có độ dài phù hợp (khoảng {target_words} từ)."""
+
+        for attempt in range(max_retries):
+            try:
+                llm = MiniMaxLLMProvider(api_key=api_key)
+                new_tts = llm.chat(prompt=user_prompt, system=system_prompt, max_tokens=256)
+                new_tts = new_tts.strip()
+                if self._validate_scene_duration(new_tts, tts_cfg, wps):
+                    logger.info(f"  🤖 Scene TTS regenerated ({attempt+1} attempt): "
+                               f"{len(original_tts.split())} → {len(new_tts.split())} words")
+                    return new_tts
+                else:
+                    logger.warning(f"  🤖 Regenerated TTS still out of bounds (attempt {attempt+1}/{max_retries})")
+            except Exception as e:
+                logger.warning(f"  🤖 LLM regeneration error: {e} (attempt {attempt+1}/{max_retries})")
+
+        logger.warning(f"  ⚠️ All {max_retries} regeneration attempts failed — keeping original TTS")
+        return original_tts
+
     def _validate_scenes(self, scenes: List[Dict]) -> List[Dict]:
         """Validate and normalize scene structure.
 

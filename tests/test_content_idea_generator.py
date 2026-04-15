@@ -1,5 +1,6 @@
 """Tests for ContentIdeaGenerator."""
 import pytest
+from unittest.mock import MagicMock, patch
 
 
 def test_estimate_tts_duration():
@@ -99,3 +100,34 @@ class TestContentIdeaGenerator:
         # 5 words at 2.5 wps = 2s — below 5s min
         result = gen._validate_scene_duration("đây là test", tts_cfg, wps=2.5)
         assert result is False
+
+    def test_regenerate_scene_tts_shortens_long_text(self):
+        """_regenerate_scene_tts calls LLM and returns shorter text."""
+        from modules.content.content_idea_generator import ContentIdeaGenerator
+        from modules.pipeline.models import TTSConfig
+        gen = ContentIdeaGenerator(
+            project_id=1,
+            content_angle="tips",
+            niche_keywords=["test"],
+            channel_config={
+                "name": "Test",
+                "channel_id": "test",
+                "characters": [{"name": "Mentor", "voice_id": "x"}],
+                "watermark": {"text": "@Test", "enable": True, "font_size": 30, "opacity": 0.15, "motion": "bounce", "bounce_speed": 80, "bounce_padding": 20, "velocity_x": 1.2, "velocity_y": 0.8, "margin": 8},
+                "style": "3D render",
+                "research": {"niche_keywords": ["test"], "content_angle": "tips", "target_platform": "both", "research_interval_hours": 24, "pending_pool_size": 5, "threshold": 3},
+                "tts": {"max_duration": 15.0, "min_duration": 5.0},
+            },
+        )
+        tts_cfg = TTSConfig(max_duration=15.0, min_duration=5.0)
+        long_text = " ".join(["đây là một từ dài"] * 20)  # ~100 words
+
+        # Mock LLM provider that returns a shorter but valid-duration text
+        # 20 words at 2.5 wps = 8s, within 5-15s bounds
+        mock_llm = MagicMock()
+        mock_llm.chat.return_value = "đây là một từ dài đây là một từ dài đây là một từ dài đây là một từ dài"
+
+        with patch("modules.llm.minimax.MiniMaxLLMProvider", return_value=mock_llm):
+            result = gen._regenerate_scene_tts(long_text, tts_cfg, api_key="fake-key", wps=2.5)
+        assert len(result.split()) < len(long_text.split()), f"expected shorter, got same length"
+        mock_llm.chat.assert_called_once()

@@ -245,6 +245,25 @@ Trả về CHỈ JSON array, không kèm markdown."""
         word_count = len(text.split())
         return word_count / wps
 
+    def _validate_scene_duration(self, scene_tts: str, tts_cfg,
+                                  wps: float = 2.5) -> bool:
+        """Return True if estimated TTS duration is within min/max bounds.
+
+        Args:
+            scene_tts: The TTS script text for one scene.
+            tts_cfg: TTSConfig with min_duration and max_duration.
+            wps: Words per second (from channel config, default 2.5).
+
+        Returns:
+            True if min_duration <= estimated_duration <= max_duration.
+        """
+        if not scene_tts or not scene_tts.strip():
+            return True
+        if tts_cfg is None:
+            return True
+        duration = self._estimate_tts_duration(scene_tts, wps)
+        return tts_cfg.min_duration <= duration <= tts_cfg.max_duration
+
     def _validate_scenes(self, scenes: List[Dict]) -> List[Dict]:
         """Validate and normalize scene structure.
 

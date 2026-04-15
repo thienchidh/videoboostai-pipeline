@@ -31,6 +31,9 @@ from modules.pipeline.config import PipelineContext
 from modules.pipeline.exceptions import SceneDurationError
 from modules.pipeline.scene_processor import SingleCharSceneProcessor
 
+# Import observer (lazy to avoid circular import)
+from modules.ops.pipeline_observer import PipelineObserver, register_run, update_run_progress
+
 # Import providers to trigger registration
 from modules.media.tts import MiniMaxTTSProvider, EdgeTTSProvider  # noqa: F401
 from modules.media.image_gen import MiniMaxImageProvider, WaveSpeedImageProvider, KieImageProvider  # noqa: F401
@@ -95,6 +98,15 @@ class VideoPipelineRunner:
         project_id = db.get_or_create_project(project_name)
         self.run_id = db.start_video_run(project_id, str(ctx.channel_id))
         self._project_id = project_id
+
+        # Wire pipeline observer if enabled
+        self._observer = None
+        obs_cfg = ctx.technical.observer
+        if obs_cfg and obs_cfg.enabled:
+            self._observer = PipelineObserver(host=obs_cfg.host, port=obs_cfg.port)
+            self._observer.start()
+            register_run(self.run_id)
+            log(f"🌐 Pipeline observer started on {obs_cfg.host}:{obs_cfg.port}")
 
         # Configure S3 once (used by lipsync provider for media uploads)
         s3 = ctx.technical.storage.s3

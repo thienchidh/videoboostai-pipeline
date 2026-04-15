@@ -237,3 +237,131 @@ class TopicSource(Base):
     topics = Column(JSON)  # list of topic dicts
     status = Column(String(20), default="pending")  # pending | completed
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class SceneCheckpoint(Base):
+    """Per-scene step checkpoint for crash-resilient pipeline resume.
+
+    Steps:
+      1 = tts        (audio_tts.mp3 written)
+      2 = image      (scene.png written)
+      3 = lipsync    (video_raw.mp4 written)
+      4 = crop       (video_9x16.mp4 written)
+      5 = done       (scene fully complete)
+    """
+    __tablename__ = "scene_checkpoints"
+    __table_args__ = (
+        UniqueConstraint("scene_id", "step", name="uq_scene_checkpoint_scene_step"),
+        Index("idx_scene_checkpoints_scene", "scene_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    scene_id = Column(String(100), nullable=False)   # e.g. "run_42_scene_3"
+    step = Column(Integer, nullable=False)             # 1-5 as defined above
+    output_path = Column(String(500))                  # absolute path of step output
+    completed_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class ABCaptionTest(Base):
+    """A/B caption test record — tracks two caption variants and their CTR."""
+    __tablename__ = "ab_caption_tests"
+    __table_args__ = (
+        Index("idx_ab_caption_tests_calendar", "calendar_item_id"),
+        Index("idx_ab_caption_tests_status", "status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    calendar_item_id = Column(Integer, ForeignKey("content_calendar.id", ondelete="CASCADE"), nullable=False)
+    platform = Column(String(50), nullable=False)                   # 'facebook' or 'tiktok'
+    post_id = Column(String(200))                                  # Platform's post ID for variant-A
+    variant_a = Column(Text, nullable=False)                        # Caption text for variant A
+    variant_b = Column(Text, nullable=False)                        # Caption text for variant B
+    winner = Column(String(10))                                     # 'a', 'b', or None
+    posted_at = Column(DateTime)                                    # When variant-A was posted
+    ctr_a = Column(JSON)                                            # {'impressions': X, 'clicks': Y, 'ctr': Z}
+    ctr_b = Column(JSON)                                            # {'impressions': X, 'clicks': Y, 'ctr': Z}  (future: variant-B post)
+    status = Column(String(20), default="pending")                 # pending | results_collected | winner_decided
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    calendar_item = relationship("ContentCalendar")
+
+
+class CostLog(Base):
+    """Per-operation cost log for ROI analytics.
+
+    Tracks every paid API call (TTS, image, lipsync, music) with its USD cost.
+    Used for: per-video cost aggregation, per-provider breakdown,
+    platform ROI (Facebook vs TikTok spend vs engagement).
+    """
+    __tablename__ = "cost_log"
+    __table_args__ = (
+        Index("idx_cost_log_run", "run_id"),
+        Index("idx_cost_log_provider", "provider"),
+        Index("idx_cost_log_created", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    run_id = Column(Integer, ForeignKey("video_runs.id", ondelete="CASCADE"), nullable=True)
+    provider = Column(String(50), nullable=False)          # 'minimax_tts', 'minimax_image', 'kieai_lipsync', 'wavespeed_lipsync', 'minimax_music'
+    operation = Column(String(50), nullable=False)          # 'tts', 'image_gen', 'lipsync', 'music_gen'
+    units = Column(Integer, default=1)                     # number of units (scenes, seconds, etc.)
+    cost_usd = Column(Integer, default=0)                   # stored as int cents to avoid float issues
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class FailedStep(Base):
+    """Persistent failure queue for batch_generate.py step retries (VP-032).
+
+    Tracks failed pipeline steps that may be retried. When all retries are
+    exhausted, resolved_at stays NULL and the entry remains in the queue
+    for manual intervention.
+    """
+    __tablename__ = "failed_steps"
+    __table_args__ = (
+        Index("idx_failed_steps_run", "run_id"),
+        Index("idx_failed_steps_status", "status"),
+        Index("idx_failed_steps_next_retry", "next_retry_at"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    run_id = Column(Integer, ForeignKey("video_runs.id", ondelete="CASCADE"), nullable=False)
+    scene_index = Column(Integer, nullable=True)            # nullable: None means pipeline-level (not per-scene)
+    step_name = Column(String(50), nullable=False)          # 'pipeline', 'tts', 'image', 'lipsync', 'social_post'
+    attempts = Column(Integer, default=0)
+    last_error = Column(Text)
+    next_retry_at = Column(DateTime, nullable=True)        # NULL when resolved or no more retries
+    resolved_at = Column(DateTime, nullable=True)          # NULL = still pending / manual intervention needed
+    status = Column(String(20), default="pending")         # 'pending' | 'retrying' | 'exhausted' | 'resolved'
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+
+
+class ScheduledPost(Base):
+    """Scheduled video upload — populated by OptimalPostTimeEngine.
+
+
+    Videos are generated and then scheduled for optimal posting hour.
+    The cron script (run_scheduler.py) polls this table and triggers
+    social upload when scheduled_at is due.
+    """
+    __tablename__ = "scheduled_posts"
+    __table_args__ = (
+        Index("idx_scheduled_posts_video", "video_id"),
+        Index("idx_scheduled_posts_status", "status"),
+        Index("idx_scheduled_posts_scheduled", "scheduled_at"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    video_id = Column(Integer, ForeignKey("video_runs.id", ondelete="CASCADE"), nullable=False)
+    platform = Column(String(50), nullable=False)              # 'facebook', 'tiktok', or 'both'
+    scheduled_at = Column(DateTime, nullable=False)           # when to trigger the upload
+    caption = Column(Text)
+    video_path = Column(String(500))
+    status = Column(String(20), default="pending")          # pending | posted | failed
+    error = Column(Text)
+    posted_at = Column(DateTime)                              # when the post actually went live
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    video_run = relationship("VideoRun")

@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  pytest:
+    name: pytest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-py${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            pip-py${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run pytest
+        run: |
+          pytest --tb=short -q
+
+  lint:
+    name: pylint lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pylint
+        run: pip install pylint PyYAML requests pillow edge-tts openai-whisper boto3 tenacity
+
+      - name: Run pylint
+        run: |
+          pylint scripts/ modules/ core/ db.py db_models.py video_pipeline_v3.py \
+            --disable=C0114,C0115,C0116,R0903,R0913,W0703,W0612,W0603 \
+            --max-line-length=120 \
+            --output-format=text \
+            2>&1 || true
+
+  smoke-test:
+    name: dry-run smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Dry-run smoke test
+        run: |
+          python video_pipeline_v3.py \
+            --config configs/business/nangsuat_tips_3scene.json \
+            --dry-run \
+            --no-upload \
+            2>&1
+        timeout-minutes: 10

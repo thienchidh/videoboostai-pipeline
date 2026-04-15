@@ -236,6 +236,65 @@ def get_runs_by_project(project_id: int) -> List[Dict]:
         return [_video_run_to_dict(r) for r in runs]
 
 
+def list_recent_runs(limit: int = 20, status: str = None) -> List[Dict]:
+    """List recent video runs across all projects.
+
+    Args:
+        limit: Maximum number of runs to return (default 20)
+        status: Optional filter by status (e.g. 'running', 'completed', 'failed')
+
+    Returns:
+        List of run dicts ordered by started_at desc.
+    """
+    with get_session() as session:
+        query = session.query(models.VideoRun)
+        if status:
+            query = query.filter_by(status=status)
+        runs = query.order_by(models.VideoRun.started_at.desc()).limit(limit).all()
+        return [_video_run_to_dict(r) for r in runs]
+
+
+def get_run_details(run_id: int) -> Optional[Dict]:
+    """Get detailed run info including scenes, cost breakdown, and API call summary.
+
+    Args:
+        run_id: The video run ID
+
+    Returns:
+        Dict with run info + 'scenes' list + 'credits_by_provider' dict.
+    """
+    with get_session() as session:
+        run = session.query(models.VideoRun).filter_by(id=run_id).first()
+        if not run:
+            return None
+
+        scenes = session.query(models.Scene).filter_by(run_id=run_id)\
+            .order_by(models.Scene.scene_index).all()
+
+        # Aggregate credits by provider from api_calls
+        api_calls = session.query(models.APICall).filter_by(run_id=run_id).all()
+        credits_by_provider: Dict[str, int] = {}
+        for call in api_calls:
+            credits_by_provider[call.provider] = \
+                credits_by_provider.get(call.provider, 0) + call.cost
+
+        # Collect error messages from scenes
+        errors = [
+            {"scene_index": s.scene_index, "message": s.error_message}
+            for s in scenes if s.error_message
+        ]
+
+        return {
+            **_video_run_to_dict(run),
+            "scenes": [_scene_to_dict(s) for s in scenes],
+            "credits_by_provider": {
+                p: cents / 100 for p, cents in credits_by_provider.items()
+            },
+            "errors": errors,
+            "api_calls_count": len(api_calls),
+        }
+
+
 def _video_run_to_dict(r: models.VideoRun) -> Dict:
     return {
         "id": r.id,
@@ -318,6 +377,97 @@ def _scene_to_dict(s: models.Scene) -> Dict:
     }
 
 
+# ─── Scene Checkpoint Operations ───────────────────────────────────
+
+# Step constants matching SceneCheckpoint model
+CHECKPOINT_STEPS = {
+    "tts": 1,
+    "image": 2,
+    "lipsync": 3,
+    "crop": 4,
+    "done": 5,
+}
+STEP_NAMES = {v: k for k, v in CHECKPOINT_STEPS.items()}
+
+
+def save_checkpoint(scene_id: str, step: int, output_path: str = None) -> None:
+    """Save (upsert) a checkpoint for a scene step.
+
+    Args:
+        scene_id: Unique scene identifier, e.g. "run_42_scene_3"
+        step: Step number (1=tts, 2=image, 3=lipsync, 4=crop, 5=done)
+        output_path: Absolute path to the step's output file
+    """
+    with get_session() as session:
+        existing = session.query(models.SceneCheckpoint).filter_by(
+            scene_id=scene_id, step=step
+        ).first()
+        if existing:
+            existing.output_path = output_path
+            existing.completed_at = datetime.now(timezone.utc)
+        else:
+            cp = models.SceneCheckpoint(
+                scene_id=scene_id,
+                step=step,
+                output_path=output_path,
+            )
+            session.add(cp)
+
+
+def load_checkpoint(scene_id: str) -> Optional[Dict]:
+    """Load the highest completed checkpoint for a scene.
+
+    Returns:
+        Dict with keys {step, output_path, completed_at} for the highest completed step,
+        or None if no checkpoint exists.
+    """
+    with get_session() as session:
+        row = session.query(models.SceneCheckpoint).filter_by(scene_id=scene_id)\
+            .order_by(models.SceneCheckpoint.step.desc()).first()
+        if not row:
+            return None
+        return {
+            "step": row.step,
+            "output_path": row.output_path,
+            "completed_at": row.completed_at,
+        }
+
+
+def get_checkpoint_for_step(scene_id: str, step: int) -> Optional[Dict]:
+    """Check if a specific step has a completed checkpoint."""
+    with get_session() as session:
+        row = session.query(models.SceneCheckpoint).filter_by(
+            scene_id=scene_id, step=step
+        ).first()
+        if not row:
+            return None
+        return {
+            "step": row.step,
+            "output_path": row.output_path,
+            "completed_at": row.completed_at,
+        }
+
+
+def clear_checkpoints(scene_id: str) -> None:
+    """Delete all checkpoints for a scene (used when forcing a full re-run)."""
+    with get_session() as session:
+        session.query(models.SceneCheckpoint).filter_by(scene_id=scene_id).delete()
+
+
+def get_next_incomplete_step(scene_id: str) -> int:
+    """Return the next step number that needs to run (1-based), or 1 if no checkpoints exist.
+
+    This is the main resume helper: call after a crash to know where to continue.
+    """
+    cp = load_checkpoint(scene_id)
+    if cp is None:
+        return 1
+    # If completed step is "done" (5), scene is fully complete — return 99 to skip
+    if cp["step"] >= 5:
+        return 99
+    return cp["step"] + 1
+
+
 # ─── API Call Operations ─────────────────────────────────────────────
 
 def log_api_call(run_id: int, scene_id: int, provider: str,
@@ -378,6 +528,14 @@ def log_credit(provider: str, amount: float, balance_after: float = None,
             api_call_id=api_call_id,
         )
         session.add(entry)
+
+
+def get_credit_balance(provider: str) -> float:
+    """
+    Get the most recent known credit balance for a provider from DB.
+    Convenience alias for get_credits_balance().
+    """
+    return get_credits_balance(provider)
 
 
 def get_credits_balance(provider: str) -> float:
@@ -814,6 +972,481 @@ def get_all_idea_embeddings(project_id: int) -> List[Dict]:
                 "embedding": emb.embedding.tolist() if hasattr(emb.embedding, 'tolist') else list(emb.embedding),
             })
         return result
+
+
+# ─── A/B Caption Test Operations ─────────────────────────────────────
+
+def create_ab_caption_test(
+    calendar_item_id: int,
+    platform: str,
+    variant_a: str,
+    variant_b: str,
+    post_id: str = None,
+) -> int:
+    """Create a new A/B caption test record. Returns test id."""
+    with get_session() as session:
+        test = models.ABCaptionTest(
+            calendar_item_id=calendar_item_id,
+            platform=platform,
+            post_id=post_id,
+            variant_a=variant_a,
+            variant_b=variant_b,
+            status="pending",
+        )
+        session.add(test)
+        session.flush()
+        return test.id
+
+
+def update_ab_caption_test(test_id: int, **kwargs):
+    """Update ab_caption_test fields. Allowed: post_id, ctr_a, ctr_b, winner, status, posted_at."""
+    allowed = ["post_id", "ctr_a", "ctr_b", "winner", "status", "posted_at"]
+    with get_session() as session:
+        test = session.query(models.ABCaptionTest).filter_by(id=test_id).first()
+        if not test:
+            return
+        for k, v in kwargs.items():
+            if k in allowed:
+                setattr(test, k, v)
+        test.updated_at = datetime.now(timezone.utc)
+
+
+def get_ab_caption_test(test_id: int) -> Optional[Dict]:
+    """Get a single A/B test by id."""
+    with get_session() as session:
+        t = session.query(models.ABCaptionTest).filter_by(id=test_id).first()
+        return _ab_caption_test_to_dict(t) if t else None
+
+
+def get_ab_caption_tests_pending(platform: str = None, limit: int = 50) -> List[Dict]:
+    """Get A/B tests still in 'pending' status (variant-A posted, waiting for CTR check)."""
+    with get_session() as session:
+        query = session.query(models.ABCaptionTest).filter(
+            models.ABCaptionTest.status.in_(["pending", "results_collected"])
+        )
+        if platform:
+            query = query.filter(models.ABCaptionTest.platform == platform)
+        rows = query.order_by(models.ABCaptionTest.posted_at.asc()).limit(limit).all()
+        return [_ab_caption_test_to_dict(r) for r in rows]
+
+
+def get_ab_caption_tests_by_calendar(calendar_item_id: int) -> List[Dict]:
+    """Get all A/B tests for a calendar item."""
+    with get_session() as session:
+        rows = session.query(models.ABCaptionTest).filter_by(
+            calendar_item_id=calendar_item_id
+        ).order_by(models.ABCaptionTest.created_at.desc()).all()
+        return [_ab_caption_test_to_dict(r) for r in rows]
+
+
+def _ab_caption_test_to_dict(t: models.ABCaptionTest) -> Dict:
+    return {
+        "id": t.id,
+        "calendar_item_id": t.calendar_item_id,
+        "platform": t.platform,
+        "post_id": t.post_id,
+        "variant_a": t.variant_a,
+        "variant_b": t.variant_b,
+        "winner": t.winner,
+        "posted_at": t.posted_at,
+        "ctr_a": t.ctr_a,
+        "ctr_b": t.ctr_b,
+        "status": t.status,
+        "created_at": t.created_at,
+        "updated_at": t.updated_at,
+    }
+
+
+# ─── Cost Log Operations ────────────────────────────────────────────
+
+def log_cost(run_id: int = None, provider: str = None, operation: str = None,
+             units: int = 1, cost_usd: float = 0.0) -> int:
+    """Write a cost log entry. Returns cost_log id.
+
+    Args:
+        run_id: video run id (optional, for aggregation)
+        provider: provider name e.g. 'minimax_tts', 'kieai_lipsync'
+        operation: operation type 'tts', 'image_gen', 'lipsync', 'music_gen'
+        units: number of units (default 1)
+        cost_usd: cost in USD (stored as cents internally)
+    """
+    if not provider or not operation:
+        return 0
+    with get_session() as session:
+        entry = models.CostLog(
+            run_id=run_id,
+            provider=provider,
+            operation=operation,
+            units=units,
+            cost_usd=int(cost_usd * 100),
+        )
+        session.add(entry)
+        session.flush()
+        return entry.id
+
+
+def get_cost_log(run_id: int = None, provider: str = None,
+                 start_date: datetime = None, end_date: datetime = None,
+                 limit: int = 500) -> List[Dict]:
+    """Query cost_log entries with optional filters."""
+    with get_session() as session:
+        q = session.query(models.CostLog)
+        if run_id is not None:
+            q = q.filter_by(run_id=run_id)
+        if provider:
+            q = q.filter_by(provider=provider)
+        if start_date:
+            q = q.filter(models.CostLog.created_at >= start_date)
+        if end_date:
+            q = q.filter(models.CostLog.created_at <= end_date)
+        rows = q.order_by(models.CostLog.created_at.desc()).limit(limit).all()
+        return [_cost_log_to_dict(r) for r in rows]
+
+
+def _cost_log_to_dict(e: models.CostLog) -> Dict:
+    return {
+        "id": e.id,
+        "run_id": e.run_id,
+        "provider": e.provider,
+        "operation": e.operation,
+        "units": e.units,
+        "cost_usd": e.cost_usd / 100.0 if e.cost_usd else 0.0,
+        "created_at": e.created_at,
+    }
+
+
+def per_video_cost(run_id: int) -> Dict:
+    """Aggregated cost for a single video run.
+
+    Returns:
+        {'total_usd': float, 'by_provider': {provider: float}, 'by_operation': {op: float}}
+    """
+    with get_session() as session:
+        rows = session.query(models.CostLog).filter_by(run_id=run_id).all()
+        total = sum(r.cost_usd for r in rows) / 100.0
+        by_provider: Dict[str, float] = {}
+        by_operation: Dict[str, float] = {}
+        for r in rows:
+            p = r.provider
+            o = r.operation
+            c = r.cost_usd / 100.0
+            by_provider[p] = by_provider.get(p, 0.0) + c
+            by_operation[o] = by_operation.get(o, 0.0) + c
+        return {"run_id": run_id, "total_usd": round(total, 4), "by_provider": by_provider, "by_operation": by_operation}
+
+
+def per_provider_cost(start_date: date = None, end_date: date = None) -> Dict:
+    """Cost breakdown by provider within a date range.
+
+    Args:
+        start_date, end_date: date objects (inclusive). Defaults to last 30 days.
+    """
+    from datetime import timedelta
+    if end_date is None:
+        end_date = date.today()
+    if start_date is None:
+        start_date = end_date - timedelta(days=30)
+
+    with get_session() as session:
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
+        from sqlalchemy import func
+        rows = session.query(
+            models.CostLog.provider,
+            models.CostLog.operation,
+            func.count(models.CostLog.id).label("count"),
+            func.sum(models.CostLog.cost_usd).label("total_cents"),
+        ).filter(
+            models.CostLog.created_at >= start_dt,
+            models.CostLog.created_at <= end_dt,
+        ).group_by(
+            models.CostLog.provider,
+            models.CostLog.operation,
+        ).all()
+
+        result = {"period": {"start": str(start_date), "end": str(end_date)}, "providers": {}}
+        total = 0.0
+        for provider, operation, count, total_cents in rows:
+            cost = (total_cents or 0) / 100.0
+            total += cost
+            if provider not in result["providers"]:
+                result["providers"][provider] = {"total_usd": 0.0, "operations": {}, "count": 0}
+            result["providers"][provider]["total_usd"] = round(result["providers"][provider]["total_usd"] + cost, 4)
+            result["providers"][provider]["operations"][operation] = {"count": count, "cost_usd": round(cost, 4)}
+            result["providers"][provider]["count"] = result["providers"][provider].get("count", 0) + count
+        result["total_usd"] = round(total, 4)
+        return result
+
+
+def per_platform_cost() -> Dict:
+    """Facebook vs TikTok spend from social_posts joined with video_runs cost.
+
+    Returns breakdown of total spent per platform based on social posts linked to runs.
+    """
+    with get_session() as session:
+        from sqlalchemy import func
+        rows = session.query(
+            models.SocialPost.platform,
+            func.count(models.SocialPost.id).label("post_count"),
+            func.sum(models.VideoRun.total_cost).label("total_cost_cents"),
+        ).join(
+            models.VideoRun, models.SocialPost.run_id == models.VideoRun.id
+        ).group_by(
+            models.SocialPost.platform
+        ).all()
+
+        result = {"platforms": {}}
+        total = 0.0
+        for platform, post_count, total_cost_cents in rows:
+            cost = (total_cost_cents or 0) / 100.0
+            total += cost
+            result["platforms"][platform] = {
+                "post_count": post_count,
+                "total_usd": round(cost, 4),
+            }
+        result["total_usd"] = round(total, 4)
+        return result
+
+
+def ab_ctr_correlation(days: int = 30) -> dict:
+    """Correlate cost spend with A/B caption CTR results.
+
+    Returns dict with per-platform CTR stats, cost-per-click estimates,
+    and cost-per-impression from cost_log for the period.
+    """
+    with get_session() as session:
+        from datetime import datetime, timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        tests = session.query(models.ABCaptionTest).filter(
+            models.ABCaptionTest.status.in_(["results_collected", "winner_decided"]),
+            models.ABCaptionTest.posted_at >= cutoff,
+        ).all()
+
+        by_platform = {}
+        for t in tests:
+            plat = t.platform.lower()
+            pd = by_platform.setdefault(plat, {
+                "tests": 0, "ctr_a_avg": 0.0, "ctr_b_avg": 0.0,
+                "ctr_a_sum": 0.0, "ctr_b_sum": 0.0,
+                "impressions_a_total": 0, "clicks_a_total": 0,
+            })
+            pd["tests"] += 1
+            if t.ctr_a:
+                ctr_val = t.ctr_a.get("ctr", 0) if isinstance(t.ctr_a, dict) else float(t.ctr_a or 0)
+                pd["ctr_a_sum"] += ctr_val
+                pd["impressions_a_total"] += t.ctr_a.get("impressions", 0) if isinstance(t.ctr_a, dict) else 0
+                pd["clicks_a_total"] += t.ctr_a.get("clicks", 0) if isinstance(t.ctr_a, dict) else 0
+            if t.ctr_b:
+                ctr_val = t.ctr_b.get("ctr", 0) if isinstance(t.ctr_b, dict) else float(t.ctr_b or 0)
+                pd["ctr_b_sum"] += ctr_val
+
+        for plat, pd in by_platform.items():
+            n = pd["tests"]
+            pd["ctr_a_avg"] = round(pd["ctr_a_sum"] / n, 4) if n else 0.0
+            pd["ctr_b_avg"] = round(pd["ctr_b_sum"] / n, 4) if n else 0.0
+
+        # cost spend by platform over same period
+        cost_by_platform = {}
+        start_dt = datetime.combine((datetime.now(timezone.utc) - timedelta(days=days)).date(), datetime.min.time())
+        cost_rows = session.query(models.CostLog).filter(
+            models.CostLog.created_at >= start_dt,
+            models.CostLog.run_id.isnot(None),
+        ).all()
+        for row in cost_rows:
+            cost = (row.cost_usd or 0) / 100.0
+            post = session.query(models.SocialPost).filter_by(run_id=row.run_id).first()
+            if post:
+                plat = post.platform.lower()
+                cost_by_platform.setdefault(plat, 0.0)
+                cost_by_platform[plat] += cost
+
+        result = {
+            "period_days": days,
+            "platforms": by_platform,
+            "cost_by_platform": cost_by_platform,
+        }
+        # cost per test
+        for plat in by_platform:
+            total_cost = cost_by_platform.get(plat, 0.0)
+            n = by_platform[plat]["tests"]
+            result[plat]["cost_per_test"] = round(total_cost / n, 4) if n else 0.0
+        return result
+
+
+# ─── Failed Step Operations ────────────────────────────────────────────
+
+def create_failed_step(run_id: int, step_name: str, scene_index: int = None,
+                       last_error: str = None, next_retry_at: datetime = None) -> int:
+    """Create a new failed step entry in the queue. Returns failed_step id."""
+    with get_session() as session:
+        entry = models.FailedStep(
+            run_id=run_id,
+            scene_index=scene_index,
+            step_name=step_name,
+            attempts=1,
+            last_error=last_error,
+            next_retry_at=next_retry_at,
+            status="pending",
+        )
+        session.add(entry)
+        session.flush()
+        return entry.id
+
+
+def update_failed_step(failed_step_id: int, attempts: int = None,
+                       last_error: str = None, next_retry_at: datetime = None,
+                       status: str = None):
+    """Update a failed step entry. Only provided fields are updated."""
+    allowed = ["attempts", "last_error", "next_retry_at", "status"]
+    with get_session() as session:
+        entry = session.query(models.FailedStep).filter_by(id=failed_step_id).first()
+        if not entry:
+            return
+        if attempts is not None:
+            entry.attempts = attempts
+        if last_error is not None:
+            entry.last_error = last_error
+        if next_retry_at is not None:
+            entry.next_retry_at = next_retry_at
+        if status is not None:
+            entry.status = status
+        entry.updated_at = datetime.now(timezone.utc)
+
+
+def resolve_failed_step(failed_step_id: int):
+    """Mark a failed step as resolved (resolved_at = now, status = 'resolved')."""
+    with get_session() as session:
+        entry = session.query(models.FailedStep).filter_by(id=failed_step_id).first()
+        if entry:
+            entry.resolved_at = datetime.now(timezone.utc)
+            entry.status = "resolved"
+            entry.updated_at = datetime.now(timezone.utc)
+
+
+def get_pending_failed_steps(run_id: int = None, status: str = None) -> List[Dict]:
+    """Get unresolved failed steps (resolved_at IS NULL).
+
+    Args:
+        run_id: filter by specific run, or None for all runs
+        status: filter by status ('pending', 'retrying', 'exhausted'), or None for all unresolved
+    """
+    with get_session() as session:
+        query = session.query(models.FailedStep).filter(
+            models.FailedStep.resolved_at.is_(None)
+        )
+        if run_id is not None:
+            query = query.filter_by(run_id=run_id)
+        if status:
+            query = query.filter_by(status=status)
+        rows = query.order_by(models.FailedStep.next_retry_at.asc()).all()
+        return [_failed_step_to_dict(r) for r in rows]
+
+
+def get_failed_step_by_run_scene(run_id: int, scene_index: int = None,
+                                 step_name: str = None) -> Optional[Dict]:
+    """Get an existing unresolved failed step entry for a run+scene+step combination."""
+    with get_session() as session:
+        query = session.query(models.FailedStep).filter(
+            models.FailedStep.run_id == run_id,
+            models.FailedStep.resolved_at.is_(None),
+        )
+        if scene_index is not None:
+            query = query.filter_by(scene_index=scene_index)
+        if step_name is not None:
+            query = query.filter_by(step_name=step_name)
+        row = query.order_by(models.FailedStep.created_at.desc()).first()
+        return _failed_step_to_dict(row) if row else None
+
+
+def _failed_step_to_dict(e: models.FailedStep) -> Dict:
+    return {
+        "id": e.id,
+        "run_id": e.run_id,
+        "scene_index": e.scene_index,
+        "step_name": e.step_name,
+        "attempts": e.attempts,
+        "last_error": e.last_error,
+        "next_retry_at": e.next_retry_at,
+        "resolved_at": e.resolved_at,
+        "status": e.status,
+        "created_at": e.created_at,
+        "updated_at": e.updated_at,
+    }
+
+
+# ─── Scheduled Post Operations ──────────────────────────────────────
+
+def schedule_video_post(
+    video_id: int,
+    platform: str,
+    scheduled_at: datetime,
+    caption: str = None,
+    video_path: str = None,
+) -> int:
+    """Create a scheduled post entry. Returns scheduled_posts.id."""
+    with get_session() as session:
+        post = models.ScheduledPost(
+            video_id=video_id,
+            platform=platform,
+            scheduled_at=scheduled_at,
+            caption=caption,
+            video_path=video_path,
+            status="pending",
+        )
+        session.add(post)
+        session.flush()
+        return post.id
+
+
+def get_due_scheduled_posts(now: datetime = None) -> List[Dict]:
+    """Get scheduled_posts where scheduled_at <= now and status = 'pending'."""
+    if now is None:
+        now = datetime.now(timezone.utc)
+    with get_session() as session:
+        rows = session.query(
+            models.ScheduledPost,
+            models.VideoRun.output_video,
+            models.VideoRun.caption,
+        ).join(
+            models.VideoRun,
+            models.ScheduledPost.video_id == models.VideoRun.id,
+        ).filter(
+            models.ScheduledPost.status == "pending",
+            models.ScheduledPost.scheduled_at <= now,
+        ).order_by(models.ScheduledPost.scheduled_at).all()
+        result = []
+        for row in rows:
+            post = row[0]
+            result.append({
+                "id": post.id,
+                "video_id": post.video_id,
+                "platform": post.platform,
+                "scheduled_at": post.scheduled_at,
+                "caption": post.caption,
+                "video_path": post.video_path,
+                "status": post.status,
+                "output_video": row[1],
+                "run_caption": row[2],
+            })
+        return result
+
+
+def update_scheduled_post_status(
+    schedule_id: int,
+    status: str,
+    error: str = None,
+    posted_at: datetime = None,
+) -> None:
+    """Update status/error/posted_at for a scheduled post."""
+    with get_session() as session:
+        post = session.query(models.ScheduledPost).filter_by(id=schedule_id).first()
+        if not post:
+            return
+        post.status = status
+        if error is not None:
+            post.error = error
+        if posted_at is not None:
+            post.posted_at = posted_at
 
 
 if __name__ == "__main__":

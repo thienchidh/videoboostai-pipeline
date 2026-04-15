@@ -69,12 +69,18 @@ class GenerationSeeds(BaseModel):
     video: int = 12345
 
 
+class ParallelSceneConfig(BaseModel):
+    enabled: bool = True
+    max_workers: int = 3
+
+
 class GenerationConfig(BaseModel):
     llm: GenerationLLM
     image: GenerationImage
     tts: GenerationTTS
     lipsync: GenerationLipsync
     seeds: GenerationSeeds
+    parallel_scene_processing: ParallelSceneConfig = ParallelSceneConfig()
 
 
 class S3Config(BaseModel):
@@ -104,6 +110,12 @@ class LoggingConfig(BaseModel):
     format: str = "%(asctime)s %(levelname)s %(message)s"
 
 
+class ObserverConfig(BaseModel):
+    host: str = "0.0.0.0"
+    port: int = 8765
+    enabled: bool = False
+
+
 class TechnicalConfig(BaseModel):
     api_keys: APIKeys
     api_urls: APIURLs
@@ -111,13 +123,13 @@ class TechnicalConfig(BaseModel):
     generation: GenerationConfig
     storage: StorageConfig
     logging: LoggingConfig = LoggingConfig()
+    observer: Optional[ObserverConfig] = None
 
     @classmethod
     def load(cls) -> "TechnicalConfig":
         path = PROJECT_ROOT / "configs" / "technical" / "config_technical.yaml"
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
-        # Restructure nested YAML structure to match Pydantic model
         restructured = {
             'api_keys': data.get('api', {}).get('keys', {}),
             'api_urls': data.get('api', {}).get('urls', {}),
@@ -126,6 +138,8 @@ class TechnicalConfig(BaseModel):
             'storage': data.get('storage', {}),
             'logging': data.get('logging', {}),
         }
+        if 'observer' in data:
+            restructured['observer'] = data['observer']
         return cls(**restructured)
 
 

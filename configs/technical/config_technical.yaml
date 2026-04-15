@@ -52,6 +52,9 @@ generation:
   seeds:
     image: 42      # seed cho image generation
     video: 12345    # seed cho video generation
+  parallel_scene_processing:
+    enabled: true   # true | false — parallelize TTS + image across scenes
+    max_workers: 3 # max concurrent API calls per phase (max 5)
 
 logging:
   level: INFO            # DEBUG | INFO | WARNING | ERROR
@@ -74,3 +77,11 @@ storage:
     name: "videopipeline"
     user: "videopipeline"
     password: "videopipeline123"
+
+# ================================================
+# OBSERVER - Pipeline run HTTP server
+# ================================================
+observer:
+  host: "0.0.0.0"
+  port: 8765
+  enabled: false   # set to true to enable live monitoring

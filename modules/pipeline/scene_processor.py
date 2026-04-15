@@ -305,10 +305,13 @@ class SingleCharSceneProcessor(SceneProcessor):
         if not word_timestamps:
             word_timestamps = self.get_whisper_timestamps(str(audio_file), scene_output)
         if word_timestamps:
+            # Align Whisper words with script words when counts match
+            script_words = tts_text.split()
+            word_timestamps = align_word_timestamps(word_timestamps, script_words)
             ts_file = scene_output / "words_timestamps.json"
             with open(ts_file, "w", encoding="utf-8") as f:
                 json.dump(word_timestamps, f, ensure_ascii=False)
-            log(f"  📝 Saved {len(word_timestamps)} word timestamps")
+            log(f"  📝 Saved {len(word_timestamps)} word timestamps (aligned)")
 
         # 5. Lipsync (depends on both audio and image)
         video_raw = scene_output / "video_raw.mp4"

@@ -153,7 +153,7 @@ class TestSingleCharSceneProcessor:
         tts_cfg = TTSConfig(min_duration=2.0, max_duration=15.0)
         ctx = make_mock_channel(characters=characters, tts_config=tts_cfg)
 
-        processor = SingleCharSceneProcessor(ctx, tmp_path)
+        processor = SingleCharSceneProcessor(ctx, tmp_path, resume=True)
 
         scene = SceneConfig(id=1, script="Xin chào", characters=["TestChar"])
 

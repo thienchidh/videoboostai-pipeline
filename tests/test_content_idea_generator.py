@@ -131,3 +131,39 @@ class TestContentIdeaGenerator:
             result = gen._regenerate_scene_tts(long_text, tts_cfg, api_key="fake-key", wps=2.5)
         assert len(result.split()) < len(long_text.split()), f"expected shorter, got same length"
         mock_llm.chat.assert_called_once()
+        # Verify result is within duration bounds (5-15s at 2.5 wps)
+        word_count = len(result.split())
+        estimated_duration = word_count / 2.5
+        assert tts_cfg.min_duration <= estimated_duration <= tts_cfg.max_duration, (
+            f"result still out of bounds: {estimated_duration:.1f}s ({word_count} words)"
+        )
+
+    def test_regenerate_scene_tts_exhausts_retries_and_returns_original(self):
+        """After max_retries, falls back to original TTS."""
+        from modules.content.content_idea_generator import ContentIdeaGenerator
+        from modules.pipeline.models import TTSConfig
+        gen = ContentIdeaGenerator(
+            project_id=1,
+            content_angle="tips",
+            niche_keywords=["test"],
+            channel_config={
+                "name": "Test",
+                "channel_id": "test",
+                "characters": [{"name": "Mentor", "voice_id": "x"}],
+                "watermark": {"text": "@Test", "enable": True, "font_size": 30, "opacity": 0.15, "motion": "bounce", "bounce_speed": 80, "bounce_padding": 20, "velocity_x": 1.2, "velocity_y": 0.8, "margin": 8},
+                "style": "3D render",
+                "research": {"niche_keywords": ["test"], "content_angle": "tips", "target_platform": "both", "research_interval_hours": 24, "pending_pool_size": 5, "threshold": 3},
+                "tts": {"max_duration": 15.0, "min_duration": 5.0},
+            },
+        )
+        tts_cfg = TTSConfig(max_duration=15.0, min_duration=5.0)
+        original = "đây là nguyên bản"
+
+        # Mock LLM to always return 100 words (way over limit)
+        mock_llm = MagicMock()
+        mock_llm.chat.return_value = " ".join(["quá dài"] * 100)
+
+        with patch("modules.llm.minimax.MiniMaxLLMProvider", return_value=mock_llm):
+            result = gen._regenerate_scene_tts(original, tts_cfg, api_key="fake-key", wps=2.5, max_retries=3)
+        assert result == original, f"expected original after retries, got: {result[:50]}"
+        assert mock_llm.chat.call_count == 3, f"expected 3 calls, got {mock_llm.chat.call_count}"

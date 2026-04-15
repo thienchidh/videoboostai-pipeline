@@ -304,8 +304,11 @@ Hãy viết lại kịch bản này để có độ dài phù hợp (khoảng {t
         for attempt in range(max_retries):
             try:
                 llm = MiniMaxLLMProvider(api_key=api_key)
-                new_tts = llm.chat(prompt=user_prompt, system=system_prompt, max_tokens=256)
+                new_tts = llm.chat(prompt=user_prompt, system=system_prompt, max_tokens=512)
                 new_tts = new_tts.strip()
+                if not new_tts:
+                    logger.warning(f"  🤖 Regenerated TTS was empty (attempt {attempt+1}/{max_retries})")
+                    continue
                 if self._validate_scene_duration(new_tts, tts_cfg, wps):
                     logger.info(f"  🤖 Scene TTS regenerated ({attempt+1} attempt): "
                                f"{len(original_tts.split())} → {len(new_tts.split())} words")

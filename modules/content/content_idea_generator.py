@@ -203,7 +203,11 @@ class ContentIdeaGenerator:
         char_list_str = ", ".join(all_char_names)
 
         tts = cfg.tts
-        tts_context = f"\nGiới hạn thời lượng: tối đa {tts.max_duration}s, tối thiểu {tts.min_duration}s"
+        tts_context = (
+            f"\nGiới hạn thời lượng: tối đa {tts.max_duration}s, tối thiểu {tts.min_duration}s mỗi scene. "
+            f"Mỗi scene phải có khoảng {int(tts.min_duration * 2.5)}-{int(tts.max_duration * 2.5)} từ "
+            f"(với tốc độ 2.5 từ/giây)."
+        )
 
         # Build image style string from channel config for consistent art generation
         img_style = cfg.image_style
@@ -243,7 +247,7 @@ CẤU TRÚC SCENE:
 
 MỖI SCENE CẦN CÓ:
 - id: số nguyên (1, 2, 3...)
-- script: lời thoại tiếng Việt có dấu, mỗi scene 3-8 câu
+- script: lời thoại tiếng Việt có dấu, 25-35 từ, mỗi câu không quá 10 từ
 - background: mô tả cảnh nền 5-15 từ, BẮT BUỘC chứa phong cách hình ảnh cố định [{art_style_str}] - ví dụ: "văn phòng hiện đại, {art_style_str}"
 - character: tên MỘT nhân vật duy nhất được chọn từ [{char_list_str}]
 

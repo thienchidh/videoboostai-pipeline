@@ -88,13 +88,7 @@ class VideoPipelineRunner:
         # Configure database if database section is present in config
         db_cfg = ctx.technical.storage.database
         if db_cfg:
-            db.configure({
-                'host': db_cfg.host,
-                'port': db_cfg.port,
-                'name': db_cfg.name,
-                'user': db_cfg.user,
-                'password': db_cfg.password,
-            })
+            db.configure(db_cfg)
 
         # Init DB and create run record
         db.init_db()
@@ -114,14 +108,7 @@ class VideoPipelineRunner:
 
         # Configure S3 once (used by lipsync provider for media uploads)
         s3 = ctx.technical.storage.s3
-        configure_s3({
-            'endpoint': s3.endpoint,
-            'access_key': s3.access_key,
-            'secret_key': s3.secret_key,
-            'bucket': s3.bucket,
-            'region': s3.region,
-            'public_url_base': s3.public_url_base,
-        })
+        configure_s3(s3)
 
         # Instantiate providers via PluginRegistry
         self.tts_provider = self._build_tts_provider()
@@ -276,13 +263,7 @@ class VideoPipelineRunner:
         elif self.ctx.technical.generation.lipsync:
             lipsync_cfg = self.ctx.technical.generation.lipsync
 
-        config = {
-            'prompt': lipsync_cfg.prompt,
-            'resolution': lipsync_cfg.resolution,
-            'max_wait': lipsync_cfg.max_wait,
-        }
-
-        return self.lipsync_provider.generate(image_path, audio_path, output_path, config=config)
+        return self.lipsync_provider.generate(image_path, audio_path, output_path, config=lipsync_cfg)
 
     def _make_lipsync_wrapper(self):
         """Create a lipsync wrapper that uses static video when USE_STATIC_LIPSYNC flag is set."""

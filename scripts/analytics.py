@@ -101,6 +101,7 @@ def cost_trend_report(days: int = 30) -> dict:
     """Return daily cost trend over last N days."""
     end = date.today()
     start = end - timedelta(days=days - 1)
+    # Materialize rows inside the session block to avoid DetachedInstanceError
     with db.get_session() as session:
         from db_models import CostLog
         from datetime import datetime
@@ -110,11 +111,16 @@ def cost_trend_report(days: int = 30) -> dict:
             CostLog.created_at >= start_dt,
             CostLog.created_at <= end_dt,
         ).order_by(CostLog.created_at).all()
+        # Extract needed fields while still attached to session
+        row_data = [
+            {"created_at": row.created_at, "cost_usd": row.cost_usd}
+            for row in rows
+        ]
 
     daily: dict[str, float] = {}
-    for row in rows:
-        day = str(row.created_at.date())
-        cost = float(row.cost_usd) if row.cost_usd else 0.0
+    for row in row_data:
+        day = str(row["created_at"].date())
+        cost = float(row["cost_usd"]) if row["cost_usd"] else 0.0
         daily[day] = daily.get(day, 0.0) + cost
 
     if not daily:

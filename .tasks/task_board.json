@@ -314,6 +314,16 @@
       "assigned_to": "cron-heartbeat",
       "claimed_at": "2026-04-13T05:48:18+07:00",
       "note": "Implemented: modules/media/music_gen.py (MiniMaxMusicProvider), MusicProvider base in core/plugins.py, add_background_music() extended with music_provider/music_prompt params, pipeline_runner.py wires music_provider from config. Usage: set background_music.provider=minimax + background_music.prompt in config."
+    },
+    {
+      "id": "VP-031",
+      "title": "Fix CostLog column names in db.py — use run_id, operation, units, cost_usd (cents)",
+      "status": "todo",
+      "priority": "medium",
+      "source": "cron-heartbeat",
+      "reason": "Subagent vp031-cost-analytics found db.py uses wrong CostLog column names",
+      "type": "bug",
+      "blocked_by": []
     }
   ]
 }

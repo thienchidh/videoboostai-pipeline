@@ -21,20 +21,25 @@ class TestEdgeTTSProvider:
 
         with patch("asyncio.set_event_loop_policy") as mock_set_policy:
             with patch("asyncio.run") as mock_run:
-                with patch("edge_tts.Communicate") as MockComm:
-                    mock_comm = MagicMock()
-                    mock_comm.save = MagicMock(return_value=None)
-                    MockComm.return_value = mock_comm
+                with patch("asyncio.WindowsProactorEventLoopPolicy", return_value=MagicMock(), create=True):
+                    with patch("edge_tts.Communicate") as MockComm:
+                        mock_comm = MagicMock()
 
-                    with patch("pathlib.Path.exists", return_value=True):
-                        with patch("pathlib.Path.stat", return_value=MagicMock(st_size=10000)):
-                            with patch("modules.media.tts.get_whisper_timestamps",
-                                       return_value=[{"word": "test", "start": 0.1, "end": 0.5}]) as mock_ts:
-                                # Create a temp output path
-                                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-                                    output_path = f.name
+                        def fake_save(path):
+                            Path(path).write_bytes(b"fake audio content" * 100)
 
-                                result = provider.generate("test text", "female_voice", 1.0, output_path)
+                        mock_comm.save = fake_save
+                        MockComm.return_value = mock_comm
+
+                        with patch("pathlib.Path.exists", return_value=True):
+                            with patch("pathlib.Path.stat", return_value=MagicMock(st_size=10000)):
+                                with patch("modules.media.tts.get_whisper_timestamps",
+                                           return_value=[{"word": "test", "start": 0.1, "end": 0.5}]) as mock_ts:
+                                    # Create a temp output path
+                                    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+                                        output_path = f.name
+
+                                    result = provider.generate("test text", "female_voice", 1.0, output_path)
 
                                 # Result MUST be a tuple
                                 assert isinstance(result, tuple), \

@@ -6,8 +6,14 @@ class MissingConfigError(Exception):
     pass
 
 
-class ConfigMissingKeyError(Exception):
-    """Raised when required config key is missing."""
+class ConfigMissingKeyError(MissingConfigError):
+    """Raised when required config key is missing.
+
+    Attributes:
+        key_path: dot-notation path to the missing key (e.g. 'api.urls.minimax_image')
+        provider: name of the provider requiring this key
+    """
+
     def __init__(self, key_path: str, provider: str = None):
         self.key_path = key_path
         self.provider = provider

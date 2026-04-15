@@ -41,6 +41,13 @@ generation:
     aspect_ratio: "9:16"  # TikTok/Reels format
     timeout: 120
   tts:
+    model: "speech-2.8-hd"
+    sample_rate: 32000
+    bitrate: 128000
+    format: "mp3"
+    channel: 1
+    timeout: 60
+    word_timestamp_timeout: 120
     max_duration: 15.0    # seconds - kie.ai hard limit per scene
     min_duration: 5.0     # seconds - minimum to avoid too-short clips
     words_per_second: 2.5  # estimated for Vietnamese TTS

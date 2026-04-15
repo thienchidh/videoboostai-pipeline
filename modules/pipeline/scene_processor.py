@@ -169,6 +169,38 @@ class SceneProcessor:
         return None
 
 
+def align_word_timestamps(whisper_timestamps: List[Dict], script_words: List[str]) -> List[Dict]:
+    """Replace Whisper words with script words when count matches.
+
+    Args:
+        whisper_timestamps: [{"word": "...", "start": 0.0, "end": 0.5}, ...] from Whisper
+        script_words: [word, ...] from scenario script (already split by whitespace)
+
+    Returns:
+        Aligned timestamps with script words + Whisper timestamps if count matches,
+        otherwise original Whisper timestamps unchanged.
+    """
+    if not whisper_timestamps:
+        return whisper_timestamps
+    if not script_words:
+        return whisper_timestamps
+
+    n_whisper = len(whisper_timestamps)
+    n_script = len(script_words)
+
+    if n_whisper == n_script:
+        return [
+            {
+                "word": script_words[i],
+                "start": whisper_timestamps[i]["start"],
+                "end": whisper_timestamps[i]["end"]
+            }
+            for i in range(n_whisper)
+        ]
+    else:
+        return whisper_timestamps
+
+
 class SingleCharSceneProcessor(SceneProcessor):
     """Processes a single-character scene.
 

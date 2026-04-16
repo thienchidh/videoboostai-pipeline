@@ -52,7 +52,8 @@ class ContentPipeline:
                  dry_run: bool = True,
                  channel_id: str = "nang_suat_thong_minh",
                  skip_lipsync: bool = False,
-                 skip_content: bool = False):
+                 skip_content: bool = False,
+                 skip_image: bool = False):
         """
         Args:
             project_id: project ID
@@ -61,6 +62,7 @@ class ContentPipeline:
             channel_id: channel ID for scenario output (default: nang_suat_thong_minh)
             skip_lipsync: if True, use static image + audio instead of lipsync (saves API costs)
             skip_content: if True, skip content generation and use existing scripts in DB (for testing production separately or re-running failed items)
+            skip_image: if True, skip image generation (use placeholder image + static video to save API costs)
         """
         self.project_id = project_id
         self.dry_run = dry_run
@@ -68,6 +70,7 @@ class ContentPipeline:
         self.channel_id = channel_id
         self.skip_lipsync = skip_lipsync
         self.skip_content = skip_content
+        self.skip_image = skip_image
 
         if config is None:
             config = ContentPipelineConfig()
@@ -685,6 +688,7 @@ class ContentPipeline:
                 dry_run_tts=False,
                 dry_run_images=False,
                 use_static_lipsync=self.skip_lipsync,
+                skip_image=self.skip_image,
             )
             result = pipeline.run()
 

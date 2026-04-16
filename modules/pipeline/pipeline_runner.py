@@ -30,6 +30,7 @@ from core.plugins import get_provider
 from core.paths import PROJECT_ROOT
 from modules.pipeline.config import PipelineContext
 from modules.pipeline.exceptions import SceneDurationError
+from modules.pipeline.backoff import Backoff, CircuitBreaker, CircuitOpenError
 from modules.pipeline.scene_processor import SingleCharSceneProcessor
 
 # Import observer (lazy to avoid circular import)
@@ -131,6 +132,15 @@ class VideoPipelineRunner:
         # Scene processors
         self.single_processor = SingleCharSceneProcessor(ctx, self.run_dir, resume=self._resume, run_id=self.run_id)
 
+        # VP-035: Backoff retryers for TTS, image, lipsync
+        self._tts_backoff = Backoff(base_delay=2.0, max_delay=60.0, factor=2.0)
+        self._image_backoff = Backoff(base_delay=5.0, max_delay=120.0, factor=2.0)
+        self._lipsync_backoff = Backoff(base_delay=10.0, max_delay=180.0, factor=2.0)
+
+        # VP-036: Circuit breakers per provider (fail-fast after 3 consecutive failures)
+        self._image_circuit = CircuitBreaker(max_attempts=3, open_timeout=60.0)
+        self._lipsync_circuit = CircuitBreaker(max_attempts=3, open_timeout=60.0)
+
     # ---- Provider builders ----
 
     def _build_tts_provider(self):
@@ -211,13 +221,68 @@ class VideoPipelineRunner:
         # Use minimax_key for music generation
         return MiniMaxMusicProvider(api_key=self.ctx.technical.api_keys.minimax)
 
+    # ---- Retry helpers ----
+
+    MAX_RETRIES = 3
+
+    def _is_transient_error(self, exc: Exception) -> bool:
+        """Return True if the exception is a transient error worth retrying."""
+        err_name = type(exc).__name__
+        err_msg = str(exc).lower()
+
+        # Timeout errors
+        if isinstance(exc, TimeoutError) or 'timeout' in err_name.lower():
+            return True
+        # Rate limit
+        if '429' in err_msg or 'rate limit' in err_msg or 'too many requests' in err_msg:
+            return True
+        # HTTP 5xx / server errors
+        if any(code in err_msg for code in ['500', '502', '503', '504', 'server error', 'internal error']):
+            return True
+        # Connection/network errors
+        if 'connection' in err_msg or 'network' in err_msg or 'econnrefused' in err_msg:
+            return True
+        return False
+
+    def _retry(self, fn, backoff: Backoff, *args, **kwargs):
+        """Call fn with exponential-backoff retry on transient errors.
+
+        Args:
+            fn: callable to execute
+            backoff: Backoff instance
+            *args, **kwargs: passed to fn
+
+        Returns:
+            fn result
+
+        Raises:
+            Last exception if all retries exhausted or error is non-transient.
+        """
+        last_exc = None
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                return fn(*args, **kwargs)
+            except Exception as exc:
+                last_exc = exc
+                if not self._is_transient_error(exc):
+                    log(f"  ⚠️ Non-transient error ({type(exc).__name__}): {exc} — not retrying")
+                    raise
+                if attempt < self.MAX_RETRIES:
+                    delay = min(backoff.base_delay * (backoff.factor ** (attempt - 1)), backoff.max_delay)
+                    log(f"  🔄 Attempt {attempt} failed ({type(exc).__name__}): {exc} — retrying in {delay:.1f}s...")
+                    backoff.sleep(attempt)
+                else:
+                    log(f"  ⚠️ All {self.MAX_RETRIES} retries exhausted ({type(exc).__name__}): {exc}")
+        # All retries failed
+        raise last_exc
+
     # ---- TTS/Image/Lipsync wrappers (with dry-run support) ----
 
     def tts_generate(self, text: str, voice: str, speed: float, output_path: str):
-        """Generate TTS audio, returning (path, timestamps)."""
+        """Generate TTS audio, returning (path, timestamps). Retries on transient errors."""
         if self._dry_run or self._dry_run_tts:
             return mock_generate_tts(text, voice, speed, output_path), None
-        return self.tts_provider.generate(text, voice, speed, output_path)
+        return self._retry(self.tts_provider.generate, self._tts_backoff, text, voice, speed, output_path)
 
     def image_generate(self, prompt: str, output_path: str):
         """Generate image with primary provider, then fallback providers from config."""
@@ -229,12 +294,22 @@ class VideoPipelineRunner:
         if not aspect_ratio:
             raise ValueError("channel config video.aspect_ratio is required")
 
-        # Primary provider
+        # VP-036: Check circuit breaker before calling primary provider
         try:
-            result = self.image_provider.generate(prompt, output_path, aspect_ratio=aspect_ratio)
-        except Exception as e:
-            log(f"  ⚠️ Image provider raised: {type(e).__name__}: {e}")
+            self._image_circuit.check()
+        except CircuitOpenError:
+            log(f"  ⚠️ Image circuit breaker OPEN — skipping to fallback providers")
             result = None
+        else:
+            # VP-035: Retry on transient errors for primary provider
+            try:
+                result = self._retry(self.image_provider.generate, self._image_backoff,
+                                    prompt, output_path, aspect_ratio=aspect_ratio)
+                self._image_circuit.record_success()
+            except Exception as e:
+                log(f"  ⚠️ Image provider failed after {self.MAX_RETRIES} retries: {type(e).__name__}: {e}")
+                self._image_circuit.record_failure()
+                result = None
 
         if result:
             return result
@@ -267,9 +342,11 @@ class VideoPipelineRunner:
                     fb_provider = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.wavespeed)
             log(f"  → Trying fallback provider: {fb_name}")
             try:
-                fb_result = fb_provider.generate(prompt, output_path, aspect_ratio=aspect_ratio)
+                fb_result = self._retry(fb_provider.generate, self._image_backoff, prompt, output_path, aspect_ratio=aspect_ratio)
+                self._image_circuit.record_success()
             except Exception as e:
                 log(f"  ⚠️ Fallback '{fb_name}' error: {type(e).__name__}: {e}")
+                self._image_circuit.record_failure()
                 fb_result = None
             if fb_result:
                 log(f"  ✓ Fallback provider '{fb_name}' succeeded")
@@ -279,7 +356,7 @@ class VideoPipelineRunner:
 
     def lipsync_generate(self, image_path: str, audio_path: str, output_path: str,
                         scene_id: int = 0, prompt: str = None):
-        """Generate lipsync video.
+        """Generate lipsync video. Retries on transient errors; circuit breaker fails fast after 3 consecutive failures.
 
         Args:
             scene_id: scene number (used for unique S3 key)
@@ -299,7 +376,29 @@ class VideoPipelineRunner:
             log(f"  ⚠️ No lipsync config found — using static video fallback")
             return create_static_video_with_audio(image_path, audio_path, output_path)
 
-        return self.lipsync_provider.generate(image_path, audio_path, output_path, config=lipsync_cfg)
+        # VP-036: Check circuit breaker before calling lipsync provider
+        try:
+            self._lipsync_circuit.check()
+        except CircuitOpenError:
+            log(f"  ⚠️ Lipsync circuit breaker OPEN — using static video fallback")
+            self._lipsync_circuit.record_failure()
+            return create_static_video_with_audio(image_path, audio_path, output_path)
+
+        # VP-035: Retry on transient errors
+        try:
+            result = self._retry(
+                self.lipsync_provider.generate,
+                self._lipsync_backoff,
+                image_path, audio_path, output_path,
+                config=lipsync_cfg,
+            )
+            self._lipsync_circuit.record_success()
+            return result
+        except Exception as e:
+            log(f"  ⚠️ Lipsync failed after {self.MAX_RETRIES} retries: {type(e).__name__}: {e}")
+            self._lipsync_circuit.record_failure()
+            log(f"  ⚠️ Lipsync provider failed — falling back to static image + audio")
+            return create_static_video_with_audio(image_path, audio_path, output_path)
 
     def _make_lipsync_wrapper(self):
         """Create a lipsync wrapper that uses static video when USE_STATIC_LIPSYNC flag is set."""

@@ -2,9 +2,9 @@
   "project": "videopipeline",
   "archived": [],
   "metadata": {
-    "last_updated": "2026-04-16T15:54:16.643503+00:00",
+    "last_updated": "2026-04-16T15:58:00+00:00",
     "total_tasks": 39,
-    "done_tasks": 36,
+    "done_tasks": 38,
     "schema_version": 1
   },
   "tasks": [
@@ -585,7 +585,7 @@
     {
       "id": "VP-037",
       "title": "Video output quality validation before social upload",
-      "status": "doing",
+      "status": "done",
       "priority": "high",
       "created": "2026-04-16T15:05:00Z",
       "source": "subagent-planner",
@@ -594,26 +594,28 @@
       "blocked_by": [],
       "assigned_to": "cron-heartbeat",
       "claimed_at": "2026-04-16T15:54:23.034339+00:00",
-      "note": "TODO: Before social upload, validate: (1) file exists and size > 0, (2) ffprobe reports valid video stream, (3) has readable frames. Fail gracefully if validation fails."
+      "note": "TODO: Before social upload, validate: (1) file exists and size > 0, (2) ffprobe reports valid video stream, (3) has readable frames. Fail gracefully if validation fails.",
+      "completed_at": "2026-04-16T15:58:00+00:00"
     },
     {
       "id": "VP-038",
       "title": "Social post performance tracking via FB/TikTok insights API",
-      "status": "todo",
+      "status": "done",
       "priority": "medium",
       "created": "2026-04-16T15:05:00Z",
       "source": "subagent-planner",
       "reason": "Pipeline posts but has no visibility into content performance",
       "type": "feature",
       "blocked_by": [],
-      "assigned_to": null,
-      "claimed_at": null,
-      "note": "TODO: Poll FB Graph API (GET /{post-id}/insights) and TikTok API for reach/impressions/engagement. Store in social_post_metrics table."
+      "assigned_to": "cron-heartbeat",
+      "claimed_at": "2026-04-16T16:42:09.689287+00:00",
+      "note": "TODO: Poll FB Graph API (GET /{post-id}/insights) and TikTok API for reach/impressions/engagement. Store in social_post_metrics table.",
+      "completed_at": "2026-04-16T16:45:00+00:00"
     },
     {
       "id": "VP-039",
       "title": "Pipeline run cost aggregation dashboard in PipelineObserver",
-      "status": "doing",
+      "status": "done",
       "priority": "medium",
       "created": "2026-04-16T15:05:00Z",
       "source": "subagent-planner",
@@ -622,7 +624,8 @@
       "blocked_by": [],
       "assigned_to": "cron-heartbeat",
       "claimed_at": "2026-04-16T15:54:23.034339+00:00",
-      "note": "TODO: Add /runs/{run_id}/cost endpoint. Aggregate cost per run: total, breakdown by operation and provider."
+      "note": "TODO: Add /runs/{run_id}/cost endpoint. Aggregate cost per run: total, breakdown by operation and provider.",
+      "completed_at": "2026-04-16T15:57:00+00:00"
     }
   ]
 }

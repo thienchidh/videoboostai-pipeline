@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.paths import PROJECT_ROOT, get_whisper, get_ffmpeg, get_ffprobe
+from modules.pipeline.backoff import Backoff, CircuitBreaker, CircuitOpenError
 from modules.pipeline.scene_checkpoint import StepCheckpointWriter, _get_first_incomplete_step
 from core.video_utils import (
     log,
@@ -32,6 +33,53 @@ from modules.pipeline.models import SceneConfig, CharacterConfig, VoiceConfig, S
 from modules.pipeline.exceptions import SceneDurationError
 from modules.media.prompt_builder import PromptBuilder
 
+# Retry config for transient API errors
+MAX_RETRIES = 3
+BACKOFF_BASE_DELAY = 2.0   # seconds
+BACKOFF_MAX_DELAY = 60.0   # cap
+BACKOFF_FACTOR = 2.0       # exponential multiplier
+
+# Transient error indicators: timeout, rate-limit, 5xx server errors
+TRANSIENT_ERROR_CODES = {429, 500, 502, 503, 504}
+
+
+def _is_transient_error(exc: BaseException) -> bool:
+    """Return True if the exception is a transient error worth retrying."""
+    msg = str(exc).lower()
+    # Timeout keywords
+    if any(k in msg for k in ("timeout", "timed out", "timed-out", "request timeout")):
+        return True
+    # HTTP status codes embedded in message
+    for code in TRANSIENT_ERROR_CODES:
+        if str(code) in msg:
+            return True
+    return False
+
+
+def _call_with_retry(callable_fn, *args, max_retries=MAX_RETRIES, log_prefix="", **kwargs):
+    """
+    Call callable_fn(*args, **kwargs) with exponential-backoff retries
+    on transient errors. Returns the result of the successful call.
+    Raises the last exception if all retries are exhausted.
+    """
+    backoff = Backoff(base_delay=BACKOFF_BASE_DELAY, max_delay=BACKOFF_MAX_DELAY, factor=BACKOFF_FACTOR)
+    last_exc: BaseException | None = None
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            return callable_fn(*args, **kwargs)
+        except BaseException as exc:
+            last_exc = exc
+            if attempt == max_retries:
+                break
+            if not _is_transient_error(exc):
+                # Non-transient error — don't retry, bubble up immediately
+                raise
+            log(f"  ⏳ {log_prefix} transient error (attempt {attempt}/{max_retries}): {exc} — retrying in {backoff.base_delay * (BACKOFF_FACTOR ** (attempt - 1)):.1f}s...")
+            backoff.sleep(attempt)
+
+    # All retries exhausted
+    raise last_exc
 
 
 class SceneProcessor:
@@ -48,10 +96,15 @@ class SceneProcessor:
         max_workers = ctx.technical.generation.parallel_scene_processing.max_workers
         self.max_workers = max_workers
 
+        # VP-036: Circuit breakers per provider — fail fast after 3 consecutive failures,
+        # reset on success. Shared across all scenes processed by this instance.
+        self._image_circuit = CircuitBreaker(max_attempts=3, open_timeout=60.0)
+        self._lipsync_circuit = CircuitBreaker(max_attempts=3, open_timeout=60.0)
+
     def _run_tts(self, tts_fn, tts_text: str, voice, speed: float, audio_output: str):
-        """Helper to run TTS generation (for parallel execution)."""
+        """Helper to run TTS generation with retry (for parallel execution)."""
         log(f"  🔊 Generating TTS...")
-        return tts_fn(tts_text, voice, speed, audio_output)
+        return _call_with_retry(tts_fn, tts_text, voice, speed, audio_output, log_prefix="TTS")
 
     def get_character(self, name: str) -> Optional[CharacterConfig]:
         chars = self.ctx.channel.characters or []
@@ -307,7 +360,29 @@ class SingleCharSceneProcessor(SceneProcessor):
         with ThreadPoolExecutor(max_workers=2) as executor:
             # Submit BOTH TTS and Image tasks simultaneously
             tts_future = executor.submit(self._run_tts, tts_fn, tts_text, voice, speed, str(audio_output))
-            img_future = executor.submit(image_fn, img_prompt, str(scene_img)) if not scene_img.exists() else None
+            def _img_with_retry(prompt, path):
+                # VP-036: circuit breaker checked before call; success/failure recorded below
+                return _call_with_retry(image_fn, prompt, path, log_prefix="Image gen")
+
+            # VP-036: Check image circuit breaker before submitting
+            img_circuit_open = False
+            try:
+                self._image_circuit.check()
+            except CircuitOpenError:
+                log(f"  ⚠️ Image circuit breaker OPEN — skipping image generation")
+                img_circuit_open = True
+
+            img_future = None
+            if not img_circuit_open and not scene_img.exists():
+                img_future = executor.submit(_img_with_retry, img_prompt, str(scene_img))
+            elif scene_img.exists():
+                log(f"  ✅ Image exists: {scene_img.name} (circuit breaker skipped)")
+
+            # If circuit is open and no cached image, we cannot continue
+            if img_circuit_open and not scene_img.exists():
+                log(f"  ❌ Image circuit OPEN and no cached image — cannot generate")
+                self._image_circuit.record_failure()
+                return None, []
 
             # Wait for both — fail fast if either raises an exception
             done_futures = []
@@ -349,8 +424,10 @@ class SingleCharSceneProcessor(SceneProcessor):
                 img_result = img_future.result()
                 if not img_result:
                     log(f"  ❌ Image gen failed")
+                    self._image_circuit.record_failure()
                     return None, []
                 log(f"  ✅ Image done: {scene_img.stat().st_size/1024:.1f}KB")
+                self._image_circuit.record_success()
 
                 # Write image checkpoint
                 img_gen = getattr(self.ctx.technical, 'generation', None)
@@ -444,12 +521,31 @@ class SingleCharSceneProcessor(SceneProcessor):
                 lipsync_prompt, character_name=char_name)
             if not lipsync_is_valid:
                 log(f"  ⚠️ lipsync_prompt violations: {lipsync_violations}")
+            # VP-036: Check lipsync circuit breaker before calling provider
             try:
-                result_path = lipsync_fn(str(scene_img), audio, str(video_raw),
-                                        scene_id=scene_id, prompt=lipsync_prompt)
-            except LipsyncQuotaError as e:
-                actual_error = str(e)
+                self._lipsync_circuit.check()
+            except CircuitOpenError:
+                log(f"  ⚠️ Lipsync circuit breaker OPEN — using static fallback")
+                self._lipsync_circuit.record_failure()
+                actual_error = "circuit_open"
                 result_path = None
+            else:
+                try:
+                    result_path = _call_with_retry(
+                        lipsync_fn, str(scene_img), audio, str(video_raw),
+                        scene_id=scene_id, prompt=lipsync_prompt,
+                        log_prefix="Lipsync"
+                    )
+                    self._lipsync_circuit.record_success()
+                except LipsyncQuotaError as e:
+                    actual_error = str(e)
+                    result_path = None
+                except Exception:
+                    # Transient errors already retried by _call_with_retry;
+                    # after all retries exhausted, fall back to static video
+                    self._lipsync_circuit.record_failure()
+                    actual_error = None
+                    result_path = None
             if not result_path:
                 log(f"  ⚠️ Lipsync failed — falling back to static image + audio")
                 result_path = create_static_video_with_audio(str(scene_img), audio, str(video_raw))

@@ -175,3 +175,59 @@ class FacebookPublisher:
         except Exception as e:
             logger.error(f"❌ Facebook text post error: {e}")
             return None
+
+    def get_post_insights(self, post_id: str) -> Optional[dict]:
+        """"Fetch insights metrics for a Facebook video post.
+
+        Args:
+            post_id: The Facebook video post ID.
+        Returns:
+            Dict with: reach, impressions, engagement, clicks, video_views.
+            Returns None on failure or if not configured.
+        """
+        if not self.is_configured:
+            logger.warning("⚠️  Facebook: not configured — cannot fetch insights")
+            return None
+
+        metrics = "reach,impressions,engagement,clicks,video_views"
+        url = f"{GRAPH_API}/{post_id}/insights"
+        params = {
+            "access_token": self.access_token,
+            "metric": metrics,
+        }
+
+        try:
+            resp = self._retry_request("GET", url, data=params)
+            if not resp:
+                return None
+
+            result = {
+                "reach": 0,
+                "impressions": 0,
+                "engagement": 0,
+                "clicks": 0,
+                "video_views": 0,
+            }
+
+            data = resp.get("data", [])
+            for item in data:
+                name = item.get("name", "")
+                value = item.get("values", [{}])[0].get("value", 0)
+                if name == "reach":
+                    result["reach"] = value
+                elif name == "impressions":
+                    result["impressions"] = value
+                elif name == "engagement":
+                    result["engagement"] = value
+                elif name == "clicks":
+                    result["clicks"] = value
+                elif name == "video_views":
+                    result["video_views"] = value
+
+            logger.info(f"📊 Facebook insights for {post_id}: reach={result['reach']}, "
+                        f"impressions={result['impressions']}, views={result['video_views']}")
+            return result
+
+        except Exception as e:
+            logger.error(f"❌ Facebook insights error for {post_id}: {e}")
+            return None

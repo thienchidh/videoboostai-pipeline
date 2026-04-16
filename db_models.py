@@ -149,6 +149,35 @@ class SocialPost(Base):
     )
 
 
+class SocialPostMetric(Base):
+    """Facebook/TikTok insights metrics for a social post.
+
+    Updated by heartbeat_insights.py after a post goes live.
+    """
+    __tablename__ = "social_post_metrics"
+    __table_args__ = (
+        Index("idx_social_post_metrics_post", "post_id"),
+        UniqueConstraint("post_id", name="uq_social_post_metrics_post"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    post_id = Column(String(200), nullable=False)          # platform post ID from Facebook/TikTok
+    platform = Column(String(50), nullable=False)         # 'facebook' or 'tiktok'
+    posted_at = Column(DateTime)
+    fetched_at = Column(DateTime, default=datetime.datetime.utcnow)
+    metrics_json = Column(JSON)                            # flexible: stores all raw metrics
+    # Flattened fields for easy querying
+    reach = Column(Integer, nullable=True)
+    impressions = Column(Integer, nullable=True)
+    engagement = Column(Integer, nullable=True)
+    clicks = Column(Integer, nullable=True)
+    video_views = Column(Integer, nullable=True)
+    likes = Column(Integer, nullable=True)
+    comments = Column(Integer, nullable=True)
+    shares = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
 class Credential(Base):
     __tablename__ = "credentials"
     __table_args__ = (

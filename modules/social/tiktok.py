@@ -112,6 +112,56 @@ class TikTokPublisher:
             logger.error(f"❌ TikTok publish error: {e}")
             return None
 
+    def get_post_insights(self, post_id: str) -> Optional[dict]:
+        """Fetch insights metrics for a TikTok video post.
+
+        Args:
+            post_id: The TikTok video ID.
+        Returns:
+            Dict with: video_views, likes, comments, shares, reach.
+            Returns None on failure or if not configured.
+        """
+        if not self.is_configured:
+            logger.warning("⚠️  TikTok: not configured — cannot fetch insights")
+            return None
+
+        url = f"{TIKTOK_API_BASE}/v2/data/post/detail/"
+        payload = {
+            "advertiser_id": self.advertiser_id,
+            "video_ids": [post_id],
+        }
+        try:
+            resp = self._retry_request("POST", url, data=payload)
+            if not resp:
+                return None
+
+            result = {
+                "video_views": 0,
+                "likes": 0,
+                "comments": 0,
+                "shares": 0,
+                "reach": 0,
+            }
+
+            # TikTok returns {data: {video_list: [{video_id, stats}])}}
+            data = resp.get("data", {})
+            video_list = data.get("video_list", [])
+            for video in video_list:
+                stats = video.get("stats", {})
+                result["video_views"] = stats.get("video_play_count", 0)
+                result["likes"] = stats.get("like_count", 0)
+                result["comments"] = stats.get("comment_count", 0)
+                result["shares"] = stats.get("share_count", 0)
+                result["reach"] = stats.get("reach", 0)
+
+            logger.info(f"📊 TikTok insights for {post_id}: views={result['video_views']}, "
+                        f"likes={result['likes']}, comments={result['comments']}")
+            return result
+
+        except Exception as e:
+            logger.error(f"❌ TikTok insights error for {post_id}: {e}")
+            return None
+
     def _retry_request(self, method: str, url: str,
                        data: dict = None, files: dict = None, retries: int = 3) -> Optional[dict]:
         """Make HTTP request with exponential backoff for rate limits."""

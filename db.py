@@ -660,6 +660,119 @@ def get_pending_social_posts() -> List[Dict]:
         return [_social_post_to_dict(p) for p in posts]
 
 
+def upsert_social_post_metrics(
+    post_id: str,
+    platform: str,
+    metrics: dict,
+    posted_at=None,
+) -> int:
+    """Insert or update social post metrics.
+
+    Args:
+        post_id: Platform post ID (from social_posts.post_id)
+        platform: 'facebook' or 'tiktok'
+        metrics: Dict with any of: reach, impressions, engagement, clicks,
+                 video_views, likes, comments, shares
+        posted_at: Optional datetime when the post went live
+
+    Returns:
+        social_post_metrics.id
+    """
+    with get_session() as session:
+        existing = session.query(models.SocialPostMetric).filter_by(post_id=post_id).first()
+        now = datetime.now(timezone.utc)
+        if existing:
+            existing.fetched_at = now
+            existing.metrics_json = metrics
+            for key in ["reach", "impressions", "engagement", "clicks",
+                        "video_views", "likes", "comments", "shares"]:
+                if key in metrics:
+                    setattr(existing, key, metrics[key])
+            return existing.id
+        else:
+            record = models.SocialPostMetric(
+                post_id=post_id,
+                platform=platform,
+                posted_at=posted_at,
+                fetched_at=now,
+                metrics_json=metrics,
+                reach=metrics.get("reach"),
+                impressions=metrics.get("impressions"),
+                engagement=metrics.get("engagement"),
+                clicks=metrics.get("clicks"),
+                video_views=metrics.get("video_views"),
+                likes=metrics.get("likes"),
+                comments=metrics.get("comments"),
+                shares=metrics.get("shares"),
+            )
+            session.add(record)
+            session.flush()
+            return record.id
+
+
+def get_social_post_metrics(post_id: str) -> Optional[Dict]:
+    """Get the latest metrics record for a post."""
+    with get_session() as session:
+        row = session.query(models.SocialPostMetric).filter_by(post_id=post_id)\
+            .order_by(models.SocialPostMetric.fetched_at.desc()).first()
+        if not row:
+            return None
+        return _social_post_metric_to_dict(row)
+
+
+def get_posts_needing_insights(hours_old: int = 1, min_polling_interval_minutes: int = 30) -> List[Dict]:
+    """Get posts that need insights polling.
+
+    Posts must be: posted (posted_at not null), older than hours_old,
+    and not polled in the last min_polling_interval_minutes.
+    """
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours_old)
+    polling_cutoff = datetime.now(timezone.utc) - timedelta(minutes=min_polling_interval_minutes)
+    with get_session() as session:
+        # Subquery: latest fetch time per post_id
+        from sqlalchemy import func
+        latest_subq = session.query(
+            models.SocialPostMetric.post_id,
+            func.max(models.SocialPostMetric.fetched_at).label("last_fetch")
+        ).group_by(models.SocialPostMetric.post_id).subquery()
+
+
+        posts = session.query(models.SocialPost).join(
+            latest_subq,
+            models.SocialPost.post_id == latest_subq.c.post_id,
+            isouter=True,
+        ).filter(
+            models.SocialPost.post_id.isnot(None),
+            models.SocialPost.posted_at.isnot(None),
+            models.SocialPost.posted_at < cutoff,
+        ).filter(
+            # Either never fetched (last_fetch is NULL) or polled before cutoff
+            (latest_subq.c.last_fetch < polling_cutoff) | (latest_subq.c.last_fetch.is_(None))
+        ).all()
+        return [_social_post_to_dict(p) for p in posts]
+
+
+def _social_post_metric_to_dict(m: models.SocialPostMetric) -> Dict:
+    return {
+        "id": m.id,
+        "post_id": m.post_id,
+        "platform": m.platform,
+        "posted_at": m.posted_at,
+        "fetched_at": m.fetched_at,
+        "metrics_json": m.metrics_json,
+        "reach": m.reach,
+        "impressions": m.impressions,
+        "engagement": m.engagement,
+        "clicks": m.clicks,
+        "video_views": m.video_views,
+        "likes": m.likes,
+        "comments": m.comments,
+        "shares": m.shares,
+        "created_at": m.created_at,
+    }
+
+
 def _social_post_to_dict(p: models.SocialPost) -> Dict:
     return {
         "id": p.id,

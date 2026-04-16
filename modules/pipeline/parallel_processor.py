@@ -52,13 +52,15 @@ class ParallelSceneProcessor:
       4. Parallel timestamp collection
     """
 
-    def __init__(self, ctx: PipelineContext, run_dir: Path, max_workers: int = 3, checkpoint_helper=None):
+    def __init__(self, ctx: PipelineContext, run_dir: Path, max_workers: int = 3,
+                 checkpoint_helper=None, skip_image: bool = False):
         self.ctx = ctx
         self.run_dir = run_dir
         self.project_root = PROJECT_ROOT
         self.timestamp = int(time.time())
         self.max_workers = max_workers
         self.checkpoint = checkpoint_helper
+        self.skip_image = skip_image
 
     # ─── Public API ─────────────────────────────────────────
 
@@ -225,9 +227,38 @@ class ParallelSceneProcessor:
                          image_fn, save_checkpoints: bool = False) -> Dict[int, Dict[str, Any]]:
         """Generate images for all scenes in parallel (runs after Phase 1).
 
+        When skip_image=True, returns a placeholder image path for every scene
+        without calling image_fn.
+
         Returns:
             {scene_id: {"image_path": str, "gender": str, "prompt": str}}
         """
+        if self.skip_image:
+            log(f"\n  🎨 Phase 2: SKIPPED (skip_image=True) — using placeholder image for {len(scenes)} scenes")
+            results = {}
+            for scene in scenes:
+                scene_id = scene.get("id") or 0
+                chars = scene.get("characters") or []
+                gender = "female"
+                if chars:
+                    char_name = chars[0].name if isinstance(chars[0], SceneCharacter) else chars[0]
+                    char_cfg = self._get_character(char_name)
+                    if char_cfg:
+                        _, _, _, gender = self._resolve_voice(char_cfg, scene)
+                prompt = self._get_video_prompt(scene)
+                scene_output = self.run_dir / f"scene_{scene_id}"
+                scene_output.mkdir(parents=True, exist_ok=True)
+                placeholder_img = scene_output / "scene.png"
+                # Create 1x1 black placeholder PNG if not exists
+                if not placeholder_img.exists():
+                    subprocess.run([
+                        str(get_ffmpeg()),
+                        "-f", "lavfi", "-i", "color=c=black:s=512x512:d=1",
+                        "-frames:v", "1", str(placeholder_img)
+                    ], capture_output=True)
+                results[scene_id] = {"image_path": str(placeholder_img), "gender": gender, "prompt": prompt}
+            return results
+
         log(f"\n  🎨 Phase 2: Image gen for {len(scenes)} scenes in parallel (workers={self.max_workers})")
         t_start = time.time()
         results = {}
@@ -361,17 +392,24 @@ class ParallelSceneProcessor:
                     else:
                         self.checkpoint.clear(scene_id)  # stale
 
-                log(f"  🎬 Lipsync scene_{scene_id}...")
-                try:
-                    lipsync_result = lipsync_fn(image_path, audio_path, str(video_raw),
-                                                scene_id=scene_id, prompt=prompt)
-                except LipsyncQuotaError as e:
-                    log(f"  ⚠️ Lipsync quota exceeded: {e} — fallback to static")
-                    lipsync_result = None
+                if self.skip_image:
+                    # No image gen + no lipsync → create static video directly from placeholder
+                    log(f"  🎬 Static video (skip_image=True) scene_{scene_id}...")
+                    lipsync_result = create_static_video_with_audio(
+                        image_path, audio_path, str(video_raw)
+                    )
+                else:
+                    log(f"  🎬 Lipsync scene_{scene_id}...")
+                    try:
+                        lipsync_result = lipsync_fn(image_path, audio_path, str(video_raw),
+                                                    scene_id=scene_id, prompt=prompt)
+                    except LipsyncQuotaError as e:
+                        log(f"  ⚠️ Lipsync quota exceeded: {e} — fallback to static")
+                        lipsync_result = None
 
-                if not lipsync_result:
-                    log(f"  ⚠️ Lipsync failed — fallback to static image + audio")
-                    lipsync_result = create_static_video_with_audio(image_path, audio_path, str(video_raw))
+                    if not lipsync_result:
+                        log(f"  ⚠️ Lipsync failed — fallback to static image + audio")
+                        lipsync_result = create_static_video_with_audio(image_path, audio_path, str(video_raw))
 
                 if not lipsync_result:
                     log(f"  ❌ Lipsync + static fallback both failed for scene_{scene_id}")

@@ -380,7 +380,7 @@ class VideoPipelineRunner:
                         log(f"  ⚠️ Scene {scene_id} duration error, will retry with new script")
                         raise
                     except Exception as e:
-                        log(f"  ❌ Scene {scene_id} failed: {e}")
+                        log(f"  ❌ Scene {scene_id} failed [{type(e).__name__}]: {e}")
                         results_by_scene[scene_id] = None
 
                 # Rebuild scene_videos and scene_scripts in original scene order

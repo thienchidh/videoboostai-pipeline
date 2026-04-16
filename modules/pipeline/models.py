@@ -434,6 +434,7 @@ class ScenarioConfig(BaseModel):
     scenes: List[SceneConfig]
     title: str = ""
     slug: Optional[str] = None
+    video_message: Optional[str] = None
 
     @classmethod
     def load(cls, path: str | Path) -> "ScenarioConfig":
@@ -442,7 +443,7 @@ class ScenarioConfig(BaseModel):
             data = yaml.safe_load(f)
         scenes = [SceneConfig.from_dict(s) for s in data.get("scenes", [])]
         slug = path.stem
-        instance = cls(scenes=scenes, title=data.get("title", ""))
+        instance = cls(scenes=scenes, title=data.get("title", ""), video_message=data.get("video_message"))
         instance.slug = slug
         return instance
 

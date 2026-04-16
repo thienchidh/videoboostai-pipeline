@@ -248,13 +248,13 @@ class SingleCharSceneProcessor(SceneProcessor):
             chars = scene.characters or []
             scene_meta = {
                 "scene_id": scene_id,
-                "scene_index": getattr(scene, 'scene_index', 0),
-                "title": getattr(scene, 'title', None),
-                "script": getattr(scene, 'script', None) or getattr(scene, 'tts', ''),
-                "tts_text": getattr(scene, 'tts', '') or getattr(scene, 'script', ''),
-                "characters": [c.name if hasattr(c, 'name') else str(c) for c in chars],
-                "video_prompt": getattr(scene, 'video_prompt', None),
-                "creative_brief": getattr(scene, 'creative_brief', None),
+                "scene_index": scene.id or 0,
+                "title": None,  # title lives on ScenarioConfig, not SceneConfig
+                "script": scene.script or scene.tts or "",
+                "tts_text": scene.tts or scene.script or "",
+                "characters": [c.name for c in chars],
+                "video_prompt": scene.video_prompt,
+                "creative_brief": scene.creative_brief,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
             with open(meta_path, "w", encoding="utf-8") as f:

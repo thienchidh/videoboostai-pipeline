@@ -132,5 +132,9 @@ def mock_kieai_config():
 def db_init_db_full():
     """Initialize database with all tables before each test."""
     from db import init_db_full
-    init_db_full()
+    try:
+        init_db_full()
+    except Exception:
+        # DB not available - tests requiring DB will fail; others continue
+        pass
     yield

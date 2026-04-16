@@ -98,13 +98,15 @@ def _build_content_pipeline_config(channel_id: str) -> ContentPipelineConfig:
     )
 
 
-def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = False):
+def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = False,
+                         skip_image: bool = False):
     """Run content generation cycle: research -> ideas -> scripts.
 
     Args:
         channel_id: Channel identifier (e.g., 'nang_suat_thong_minh')
         ideas_count: Number of ideas to generate
         dry_run: If True, skip actual API calls
+        skip_image: If True, skip image generation (use placeholder image + static video to save API costs)
 
     Returns:
         List of idea dicts with script_json ready for video production
@@ -120,6 +122,7 @@ def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = 
         config=_build_content_pipeline_config(channel_id),
         dry_run=dry_run,
         channel_id=channel_id,
+        skip_image=skip_image,
     )
 
     logger.info("=" * 60)
@@ -147,7 +150,8 @@ def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = 
 
 def run_video_pipeline(channel_id: str, scenario_path: str,
                       dry_run: bool = False, dry_run_tts: bool = False,
-                      dry_run_images: bool = False, resume: bool = False) -> tuple:
+                      dry_run_images: bool = False, resume: bool = False,
+                      skip_image: bool = False) -> tuple:
     """Run video production from a scenario YAML file.
 
     Args:
@@ -175,7 +179,7 @@ def run_video_pipeline(channel_id: str, scenario_path: str,
     logger.info(f"  Scenario: {scenario_path}")
     logger.info(f"  Dry run: {dry_run}, TTS: {dry_run_tts}, Images: {dry_run_images}")
 
-    pipeline = VideoPipelineV3(channel_id, scenario_path, resume=resume)
+    pipeline = VideoPipelineV3(channel_id, scenario_path, resume=resume, skip_image=skip_image)
     logger.info(f"  Title: {pipeline.ctx.scenario.title}")
     logger.info(f"  Scenes: {len(pipeline.ctx.scenario.scenes)}")
     logger.info(f"  Run ID: {pipeline.run_id}")
@@ -196,7 +200,8 @@ def run_video_pipeline(channel_id: str, scenario_path: str,
 
 def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = True,
                        skip_lipsync: bool = False, skip_content: bool = False,
-                       scenario_path: str = None, resume: bool = False) -> dict:
+                       scenario_path: str = None, resume: bool = False,
+                       skip_image: bool = False) -> dict:
     """Run full pipeline: content generation + video production.
 
     Args:
@@ -207,6 +212,7 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
         skip_content: If True, skip content generation and use existing scripts
         scenario_path: Path to scenario YAML file. When skip_content=True and this is set,
                        run video production for this specific scenario instead of querying DB.
+        skip_image: If True, skip image generation (use placeholder image + static video to save API costs)
 
     Returns:
         Dict with:
@@ -228,6 +234,7 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
             dry_run_tts=False,
             dry_run_images=False,
             resume=resume,
+            skip_image=skip_image,
         )
         return {"videos": [{"scenario": scenario_path, "video_path": video_path}]}
 
@@ -247,6 +254,7 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
         channel_id=channel_id,
         skip_lipsync=skip_lipsync,
         skip_content=skip_content,
+        skip_image=skip_image,
     )
 
     logger.info("=" * 60)
@@ -333,6 +341,8 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run-tts", action="store_true", help="Dry run TTS")
     parser.add_argument("--dry-run-images", action="store_true", help="Dry run images")
     parser.add_argument("--skip-lipsync", action="store_true", help="Skip lipsync (use static image + audio to save API costs)")
+    parser.add_argument("--skip-image", action="store_true",
+        help="Skip image generation (use placeholder image + static video to save API costs)")
     parser.add_argument("--skip-content", action="store_true", help="Skip content generation, only run video production (requires existing script_json in DB)")
     parser.add_argument("--scenario", type=str, default=None,
         help="Path to scenario YAML file. When used with --skip-content, runs video production for this specific scenario.")
@@ -367,6 +377,7 @@ if __name__ == "__main__":
                     skip_content=True,
                     scenario_path=args.scenario,
                     resume=args.resume,
+                    skip_image=args.skip_image,
                 )
             elif args.skip_content:
                 # Skip content, run video for all script_ready ideas from DB
@@ -377,6 +388,7 @@ if __name__ == "__main__":
                     skip_lipsync=args.skip_lipsync,
                     skip_content=True,
                     resume=args.resume,
+                    skip_image=args.skip_image,
                 )
             else:
                 result = run_full_pipeline(
@@ -386,6 +398,7 @@ if __name__ == "__main__":
                     skip_lipsync=args.skip_lipsync,
                     skip_content=False,
                     resume=args.resume,
+                    skip_image=args.skip_image,
                 )
             logger.info(f"Result for {ch}: {result}")
         else:
@@ -393,6 +406,7 @@ if __name__ == "__main__":
                 channel_id=ch,
                 ideas_count=args.ideas,
                 dry_run=args.dry_run,
+                skip_image=args.skip_image,
             )
             logger.info(f"Generated {len(ideas)} ideas for {ch}")
             print(f"\nGot {len(ideas)} ideas")

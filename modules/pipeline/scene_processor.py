@@ -37,16 +37,16 @@ from modules.media.prompt_builder import PromptBuilder
 class SceneProcessor:
     """Base class for scene processors."""
 
-    def __init__(self, ctx: PipelineContext, run_dir: Path, resume: bool = False):
+    def __init__(self, ctx: PipelineContext, run_dir: Path, resume: bool = False, skip_image: bool = False):
         self.ctx = ctx
         self.run_dir = run_dir
         self.resume = resume
         self.project_root = PROJECT_ROOT
         self.timestamp = int(time.time())
-
         # Read max_workers from config (strict: require key to exist)
         max_workers = ctx.technical.generation.parallel_scene_processing.max_workers
         self.max_workers = max_workers
+        self.skip_image = skip_image
 
     def _run_tts(self, tts_fn, tts_text: str, voice, speed: float, audio_output: str):
         """Helper to run TTS generation (for parallel execution)."""
@@ -214,8 +214,8 @@ class SingleCharSceneProcessor(SceneProcessor):
     3. Return (video_path, timestamps)
     """
 
-    def __init__(self, ctx, run_dir, resume=False, run_id=None):
-        super().__init__(ctx, run_dir, resume)
+    def __init__(self, ctx, run_dir, resume=False, run_id=None, skip_image: bool = False):
+        super().__init__(ctx, run_dir, resume, skip_image)
         self.run_id = run_id
         self._prompt_builder = PromptBuilder(
             channel_style=getattr(self.ctx.channel, 'image_style', None),
@@ -315,7 +315,17 @@ class SingleCharSceneProcessor(SceneProcessor):
         with ThreadPoolExecutor(max_workers=2) as executor:
             # Submit BOTH TTS and Image tasks simultaneously
             tts_future = executor.submit(self._run_tts, tts_fn, tts_text, voice, speed, str(audio_output))
-            img_future = executor.submit(image_fn, img_prompt, str(scene_img)) if not scene_img.exists() else None
+            if self.skip_image:
+                # Skip image gen — create placeholder with ffmpeg
+                img_future = None
+                if not scene_img.exists():
+                    subprocess.run([
+                        str(get_ffmpeg()),
+                        "-f", "lavfi", "-i", "color=c=black:s=512x512:d=1",
+                        "-frames:v", "1", str(scene_img)
+                    ], capture_output=True)
+            else:
+                img_future = executor.submit(image_fn, img_prompt, str(scene_img)) if not scene_img.exists() else None
 
             # Wait for both — fail fast if either raises an exception
             done_futures = []
@@ -353,14 +363,15 @@ class SingleCharSceneProcessor(SceneProcessor):
                 format=gen_tts.format,
             )
 
-            if img_future:
-                img_result = img_future.result()
-                if not img_result:
-                    log(f"  ❌ Image gen failed")
-                    return None, []
+            # Write image checkpoint (once, whether generated or placeholder existed)
+            # img_future is set only when we attempted image generation (skip_image=False + image didn't exist)
+            img_generation_attempted = img_future is not None
+            img_result = img_future.result() if img_generation_attempted else None
+            if img_generation_attempted and not img_result:
+                log(f"  ❌ Image gen failed")
+                return None, []
+            if scene_img.exists():
                 log(f"  ✅ Image done: {scene_img.stat().st_size/1024:.1f}KB")
-
-                # Write image checkpoint
                 img_gen = getattr(self.ctx.technical, 'generation', None)
                 assert img_gen is not None, "technical.generation must be set"
                 img_cfg = img_gen.image
@@ -380,28 +391,6 @@ class SingleCharSceneProcessor(SceneProcessor):
                     poll_interval=img_cfg.poll_interval,
                     max_polls=img_cfg.max_polls,
                 )
-            else:
-                # Image already existed — write checkpoint for it
-                if scene_img.exists():
-                    img_gen = getattr(self.ctx.technical, 'generation', None)
-                    assert img_gen is not None, "technical.generation must be set"
-                    img_cfg = img_gen.image
-                    assert img_cfg is not None, "technical.generation.image must be set"
-                    chan_video = getattr(self.ctx.channel, 'video', None)
-                    checkpoint_writer.write_image(
-                        output=str(scene_img),
-                        input_text=str(audio),
-                        input_duration=get_audio_duration(str(audio)),
-                        prompt=img_prompt,
-                        provider="minimax",
-                        model=img_cfg.model,
-                        aspect_ratio=chan_video.aspect_ratio if chan_video else "9:16",
-                        gender=gender,
-                        character_name=char_name,
-                        timeout=img_cfg.timeout,
-                        poll_interval=img_cfg.poll_interval,
-                        max_polls=img_cfg.max_polls,
-                    )
 
         # 3. Validate duration
         tts_cfg = self.get_tts_config()
@@ -445,37 +434,49 @@ class SingleCharSceneProcessor(SceneProcessor):
 
         lipsync_prompt = self._prompt_builder.get_lipsync_prompt(scene)
         if not lipsync_step_done and not video_raw.exists():
-            log(f"  🎬 Generating lipsync video...")
-            actual_error = None
-            result_path = None
-            lipsync_is_valid, lipsync_violations = self._prompt_builder.validate_lipsync_prompt(
-                lipsync_prompt, character_name=char_name)
-            if not lipsync_is_valid:
-                log(f"  ⚠️ lipsync_prompt violations: {lipsync_violations}")
-            try:
-                result_path = lipsync_fn(str(scene_img), audio, str(video_raw),
-                                        scene_id=scene_id, prompt=lipsync_prompt)
-            except LipsyncQuotaError as e:
-                actual_error = str(e)
-                result_path = None
-            if not result_path:
-                log(f"  ⚠️ Lipsync failed — falling back to static image + audio")
+            if self.skip_image:
+                # No image gen + no lipsync → create static video directly from placeholder
+                log(f"  🎬 Static video (skip_image=True) scene_{scene_id}...")
                 result_path = create_static_video_with_audio(str(scene_img), audio, str(video_raw))
                 if result_path:
-                    lipsync_fallback_reason = actual_error or "lipsync returned None"
-                    lipsync_actual_mode = "static_fallback"
-                    lipsync_attempted_mode = "kieai"
+                    video_raw = Path(result_path)
+                    lipsync_actual_mode = "static"
+                    lipsync_attempted_mode = "static"
                 else:
-                    lipsync_error = actual_error or "static fallback also failed"
-                    # Both lipsync and fallback failed — actual mode is static_fallback (what was attempted)
-                    lipsync_actual_mode = "static_fallback"
-            if result_path:
-                video_raw = Path(result_path)
+                    log(f"  ❌ Static video creation failed (skip_image=True)")
+                    return None, []
+            else:
+                log(f"  🎬 Generating lipsync video...")
+                actual_error = None
+                result_path = None
+                lipsync_is_valid, lipsync_violations = self._prompt_builder.validate_lipsync_prompt(
+                    lipsync_prompt, character_name=char_name)
+                if not lipsync_is_valid:
+                    log(f"  ⚠️ lipsync_prompt violations: {lipsync_violations}")
+                try:
+                    result_path = lipsync_fn(str(scene_img), audio, str(video_raw),
+                                            scene_id=scene_id, prompt=lipsync_prompt)
+                except LipsyncQuotaError as e:
+                    actual_error = str(e)
+                    result_path = None
+                if not result_path:
+                    log(f"  ⚠️ Lipsync failed — falling back to static image + audio")
+                    result_path = create_static_video_with_audio(str(scene_img), audio, str(video_raw))
+                    if result_path:
+                        lipsync_fallback_reason = actual_error or "lipsync returned None"
+                        lipsync_actual_mode = "static_fallback"
+                        lipsync_attempted_mode = "kieai"
+                    else:
+                        lipsync_error = actual_error or "static fallback also failed"
+                        # Both lipsync and fallback failed — actual mode is static_fallback (what was attempted)
+                        lipsync_actual_mode = "static_fallback"
+                if result_path:
+                    video_raw = Path(result_path)
 
-        # If we got a result_path, it was from the primary lipsync attempt (success or fallback)
-        if result_path and lipsync_actual_mode is None:
-            lipsync_actual_mode = "kieai"
-            lipsync_attempted_mode = "kieai"
+            # If we got a result_path, it was from the primary lipsync attempt (success or fallback)
+            if result_path and lipsync_actual_mode is None:
+                lipsync_actual_mode = "kieai"
+                lipsync_attempted_mode = "kieai"
 
         # Write lipsync checkpoint
         if not lipsync_step_done:

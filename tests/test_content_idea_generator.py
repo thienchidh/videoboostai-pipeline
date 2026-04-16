@@ -218,7 +218,7 @@ class TestContentIdeaGenerator:
 
         with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
             with patch.object(gen, "_regenerate_scene_tts", return_value="ngắn gọn và đúng vào việc thôi"):
-                scenes, video_message = gen._generate_scenes("Test Title", ["test"], "tips", "", num_scenes=2)
+                scenes, video_message = gen._generate_scenes("Test Title", ["test"], "tips", "", num_scenes=2, video_message="Test video message")
 
         assert len(scenes) == 2
         # The too-long scene should have been regenerated
@@ -328,9 +328,9 @@ class TestContentIdeaGenerator:
 
 
 def test_generate_script_from_idea_includes_video_message():
-    """generate_script_from_idea returns video_message from LLM response."""
+    """generate_script_from_idea calls two-step: video_message first, then scenes."""
     import json
-    from unittest.mock import MagicMock, patch
+    from unittest.mock import MagicMock, patch, call
     from modules.content.content_idea_generator import ContentIdeaGenerator
     from modules.pipeline.models import GenerationLLM
 
@@ -344,19 +344,22 @@ def test_generate_script_from_idea_includes_video_message():
                                          environment="office", composition="professional")
 
     gen = ContentIdeaGenerator(project_id=1, channel_config=mock_channel)
-    # Set _llm so _generate_scenes doesn't raise ConfigMissingKeyError
     gen._llm = GenerationLLM(provider="minimax", model="MiniMax-M2.7", max_tokens=1536, retry_attempts=3, retry_backoff_max=10)
 
-    mock_llm = MagicMock()
-    mock_llm.chat.return_value = json.dumps({
-        "video_message": "Tập trung vào 1 việc quan trọng nhất trước",
+    step1_response = json.dumps({"video_message": "Tập trung vào 1 việc quan trọng nhất trước"})
+    step2_response = json.dumps({
         "scenes": [
             {"id": 1, "script": "Bắt đầu ngay", "character": "NamMinh",
+             "scene_type": "hook", "delivers": "first tip",
              "creative_brief": {"visual_concept": "test", "emotion": "serious",
                                "camera_mood": "close-up", "setting_vibe": "office",
                                "unique_angle": "desk", "action_description": "speaking"}},
         ]
     })
+
+    mock_llm = MagicMock()
+    # Return different responses per call: first = step1, second = step2
+    mock_llm.chat.side_effect = [step1_response, step2_response]
 
     with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
         result = gen.generate_script_from_idea({
@@ -365,8 +368,9 @@ def test_generate_script_from_idea_includes_video_message():
             "topic_keywords": ["test"]
         }, num_scenes=1)
 
-    assert "video_message" in result, f"video_message not in result keys: {list(result.keys())}"
+    assert "video_message" in result
     assert result["video_message"] == "Tập trung vào 1 việc quan trọng nhất trước"
+    assert mock_llm.chat.call_count == 2, f"expected 2 LLM calls (step1 + step2), got {mock_llm.chat.call_count}"
 
 
 def test_generate_video_message_returns_non_null():

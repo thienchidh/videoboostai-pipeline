@@ -92,7 +92,10 @@ class ContentIdeaGenerator:
         angle = idea.get("content_angle", self.content_angle)
         description = idea.get("description", "")  # actual article content from research
 
-        scenes, video_message = self._generate_scenes(title, keywords, angle, description, num_scenes)
+        # Step 1: generate video_message (never null)
+        video_message = self._generate_video_message(title, keywords, angle, description)
+        # Step 2: generate scenes using video_message as mandatory context
+        scenes, _ = self._generate_scenes(title, keywords, angle, description, num_scenes, video_message)
 
         # Read from validated ChannelConfig — no hardcoded fallbacks
         if not self._channel_config:
@@ -112,7 +115,8 @@ class ContentIdeaGenerator:
         }
 
     def _generate_scenes(self, title: str, keywords: List[str], angle: str,
-                          description: str = "", num_scenes: int = 3) -> Tuple[List[SceneConfig], Optional[str]]:
+                          description: str, num_scenes: int,
+                          video_message: str) -> Tuple[List[SceneConfig], Optional[str]]:
         """Generate scene scripts using LLM provider with exponential backoff retry.
 
         After initial generation, each scene's TTS is validated against channel
@@ -136,7 +140,7 @@ class ContentIdeaGenerator:
             api_key=api_key,
             model=self._llm.model if self._llm else "MiniMax-M2.7",
         )
-        prompt = self._build_scene_prompt(title, keywords, angle, description, num_scenes)
+        prompt = self._build_scene_prompt(title, keywords, angle, description, num_scenes, video_message)
 
         @retry(
             stop=stop_after_attempt(self._llm.retry_attempts if self._llm else 3),
@@ -179,7 +183,8 @@ class ContentIdeaGenerator:
         return scenes, video_message
 
     def _build_scene_prompt(self, title: str, keywords: List[str], angle: str,
-                             description: str = "", num_scenes: int = 3) -> str:
+                             description: str, num_scenes: int,
+                             video_message: str) -> str:
         """Build the prompt sent to LLM for scene generation.
 
         Uses Two-Phase Creative Generation:
@@ -223,114 +228,74 @@ PHONG CÁCH KÊNH (brand tone):
 NHÂN VẬT VÀ GIỌNG NÓI:
 {char_list_str}
 
-TRƯỚC TIÊN: Dựa trên title, keywords và content_angle, xác định "video_message" — thông điệp chính mà người xem sẽ MANG GÌ ĐI sau khi xem video này. Message phải NGẮN GỌN (1-2 câu), CÓ Ý NGHĨA RÕ RÀNG.
+VIDEO_MESSAGE (BẮT BUỘC PHẢI ILLUSTRATE/SUPPORT):
+"{video_message}"
+→ Tất cả scenes phải giúp viewer hiểu HOẶC tin video_message này
+→ Không viết scene nào không liên quan đến video_message
 
-SAU ĐÓ: Viết {num_scenes} scenes, mỗi scene phải:
-- Cùng hướng về video_message đã xác định ở trên
-- Nội dung mỗi scene phải SUPPORT hoặc ILLUSTRATE cái message đó
-- Khác nhau về visual concept, emotion, camera angle, setting
-- KHÔNG được viết scene mà content không liên quan đến video_message
+NỘI DUNG THAM KHẢO:
+{desc_line}{kw_line}Phong cách: {angle}
 
----
+PHONG CÁCH KÊNH:
+{cfg.style}
 
-VÍ DỤ TỐT (học cách viết creative brief + prompts):
+NHÂN VẬT:
+{char_list_str}
 
-Input topic: "3 Tips Quản Lý Thời Gian"
-Characters: NamMinh (female, vi-VN-NamMinhNeural), HoaiMy (female, vi-VN-HoaiMyNeural)
-
---- Scene 1 (Tip về lập kế hoạch) ---
-creative_brief:
-  visual_concept: "Close-up khuôn mặt tập trung, ánh sáng warm từ lamp"
-  emotion: "serious but approachable"
-  camera_mood: "shallow DOF, intimate close-up"
-  setting_vibe: "home office with plants"
-  unique_angle: "shooting from above desk, papers and planner visible"
-  action_description: "speaking directly to camera, occasional hand gesture toward planner"
-
-image_prompt: "Close-up of a focused young woman at a desk with planner and scattered papers, warm lamp light creating soft shadows, shallow depth of field with desk details in bokeh, home office with small plants, looking directly at camera with determined yet approachable expression, intimate cinematic feel, professional 3D render style"
-
-lipsync_prompt: "NamMinh speaking directly to camera with warm inviting smile, slight nod on key words like 'planning' and 'important', occasional hand gesture toward planner, measured thoughtful pace, confident energy, Vietnamese language delivery"
-
---- Scene 2 (Tip về ưu tiên) ---
-creative_brief:
-  visual_concept: "Medium shot người đang cầm list, ánh sáng bright white"
-  emotion: "energetic, motivated"
-  camera_mood: "medium shot, eye-level, slightly high angle"
-  setting_vibe: "clean minimalist workspace"
-  unique_angle: "camera to the side, showing screen with task list"
-  action_description: "pointing at list, engaging body language"
-
-image_prompt: "Young professional woman pointing at a digital task list on screen, clean minimalist white workspace, bright diffused lighting from ceiling, medium shot eye-level with slightly high angle, engaged and energetic expression, professional 3D render style"
-
-lipsync_prompt: "HoaiMy speaking with energetic enthusiasm, animated hand gestures pointing at list items, faster paced delivery with excitement on priority keywords, confident authoritative tone, Vietnamese language delivery"
-
---- Scene 3 (Tip về nghỉ ngơi) ---
-creative_brief:
-  visual_concept: "Relaxed shot người đang uống coffee, ánh sáng soft golden"
-  emotion: "relaxed, balanced"
-  camera_mood: "wide shot, lifestyle feel"
-  setting_vibe: "cozy café corner with plants"
-  unique_angle: "over-the-shoulder showing coffee cup"
-  action_description: "relaxed posture, occasional sip, thoughtful pauses"
-
-image_prompt: "Young woman relaxing with coffee cup, soft golden hour lighting from window, cozy café corner with plants and warm wooden elements, over-the-shoulder composition showing both face and coffee, relaxed balanced expression with slight smile, lifestyle photography feel, professional 3D render style"
-
-lipsync_prompt: "NamMinh speaking in a relaxed slower pace, occasional sip of coffee between sentences, thoughtful pauses on key points, warm casual tone, gentle hand movements, peaceful balanced energy, Vietnamese language delivery"
+GIỚI HẠN: mỗi scene {int(tts.min_duration)}-{int(tts.max_duration)} giây ({int(tts.min_duration*2.5)}-{int(tts.max_duration*2.5)} từ)
 
 ---
 
-TRÁNH CÁC PATTERN SAU — KHÔNG ĐƯỢC LẶP LẠI:
-❌ "professional speaker in modern office" — DÙNG QUÁ NHIỀU, XÓA
-❌ "warm lighting, eye-level camera" — QUÁ GENERIC, KHÔNG MÔ TẢ GÌ
-❌ Mọi scene đều là người đứng nói chuyện trước camera
-❌ Mọi scene đều có cùng background (office)
-❌ "confident, knowledgeable" — adjectives TRỐNG, không có action
-❌ "gesturing naturally" — quá mơ hồ
-❌ Tất cả scenes đều có cùng camera angle (close-up)
-❌ Prompt bắt đầu bằng "A person..." thay vì mô tả cụ thể
+CẤU TRÚC SCENES:
 
----
+1. Scene 1 — HOOK: Câu hỏi HOẶC provocative statement. PHẢI có hint/trả lời một phần.
+   ✅ "Olympic không dùng Pomodoro — họ dùng gì? Và HIỆU QUẢ HƠN 40%"
+   ❌ "Bạn có biết bí mật năng suất của Olympic không?"
 
-MỖI SCENE PHẢI KHÁC NHAU — CAM KẾT TRƯỚC:
-1. Scene N+1 phải có ÍT NHẤT 1 trong:
-   - Camera angle khác (close-up ≠ medium ≠ wide)
-   - Emotion khác (serious ≠ playful ≠ calm)
-   - Setting khác (office ≠ café ≠ outdoor)
+2. Scene 2+ — INSIGHT / TECHNIQUE / PROOF: Mỗi scene phải deliver:
+   - FACT: số liệu cụ thể (VD: "40%", "90 phút", "3 lần/ngày")
+   - HOẶC TECHNIQUE: step-by-step rõ ràng
+   - HOẶC PRINCIPLE: framework/mindset cụ thể
 
-2. Không được dùng cùng lighting setup cho 2 scene liên tiếp
-   (warm lamp → bright white → golden hour → soft blue)
+3. Final Scene — delivers REMAINING VALUE:
+   - Case study HOẶC proof HOẶC CTA (save/share/try)
 
-3. Mỗi scene phải có "unique visual element" — detail nhỏ đặc biệt
-   VD: "có sách stack trên bàn", "cây cảnh trong góc", "light leak từ cửa sổ"
+QUY TẮC NGHIÊM NGẶT:
+- MỖI SCENE phải deliver ÍT NHẤT 1 điều CỤ THỂ (fact/technique/principle)
+- KHÔNG viết scene chỉ toàn câu hỏi mà không trả lời gì
+- Scene hook có thể hỏi nhưng phải IMPLY/trả lời một phần ngay trong script đó
+- Số scenes: tự quyết định dựa trên topic (2-5 scenes), không cố định 3
 
-4. Nếu script có emotion mạnh (excited, serious, funny) →
-   camera_mood phải phản ánh đúng emotion đó
+TRÁNH:
+- Generic adjectives: "rất hiệu quả", "tuyệt vời" — thay bằng CONCRETE NUMBERS
+- Câu hỏi không có answer trong video
+- Câu hỏi engagement bait: "Bạn nghĩ sao?" — trả lời luôn
+
+VÍ DỤ HOOK TỐT:
+✅ "90-phút thay vì 25-phút Pomodoro — Olympic dùng phương pháp này để đạt peak state"
+✅ "Đêm ngủ 8 tiếng là MYTH — athletes ngủ theo cách HOÀN TOÀN KHÁC và đây là lý do"
+✅ "Pareto 80/20 có 1 TRƯỜNG HỢP NGOẠI LỆ — và nó quan trọng hơn nguyên tắc gốc"
 
 ---
 
 ĐỊNH DẠNG JSON OUTPUT:
 {{
-  "video_message": "thông điệp chính mà người xem MANG ĐI sau khi xem xong video — NGẮN GỌN (1-2 câu), CÓ Ý NGHĨA RÕ RÀNG. Tất cả scenes phải SUPPORT hoặc ILLUSTRATE thông điệp này.",
   "scenes": [
     {{
       "id": 1,
-      "script": "lời thoại TTS...",
-      "character": "NamMinh",
-      "creative_brief": {{
-        "visual_concept": "mô tả ngắn gọn concept visual",
-        "emotion": "mood chính của scene",
-        "camera_mood": "camera angle + depth of field",
-        "setting_vibe": "mô tả không gian/background",
-        "unique_angle": "detail đặc biệt chỉ có scene này",
-        "action_description": "mô tả body language, gesture"
-      }},
-      "image_prompt": "PROMPT HOÀN CHỈNH cho image gen, CHỨÁ creative_brief elements",
-      "lipsync_prompt": "PROMPT HOÀN CHỈNH cho lipsync, CHỨÁ emotion + action + pace"
-    }}
+      "scene_type": "hook",
+      "script": "...",
+      "character": "...",
+      "delivers": "what viewer gets from this scene in 1 sentence",
+      "creative_brief": {{...}},
+      "image_prompt": "...",
+      "lipsync_prompt": "..."
+    }},
+    ...
   ]
 }}
 
-Trả về CHỈ JSON object có video_message và scenes, không kèm markdown."""
+CHỈ JSON object có "scenes" array, không markdown, không thêm field nào khác."""
 
     def _build_video_message_prompt(self, title: str, keywords: List[str],
                                      angle: str, description: str) -> str:

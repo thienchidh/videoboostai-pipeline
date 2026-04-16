@@ -121,7 +121,12 @@ class VideoPipelineRunner:
         configure_s3(s3)
 
         # Cache S3 upload lambda for lipsync (reuse across all scene calls)
-        self._lipsync_upload_fn = lambda fp: s3_upload_file(fp, f"lipsync/{self.timestamp}")
+        # Key includes channel + scenario + timestamp + scene_id to prevent any collisions
+        import re
+        slug_raw = ctx.scenario.slug or "unknown"
+        scenario_slug = re.sub(r'[^a-zA-Z0-9_-]', '_', slug_raw)
+        self._lipsync_upload_fn = lambda fp, scene_id=0: s3_upload_file(
+            fp, f"lipsync/{ctx.channel_id}/{scenario_slug}/{self.timestamp}/scene_{scene_id}")
 
         # Instantiate providers via PluginRegistry
         self.tts_provider = self._build_tts_provider()
@@ -301,7 +306,7 @@ class VideoPipelineRunner:
             log(f"  ⚠️ No lipsync config found — using static video fallback")
             return create_static_video_with_audio(image_path, audio_path, output_path)
 
-        return self.lipsync_provider.generate(image_path, audio_path, output_path, config=lipsync_cfg)
+        return self.lipsync_provider.generate(image_path, audio_path, output_path, config=lipsync_cfg, scene_id=scene_id)
 
     def _make_lipsync_wrapper(self):
         """Create a lipsync wrapper that uses static video when USE_STATIC_LIPSYNC flag is set."""

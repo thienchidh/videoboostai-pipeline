@@ -46,7 +46,8 @@ class LipsyncProvider(ABC):
 
     @abstractmethod
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional["GenerationLipsync"] = None) -> Optional[str]:
+                 output_path: str, config: Optional["GenerationLipsync"] = None,
+                 scene_id: int = 0) -> Optional[str]:
         """Generate lipsync video. Returns path to video file or None."""
         ...
 

@@ -39,10 +39,10 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
         self.poll_interval = config.generation.lipsync.poll_interval if config and config.generation and config.generation.lipsync else 10
         self.max_wait = config.generation.lipsync.max_wait if config and config.generation and config.generation.lipsync else 300
 
-    def upload_file(self, file_path: str) -> Optional[str]:
+    def upload_file(self, file_path: str, scene_id: int = 0) -> Optional[str]:
         """Upload file to WaveSpeed media storage."""
         if self.upload_func:
-            return self.upload_func(file_path)
+            return self.upload_func(file_path, scene_id)
 
         ext = Path(file_path).suffix.lstrip(".")
         content_type = f"audio/{ext}" if ext in ["mp3", "wav", "ogg"] else f"image/{ext}"
@@ -89,7 +89,8 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
         return None
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[GenerationLipsync] = None) -> Optional[str]:
+                 output_path: str, config: Optional[GenerationLipsync] = None,
+                 scene_id: int = 0) -> Optional[str]:
         retries = config.retries if config and config.retries else (
             self.config.generation.lipsync.retries if self.config and self.config.generation and self.config.generation.lipsync else 2
         )
@@ -98,11 +99,11 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
 
         for attempt in range(retries):
             logger.debug(f"  🎬 LTX Lipsync (attempt {attempt+1})...")
-            image_url = self.upload_file(image_path)
+            image_url = self.upload_file(image_path, scene_id)
             if not image_url:
                 logger.warning(f"  ❌ Image upload failed")
                 continue
-            audio_url = self.upload_file(audio_path)
+            audio_url = self.upload_file(audio_path, scene_id)
             if not audio_url:
                 logger.warning(f"  ❌ Audio upload failed")
                 continue
@@ -163,9 +164,9 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
         self.poll_interval = config.generation.lipsync.poll_interval if config and config.generation and config.generation.lipsync else 10
         self.max_wait = config.generation.lipsync.max_wait if config and config.generation and config.generation.lipsync else 300
 
-    def upload_file(self, file_path: str) -> Optional[str]:
+    def upload_file(self, file_path: str, scene_id: int = 0) -> Optional[str]:
         if self.upload_func:
-            return self.upload_func(file_path)
+            return self.upload_func(file_path, scene_id)
         ext = Path(file_path).suffix.lstrip(".")
         content_type = f"audio/{ext}" if ext in ["mp3", "wav", "ogg"] else f"image/{ext}"
         url = f"{self.base_url}/api/v3/media/upload/binary?ext={ext}"
@@ -203,7 +204,8 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
         return None
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[GenerationLipsync] = None) -> Optional[str]:
+                 output_path: str, config: Optional[GenerationLipsync] = None,
+                 scene_id: int = 0) -> Optional[str]:
         """Multi-talk: audio_path can be a LipsyncRequest with left_audio/right_audio."""
         retries = config.retries if config and config.retries else (
             self.config.generation.lipsync.retries if self.config and self.config.generation and self.config.generation.lipsync else 2
@@ -221,11 +223,11 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
             lip_config = config
 
         for attempt in range(retries):
-            image_url = self.upload_file(image_path)
+            image_url = self.upload_file(image_path, scene_id)
             if not image_url:
                 continue
-            left_url = self.upload_file(left_audio) if left_audio else None
-            right_url = self.upload_file(right_audio) if right_audio else None
+            left_url = self.upload_file(left_audio, scene_id) if left_audio else None
+            right_url = self.upload_file(right_audio, scene_id) if right_audio else None
 
             if not left_url or not right_url:
                 continue
@@ -298,7 +300,8 @@ class KieAIInfinitalkProvider(LipsyncProvider):
         )
 
     def generate(self, image_path: str, audio_path: str,
-                 output_path: str, config: Optional[GenerationLipsync] = None) -> Optional[str]:
+                 output_path: str, config: Optional[GenerationLipsync] = None,
+                 scene_id: int = 0) -> Optional[str]:
         """
         Kie.ai Infinitalk lip-sync: image_url + audio_url → video.
 
@@ -323,8 +326,8 @@ class KieAIInfinitalkProvider(LipsyncProvider):
         audio_url = None
 
         if self.upload_func:
-            image_url = self.upload_func(image_path)
-            audio_url = self.upload_func(audio_path)
+            image_url = self.upload_func(image_path, scene_id)
+            audio_url = self.upload_func(audio_path, scene_id)
 
         if not image_url or not audio_url:
             logger.warning(

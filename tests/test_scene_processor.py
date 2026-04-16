@@ -180,7 +180,17 @@ class TestSingleCharSceneProcessor:
 
         def mock_crop(input_path, output_path):
             shutil.copy(str(VIDEO_9X16), output_path)
-            return output_path
+            return {
+                "output": str(output_path),
+                "input_width": 1920,
+                "input_height": 1080,
+                "input_ratio": 1.7778,
+                "output_width": 1080,
+                "output_height": 1920,
+                "crop_filter": "crop=960:1080:480:0,scale=1080:1920",
+                "scale_filter": "scale=1080:1920",
+                "ffmpeg_cmd": f"ffmpeg -i {input_path} -vf crop=960:1080:480:0,scale=1080:1920 -c:v libx264 -preset fast -crf 23 -c:a aac -y {output_path}",
+            }
 
         with patch("modules.pipeline.scene_processor.get_audio_duration", return_value=2.0), \
              patch("modules.pipeline.scene_processor.crop_to_9x16", side_effect=mock_crop):
@@ -263,7 +273,17 @@ class TestSingleCharSceneProcessor:
 
         def mock_crop(input_path, output_path):
             shutil.copy(str(VIDEO_9X16), output_path)
-            return output_path
+            return {
+                "output": str(output_path),
+                "input_width": 1920,
+                "input_height": 1080,
+                "input_ratio": 1.7778,
+                "output_width": 1080,
+                "output_height": 1920,
+                "crop_filter": "crop=960:1080:480:0,scale=1080:1920",
+                "scale_filter": "scale=1080:1920",
+                "ffmpeg_cmd": f"ffmpeg -i {input_path} -vf crop=960:1080:480:0,scale=1080:1920 -c:v libx264 -preset fast -crf 23 -c:a aac -y {output_path}",
+            }
 
         with patch("modules.pipeline.scene_processor.get_audio_duration", return_value=2.0), \
              patch("modules.pipeline.scene_processor.crop_to_9x16", side_effect=mock_crop):

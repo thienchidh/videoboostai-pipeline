@@ -21,6 +21,7 @@ from typing import Any, Dict, List
 
 from core.plugins import get_provider
 from modules.pipeline.exceptions import CaptionGenerationError
+from modules.pipeline.models import TechnicalConfig
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +51,13 @@ class GeneratedCaption:
 class CaptionGenerator:
     """Generate social media captions from video script via LLM provider."""
 
-    def __init__(self, llm_provider=None):
+    def __init__(self, llm_provider=None, technical_config: TechnicalConfig = None):
         """
         Args:
             llm_provider: LLM provider instance (must have chat() method).
                          If None, uses MiniMaxLLMProvider from PluginRegistry.
+            technical_config: TechnicalConfig instance. If provided, API key is read
+                             from technical_config.api_keys.minimax instead of env vars.
         """
         if llm_provider is not None:
             self._llm = llm_provider
@@ -62,9 +65,15 @@ class CaptionGenerator:
             provider_cls = get_provider("llm", "minimax")
             if provider_cls is None:
                 raise ValueError("No LLM provider registered for 'minimax' — cannot generate captions")
-            import os
-            api_key = os.getenv("MINIMAX_API_KEY", "")
-            self._llm = provider_cls(api_key=api_key) if api_key else None
+            if technical_config is not None:
+                api_key = technical_config.api_keys.minimax
+            else:
+                import os
+                api_key = os.getenv("MINIMAX_API_KEY", "")
+            if not api_key:
+                self._llm = None
+            else:
+                self._llm = provider_cls(api_key=api_key)
 
     def _generate_via_llm(self, script: str, platform: str) -> GeneratedCaption:
         """Generate caption via LLM with chain-of-thought prompting.

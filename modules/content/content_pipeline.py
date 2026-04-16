@@ -633,7 +633,7 @@ class ContentPipeline:
             return {"success": False, "error": f"Idea {idea_id} has no script"}
 
         # Generate captions for social posts
-        caption_gen = CaptionGenerator()
+        caption_gen = CaptionGenerator(technical_config=self.technical_config)
         script_text = " ".join(
             s.get("tts", "") or s.get("script", "") for s in script_json.get("scenes", [])
         )

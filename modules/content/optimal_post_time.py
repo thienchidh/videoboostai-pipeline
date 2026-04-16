@@ -234,7 +234,7 @@ class OptimalPostTimeEngine:
             # CTR is stored as a CTRData model or a raw float.
             if isinstance(ctr_data, dict):
                 ctr_data = CTRData.model_validate(ctr_data)
-            ctr = float(ctr_data.ctr if hasattr(ctr_data, 'ctr') else ctr_data or 0)
+            ctr = float(ctr_data.ctr)
 
             if hour not in hourly:
                 hourly[hour] = {"total_ctr": 0.0, "count": 0}

@@ -275,3 +275,46 @@ def test_scene_config_from_dict_with_creative_brief():
     scene = SceneConfig.from_dict(data)
     assert scene.creative_brief is not None
     assert scene.creative_brief["emotion"] == "serious but approachable"
+
+
+# ─── PromptBuilder.validate_creative_brief ───────────────────
+
+def test_validate_creative_brief_all_fields_present():
+    from modules.media.prompt_builder import PromptBuilder
+    pb = PromptBuilder()
+    brief = {
+        "visual_concept": "Close-up face",
+        "emotion": "serious",
+        "camera_mood": "shallow DOF",
+        "setting_vibe": "home office",
+        "unique_angle": "shooting from above desk",
+        "action_description": "speaking to camera"
+    }
+    is_valid, violations = pb.validate_creative_brief(brief)
+    assert is_valid is True
+    assert violations == []
+
+
+def test_validate_creative_brief_missing_required_field():
+    from modules.media.prompt_builder import PromptBuilder
+    pb = PromptBuilder()
+    # Missing "camera_mood" and "unique_angle"
+    brief = {
+        "visual_concept": "Close-up face",
+        "emotion": "serious",
+        "setting_vibe": "home office",
+        "action_description": "speaking to camera"
+    }
+    is_valid, violations = pb.validate_creative_brief(brief)
+    assert is_valid is False
+    assert "camera_mood" in violations
+    assert "unique_angle" in violations
+    assert "visual_concept" not in violations
+
+
+def test_validate_creative_brief_missing():
+    from modules.media.prompt_builder import PromptBuilder
+    pb = PromptBuilder()
+    is_valid, violations = pb.validate_creative_brief(None)
+    assert is_valid is False
+    assert "creative_brief missing" in violations

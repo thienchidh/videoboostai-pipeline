@@ -5,7 +5,7 @@ PromptBuilder checks whether image_prompt and lipsync_prompt strings
 violate channel style constraints. It does NOT compose prompts.
 """
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
     from modules.pipeline.models import SceneConfig, ImageStyleConfig
@@ -60,6 +60,22 @@ class PromptBuilder:
         violations = []
         if character_name and character_name.lower() not in lipsync_prompt.lower():
             violations.append("character_name_missing")
+        return len(violations) == 0, violations
+
+    def validate_creative_brief(self, brief: Optional[Dict[str, Any]]) -> tuple[bool, list[str]]:
+        """Check creative_brief has sufficient depth for variety.
+
+        Required fields: visual_concept, emotion, camera_mood, unique_angle.
+        Optional: setting_vibe, action_description.
+
+        Returns (is_valid, violations):
+          - is_valid: True if all required fields are present
+          - violations: list of required field names that are missing
+        """
+        if not brief:
+            return False, ["creative_brief missing"]
+        required_fields = ["visual_concept", "emotion", "camera_mood", "unique_angle"]
+        violations = [f for f in required_fields if not brief.get(f)]
         return len(violations) == 0, violations
 
     def get_image_prompt(self, scene: "SceneConfig") -> str:

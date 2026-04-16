@@ -157,10 +157,10 @@ class ContentIdeaGenerator:
         if self._channel_config and self._channel_config.tts:
             tts_cfg = self._channel_config.tts
             wps = 2.5
-            if self._technical_config and hasattr(self._technical_config, 'generation'):
+            if self._technical_config and self._technical_config.generation:
                 gen_cfg = self._technical_config.generation
-                if hasattr(gen_cfg, 'tts') and gen_cfg.tts and hasattr(gen_cfg.tts, 'words_per_second'):
-                    wps = gen_cfg.tts.words_per_second
+                if gen_cfg.tts:
+                    wps = getattr(gen_cfg.tts, 'words_per_second', 2.5)
 
             for scene in scenes:
                 tts_text = scene.get("tts", "")
@@ -363,7 +363,7 @@ Hãy viết lại kịch bản này để có độ dài phù hợp (khoảng {t
             if isinstance(char, list):
                 if len(char) > 1:
                     logger.warning(
-                        f"Scene {scene.get('id', '?')} has {len(char)} characters "
+                        f"Scene {scene.get('id', 0)} has {len(char)} characters "
                         f"({char}), expected 1. Using first: {char[0]}"
                     )
                 char = char[0] if char else default_char

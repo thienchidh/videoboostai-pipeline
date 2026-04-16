@@ -65,7 +65,7 @@ generation:
     provider: "kieai"
     prompt: "A person talking"  # mô tả cho lipsync model
     resolution: "480p"           # 480p | 720p | 1080p
-    max_wait: 900                # giây chờ job hoàn thành (15 phút)
+    max_wait: 3600               # was 900 — allow up to 60 minutes for slow Kie.ai jobs
     poll_interval: 10           # giây giữa các poll
     retries: 2                   # số lần retry cho generation
   seeds:
@@ -87,6 +87,7 @@ logging:
 # ================================================
 storage:
   output_dir: "output"  # output directory for generated videos
+  music_dir: null       # null = use PROJECT_ROOT/music; set to override
   s3:
     endpoint: "https://s3.trachanhtv.top"
     access_key: "minio-admin"

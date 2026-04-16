@@ -1,5 +1,6 @@
 """tests/test_parallel_processor.py — Tests for ParallelSceneProcessor skip_image mode."""
 
+import subprocess
 import tempfile
 import shutil
 from pathlib import Path
@@ -14,6 +15,7 @@ sys.path.insert(0, str(WORKTREE_ROOT))
 
 from modules.pipeline.parallel_processor import ParallelSceneProcessor
 from modules.pipeline.checkpoint import CheckpointHelper
+from core.paths import get_ffmpeg
 
 
 def make_mock_ctx():
@@ -74,5 +76,48 @@ def test_skip_image_returns_gender_and_prompt():
         assert "gender" in results[2]
         assert "prompt" in results[2]
         assert results[2]["gender"] in ("male", "female")
+    finally:
+        shutil.rmtree(tmp)
+
+
+def test_skip_image_lipsync_uses_static_video():
+    """When skip_image=True, _phase3_lipsync calls create_static_video_with_audio directly (no lipsync_fn)."""
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        ctx = make_mock_ctx()
+        proc = ParallelSceneProcessor(ctx, tmp, max_workers=2, skip_image=True)
+
+        # Pre-create placeholder image and audio for scene 1
+        scene_dir = tmp / "scene_1"
+        scene_dir.mkdir(parents=True)
+        placeholder_img = scene_dir / "scene.png"
+        # Create a real 10x10 PNG using ffmpeg
+        subprocess.run([
+            str(get_ffmpeg()), "-f", "lavfi", "-i", "color=c=black:s=10x10:d=1",
+            "-frames:v", "1", str(placeholder_img)
+        ], capture_output=True)
+        audio_file = scene_dir / "audio_tts.mp3"
+        # Create a short silent audio
+        subprocess.run([
+            str(get_ffmpeg()), "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t", "1",
+            "-acodec", "libmp3lame", str(audio_file)
+        ], capture_output=True)
+
+        scenes = [{"id": 1, "characters": ["TestChar"]}]
+        tts_results = {1: {"audio_path": str(audio_file), "timestamps": [], "text": "test"}}
+        image_results = {1: {"image_path": str(placeholder_img), "gender": "female", "prompt": "test"}}
+
+        # lipsync_fn should NOT be called
+        lipsync_called = False
+        def fake_lipsync_fn(image_path, audio_path, output_path, scene_id=None, prompt=None):
+            nonlocal lipsync_called
+            lipsync_called = True
+            return None
+
+        results = proc._phase3_lipsync(scenes, tts_results, image_results, fake_lipsync_fn)
+
+        assert lipsync_called == False, "lipsync_fn should NOT be called when skip_image=True"
+        assert results[1]["video_path"] is not None
+        assert Path(results[1]["video_path"]).exists()
     finally:
         shutil.rmtree(tmp)

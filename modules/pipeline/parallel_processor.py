@@ -234,6 +234,9 @@ class ParallelSceneProcessor:
             {scene_id: {"image_path": str, "gender": str, "prompt": str}}
         """
         if self.skip_image:
+            # NOTE: No STEP_IMAGE checkpoint saved in skip_image mode.
+            # On resume, TTS phase will be skipped (already done) and this placeholder
+            # phase will be re-run (cheap — just ffmpeg). This avoids checkpoint complexity.
             log(f"\n  🎨 Phase 2: SKIPPED (skip_image=True) — using placeholder image for {len(scenes)} scenes")
             results = {}
             for scene in scenes:

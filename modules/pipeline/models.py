@@ -395,7 +395,7 @@ class SceneConfig(BaseModel):
     id: int = 0
     tts: Optional[str] = None
     script: Optional[str] = None  # alternative to tts
-    characters: List["SceneCharacter | str"] = []
+    characters: List[SceneCharacter] = []
     video_prompt: Optional[str] = None   # legacy fallback for YAML scenes
     background: Optional[str] = None     # legacy fallback for YAML scenes
     image_prompt: Optional[str] = None   # LLM-generated, ready to use

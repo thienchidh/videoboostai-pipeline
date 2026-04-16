@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from modules.llm import get_llm_provider
-from modules.pipeline.models import ChannelConfig, TechnicalConfig
+from modules.pipeline.models import ChannelConfig, TechnicalConfig, SceneConfig
 from modules.pipeline.exceptions import ConfigMissingKeyError
 
 logger = logging.getLogger(__name__)
@@ -160,19 +160,19 @@ class ContentIdeaGenerator:
             if self._technical_config and self._technical_config.generation:
                 gen_cfg = self._technical_config.generation
                 if gen_cfg.tts:
-                    wps = getattr(gen_cfg.tts, 'words_per_second', 2.5)
+                    wps = gen_cfg.tts.words_per_second
 
             for scene in scenes:
-                tts_text = scene.get("tts", "")
+                tts_text = scene.tts or ""
                 if not tts_text:
                     continue
                 if not self._validate_scene_duration(tts_text, tts_cfg, wps):
-                    logger.warning(f"  ⚠️ Scene {scene.get('id', 0)} TTS out of bounds "
+                    logger.warning(f"  ⚠️ Scene {scene.id or 0} TTS out of bounds "
                                   f"({len(tts_text.split())} words), regenerating...")
                     regenerated = self._regenerate_scene_tts(
                         tts_text, tts_cfg, api_key=api_key, wps=wps
                     )
-                    scene["tts"] = regenerated
+                    scene.tts = regenerated
 
         return scenes
 
@@ -319,7 +319,7 @@ MỖI SCENE PHẢI KHÁC NHAU — CAM KẾT TRƯỚC:
 
 Trả về CHỈ JSON array, không kèm markdown."""
 
-    def _parse_scenes(self, text: str) -> List[Dict]:
+    def _parse_scenes(self, text: str) -> List[SceneConfig]:
         """Parse JSON scenes from LLM response text."""
         try:
             scenes = json.loads(text)
@@ -419,7 +419,7 @@ Hãy viết lại kịch bản này để có độ dài phù hợp (khoảng {t
         logger.warning(f"  ⚠️ All {max_retries} regeneration attempts failed — keeping original TTS")
         return original_tts
 
-    def _validate_scenes(self, scenes: List[Dict]) -> List[Dict]:
+    def _validate_scenes(self, scenes: List[Dict]) -> List[SceneConfig]:
         """Validate and normalize scene structure.
 
         Ensures each scene has:
@@ -459,7 +459,7 @@ Hãy viết lại kịch bản này để có độ dài phù hợp (khoảng {t
             scene["creative_brief"] = scene.get("creative_brief") or None
             validated.append(scene)
 
-        return validated
+        return [SceneConfig.from_dict(s) for s in validated]
 
     def save_ideas_to_db(self, ideas: List[Dict], source_id: int = None) -> List[int]:
         """Save content ideas to DB, return list of idea IDs."""

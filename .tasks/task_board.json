@@ -4,7 +4,7 @@
   "metadata": {
     "last_updated": "2026-04-16T17:42:40.350604+00:00",
     "total_tasks": 45,
-    "done_tasks": 41,
+    "done_tasks": 43,
     "schema_version": 1
   },
   "tasks": [
@@ -169,7 +169,7 @@
       ],
       "assigned_to": "cron-heartbeat",
       "claimed_at": "2026-04-10T17:56:00Z",
-      "note": "Implemented: modules/social/facebook_api.py — FacebookAPIClient with Graph API v19.0 resumable upload, SRT captions, DB credential store/retrieve, dry-run mode. Tests: tests/test_facebook_api.py (12 tests passing).",
+      "note": "Implemented: modules/social/facebook_api.py \u2014 FacebookAPIClient with Graph API v19.0 resumable upload, SRT captions, DB credential store/retrieve, dry-run mode. Tests: tests/test_facebook_api.py (12 tests passing).",
       "completed_at": "2026-04-11T00:57:00.000000+07:00"
     },
     {
@@ -186,7 +186,7 @@
       ],
       "assigned_to": "heartbeat-0411",
       "claimed_at": "2026-04-10T21:15:00Z",
-      "note": "Implemented: modules/social/tiktok_api.py — TikTokAPIClient with Marketing API v2 upload/initiate→PUT chunks→publish flow, DB credential store/retrieve, dry-run mode. Tests: tests/test_tiktok_api.py (20 tests passing).",
+      "note": "Implemented: modules/social/tiktok_api.py \u2014 TikTokAPIClient with Marketing API v2 upload/initiate\u2192PUT chunks\u2192publish flow, DB credential store/retrieve, dry-run mode. Tests: tests/test_tiktok_api.py (20 tests passing).",
       "completed_at": "2026-04-11T04:16:00.000000+07:00"
     },
     {
@@ -213,7 +213,7 @@
       "priority": "medium",
       "created": "2026-04-10T16:33:00Z",
       "source": "manual",
-      "reason": "End-to-end: generate video → create caption → upload to socials",
+      "reason": "End-to-end: generate video \u2192 create caption \u2192 upload to socials",
       "type": "inhouse",
       "blocked_by": [
         "VP-008",
@@ -288,12 +288,12 @@
     },
     {
       "id": "VP-018",
-      "title": "Fallback khi hết credits lipsync - tạo video tĩnh từ ảnh + audio TTS",
+      "title": "Fallback khi h\u1ebft credits lipsync - t\u1ea1o video t\u0129nh t\u1eeb \u1ea3nh + audio TTS",
       "status": "done",
       "priority": "high",
       "created": "2026-04-13T01:14:00Z",
       "source": "manual",
-      "reason": "Khi hết credits Kie.ai/WaveSpeed, pipeline vẫn tạo được video từ ảnh tĩnh + TTS audio đã gen",
+      "reason": "Khi h\u1ebft credits Kie.ai/WaveSpeed, pipeline v\u1eabn t\u1ea1o \u0111\u01b0\u1ee3c video t\u1eeb \u1ea3nh t\u0129nh + TTS audio \u0111\u00e3 gen",
       "type": "feature",
       "blocked_by": [],
       "assigned_to": "cron-heartbeat",
@@ -303,12 +303,12 @@
     },
     {
       "id": "VP-019",
-      "title": "Research và tích hợp MiniMax Music API làm background music",
+      "title": "Research v\u00e0 t\u00edch h\u1ee3p MiniMax Music API l\u00e0m background music",
       "status": "done",
       "priority": "medium",
       "created": "2026-04-13T01:14:00Z",
       "source": "manual",
-      "reason": "Hiện tại chỉ có add_background_music local, cần nghiên cứu MiniMax Music API để generate nhạc nền từ prompt",
+      "reason": "Hi\u1ec7n t\u1ea1i ch\u1ec9 c\u00f3 add_background_music local, c\u1ea7n nghi\u00ean c\u1ee9u MiniMax Music API \u0111\u1ec3 generate nh\u1ea1c n\u1ec1n t\u1eeb prompt",
       "type": "inhouse",
       "blocked_by": [],
       "assigned_to": "cron-heartbeat",
@@ -317,7 +317,7 @@
     },
     {
       "id": "VP-031",
-      "title": "Fix CostLog column names in db.py — use run_id, operation, units, cost_usd (cents)",
+      "title": "Fix CostLog column names in db.py \u2014 use run_id, operation, units, cost_usd (cents)",
       "status": "done",
       "priority": "medium",
       "source": "cron-heartbeat",
@@ -370,7 +370,7 @@
     },
     {
       "id": "VP-021",
-      "title": "Phase 2: Video scene timing optimization — match audio duration exactly",
+      "title": "Phase 2: Video scene timing optimization \u2014 match audio duration exactly",
       "status": "done",
       "priority": "high",
       "created": "2026-04-11T09:28:00Z",
@@ -385,7 +385,7 @@
     },
     {
       "id": "VP-022",
-      "title": "Phase 2: Batch scene processor — parallel image generation",
+      "title": "Phase 2: Batch scene processor \u2014 parallel image generation",
       "status": "done",
       "priority": "high",
       "created": "2026-04-11T09:28:00Z",
@@ -400,7 +400,7 @@
     },
     {
       "id": "VP-023",
-      "title": "Phase 2: Video output compression — reduce file size for social upload",
+      "title": "Phase 2: Video output compression \u2014 reduce file size for social upload",
       "status": "done",
       "priority": "medium",
       "created": "2026-04-11T09:28:00Z",
@@ -425,12 +425,12 @@
       "blocked_by": [],
       "assigned_to": null,
       "claimed_at": null,
-      "note": "Implemented: thumbnail_generator.py — PIL composite with gradient, title text, scene preview.",
+      "note": "Implemented: thumbnail_generator.py \u2014 PIL composite with gradient, title text, scene preview.",
       "completed_at": "2026-04-11T09:28:00Z"
     },
     {
       "id": "VP-025",
-      "title": "Phase 2: Hashtag generator — extract/create hashtags from script",
+      "title": "Phase 2: Hashtag generator \u2014 extract/create hashtags from script",
       "status": "done",
       "priority": "medium",
       "created": "2026-04-11T09:28:00Z",
@@ -440,12 +440,12 @@
       "blocked_by": [],
       "assigned_to": null,
       "claimed_at": null,
-      "note": "Implemented: hashtag_generator.py — keyword extraction + popular hashtag library for productivity niche.",
+      "note": "Implemented: hashtag_generator.py \u2014 keyword extraction + popular hashtag library for productivity niche.",
       "completed_at": "2026-04-11T09:28:00Z"
     },
     {
       "id": "VP-026",
-      "title": "Phase 2: Scheduling — post videos at optimal times (9 AM, 12 PM, 7 PM)",
+      "title": "Phase 2: Scheduling \u2014 post videos at optimal times (9 AM, 12 PM, 7 PM)",
       "status": "done",
       "priority": "high",
       "created": "2026-04-11T09:28:00Z",
@@ -475,7 +475,7 @@
     },
     {
       "id": "VP-028",
-      "title": "Phase 2: Content reloader — reload content from DB for next pipeline run",
+      "title": "Phase 2: Content reloader \u2014 reload content from DB for next pipeline run",
       "status": "done",
       "priority": "medium",
       "created": "2026-04-11T09:28:00Z",
@@ -519,12 +519,12 @@
       "blocked_by": [],
       "assigned_to": null,
       "claimed_at": null,
-      "note": "Implemented: intro_generator.py and outro_generator.py — ffmpeg concat with logo/watermark.",
+      "note": "Implemented: intro_generator.py and outro_generator.py \u2014 ffmpeg concat with logo/watermark.",
       "completed_at": "2026-04-11T09:28:00Z"
     },
     {
       "id": "VP-032",
-      "title": "Fix Pydantic ValidationError in PipelineConfig — optional fields default None",
+      "title": "Fix Pydantic ValidationError in PipelineConfig \u2014 optional fields default None",
       "status": "done",
       "priority": "high",
       "created": "2026-04-15T18:11:00Z",
@@ -539,7 +539,7 @@
     },
     {
       "id": "VP-033",
-      "title": "Refactor provider __init__ signatures — use config dict instead of api_key",
+      "title": "Refactor provider __init__ signatures \u2014 use config dict instead of api_key",
       "status": "done",
       "priority": "medium",
       "created": "2026-04-15T18:11:00Z",
@@ -629,11 +629,11 @@
     },
     {
       "id": "VP-040",
-      "title": "Wire credit_monitor.py into batch_generate.py — fail fast on exhausted budget",
+      "title": "Wire credit_monitor.py into batch_generate.py \u2014 fail fast on exhausted budget",
       "status": "done",
       "priority": "high",
       "source": "heartbeat",
-      "reason": "credit_monitor.py exists but is not called before pipeline runs; pipeline proceeds with API calls才知道budget exhausted",
+      "reason": "credit_monitor.py exists but is not called before pipeline runs; pipeline proceeds with API calls\u624d\u77e5\u9053budget exhausted",
       "type": "feature",
       "blocked_by": [],
       "completed_at": "2026-04-16T17:29:00+07:00",
@@ -641,7 +641,7 @@
     },
     {
       "id": "VP-041",
-      "title": "Add pre-flight health_check.py to cron — validate API keys/DB/S3 before batch runs",
+      "title": "Add pre-flight health_check.py to cron \u2014 validate API keys/DB/S3 before batch runs",
       "status": "done",
       "priority": "high",
       "source": "heartbeat",
@@ -663,7 +663,7 @@
     },
     {
       "id": "VP-043",
-      "title": "Add Telegram alert routing to credit_monitor.py — send alerts to channel topic",
+      "title": "Add Telegram alert routing to credit_monitor.py \u2014 send alerts to channel topic",
       "status": "todo",
       "priority": "medium",
       "source": "heartbeat",
@@ -676,16 +676,18 @@
     {
       "id": "VP-044",
       "title": "Add --dry-run mode to batch_generate.py for safe manual testing",
-      "status": "todo",
+      "status": "done",
       "priority": "medium",
       "source": "heartbeat",
       "reason": "batch_generate.py lacks --dry-run flag; running it manually for testing risks real API calls and budget spend",
       "type": "feature",
-      "blocked_by": []
+      "blocked_by": [],
+      "note": "Already implemented in commit 16fb0e9. --dry-run flag wires into BatchGenerator, skips Telegram, passes DRY_RUN flags to pipeline, skips DB writes in _log_social_post_and_ab_test.",
+      "completed_at": "2026-04-16T17:00:00Z"
     },
     {
       "id": "VP-045",
-      "title": "Delete dead code — modules/social/facebook_api.py and tiktok_api.py",
+      "title": "Delete dead code \u2014 modules/social/facebook_api.py and tiktok_api.py",
       "status": "done",
       "priority": "low",
       "source": "heartbeat",
@@ -693,7 +695,7 @@
       "type": "cleanup",
       "blocked_by": [],
       "completed_at": "2026-04-17T00:42:00+07:00",
-      "note": "Files do not exist — facebook_api.py and tiktok_api.py were never created (or already removed). modules/social/ only contains facebook.py and tiktok.py. Confirmed no references in codebase."
+      "note": "Files do not exist \u2014 facebook_api.py and tiktok_api.py were never created (or already removed). modules/social/ only contains facebook.py and tiktok.py. Confirmed no references in codebase."
     }
   ]
 }

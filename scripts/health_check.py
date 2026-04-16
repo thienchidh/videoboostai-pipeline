@@ -11,6 +11,11 @@ Validates:
 Exit codes:
   0 — all checks passed
   1 — one or more checks failed (descriptive message printed)
+
+--dry-run mode:
+  Skips real DB/S3 connectivity checks (no API calls).
+  Only validates config files exist and API keys are non-empty.
+  Use this when budget is exhausted or running in dev mode.
 """
 
 import sys
@@ -127,8 +132,10 @@ def check_config_files(channel_id: str = "nang_suat_thong_minh") -> CheckResult:
     return CheckResult("Config files", True, f"{TECHNICAL_CONFIG} + channel config OK")
 
 
-def check_database() -> CheckResult:
+def check_database(dry_run: bool = False) -> CheckResult:
     """Verify DB connectivity by running a simple SELECT query."""
+    if dry_run:
+        return CheckResult("Database", True, "[DRY-RUN] DB check skipped")
     try:
         pipeline_db._ensure_configured()
         with pipeline_db.get_session() as session:
@@ -141,8 +148,10 @@ def check_database() -> CheckResult:
         return CheckResult("Database", False, f"Connection failed: {e}")
 
 
-def check_s3(config: dict) -> CheckResult:
+def check_s3(config: dict, dry_run: bool = False) -> CheckResult:
     """Verify S3/MinIO connectivity by listing buckets or checking a known bucket."""
+    if dry_run:
+        return CheckResult("S3", True, "[DRY-RUN] S3 check skipped")
     try:
         s3_cfg = config.get("storage", {}).get("s3", {})
         endpoint = s3_cfg.get("endpoint", "")
@@ -185,14 +194,35 @@ def main() -> int:
         default="nang_suat_thong_minh",
         help="Channel ID to check (default: nang_suat_thong_minh)",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Dry-run mode: skip DB/S3 connectivity checks (no real API calls). "
+             "Use when budget is exhausted or running in dev mode.",
+    )
+    parser.add_argument(
+        "--check-db",
+        action="store_true",
+        help="Force-enable DB connectivity check even in dry-run (default: skipped in dry-run).",
+    )
+    parser.add_argument(
+        "--check-s3",
+        action="store_true",
+        help="Force-enable S3 connectivity check even in dry-run (default: skipped in dry-run).",
+    )
     args = parser.parse_args()
 
     channel_id = args.channel
+    dry_run = args.dry_run
+    # Allow --check-db / --check-s3 to override dry-run skip
+    do_db = not dry_run or args.check_db
+    do_s3 = not dry_run or args.check_s3
 
     print("=" * 60)
     print("  Video Pipeline — Pre-flight Health Check")
     print("=" * 60)
     print(f"  Channel    : {channel_id}")
+    print(f"  Dry-run    : {dry_run}")
 
     results: list[CheckResult] = []
 
@@ -215,14 +245,22 @@ def main() -> int:
     print(result)
 
     # ── 3. Database ─────────────────────────────────────────────────
-    print("\n[3/4] Checking database connectivity ...")
-    result = check_database()
+    if do_db:
+        print("\n[3/4] Checking database connectivity ...")
+        result = check_database(dry_run=False)
+    else:
+        print("\n[3/4] Checking database connectivity ...")
+        result = check_database(dry_run=True)
     results.append(result)
     print(result)
 
     # ── 4. S3 ───────────────────────────────────────────────────────
-    print("\n[4/4] Checking S3 connectivity ...")
-    result = check_s3(technical_config)
+    if do_s3:
+        print("\n[4/4] Checking S3 connectivity ...")
+        result = check_s3(technical_config, dry_run=False)
+    else:
+        print("\n[4/4] Checking S3 connectivity ...")
+        result = check_s3(technical_config, dry_run=True)
     results.append(result)
     print(result)
 

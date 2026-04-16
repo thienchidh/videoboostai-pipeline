@@ -85,7 +85,7 @@ class BatchGenerator:
                  dry_run: bool = False, content_calenar_id: int = None,
                  config_path: str = None, upload_to_socials: bool = False,
                  max_retries: int = None, backoff_base_seconds: int = None,
-                 backoff_cap_seconds: int = None):
+                 backoff_cap_seconds: int = None, skip_credit_check: bool = False):
         """
         Args:
             platform: 'facebook', 'tiktok', or None (all)
@@ -97,6 +97,7 @@ class BatchGenerator:
             max_retries: max retry attempts per item (default: BATCH_MAX_RETRIES)
             backoff_base_seconds: initial backoff delay in seconds (default: BATCH_BACKOFF_BASE_SECONDS)
             backoff_cap_seconds: max backoff delay cap in seconds (default: BATCH_BACKOFF_CAP_SECONDS)
+            skip_credit_check: if True, skip credit balance check before running pipeline
         """
         from modules.pipeline.backoff import (
             BATCH_MAX_RETRIES, BATCH_BACKOFF_BASE_SECONDS, BATCH_BACKOFF_CAP_SECONDS,
@@ -116,6 +117,7 @@ class BatchGenerator:
             cap_seconds=self.backoff_cap_seconds,
             factor=10,
         )
+        self.skip_credit_check = skip_credit_check
         self.results: List[Dict] = []
         self._publisher = None
 
@@ -126,6 +128,14 @@ class BatchGenerator:
         Main entry point. Queries DB, processes each calendar item, returns results.
         """
         self._init_db()
+
+        # ── Step 0: Credit check — fail fast if budget exhausted ──────────────
+        if not self.skip_credit_check:
+            exhausted, balances = self._check_credits()
+            if exhausted:
+                logger.error("[CREDIT] Budget exhausted — aborting batch run")
+                return []
+
         today = date.today()
 
         if self.specific_calendar_id:
@@ -188,6 +198,41 @@ class BatchGenerator:
             msg = "\n".join(lines)
 
         self._send_telegram(msg)
+
+    # ── Credit check ──────────────────────────────────────────────────────────
+
+    def _check_credits(self) -> tuple:
+        """
+        Check provider credit balances from DB and fail fast if exhausted.
+        Reads latest known balance from credits_log (no live API calls).
+        Returns (exhausted: bool, balances: dict).
+        """
+        from modules.ops.credit_monitor import DEFAULT_THRESHOLDS
+        from db import get_credits_balance
+
+        providers = ["kieai", "minimax", "wavespeed"]
+        thresholds = DEFAULT_THRESHOLDS  # 0.20 = 20%% of initial balance
+
+        balances: Dict[str, float] = {}
+        exhausted_providers: List[str] = []
+
+        for provider in providers:
+            balance = get_credits_balance(provider)
+            balances[provider] = balance
+            threshold = thresholds.get(provider, 0.20)
+
+            if balance <= 0.0:
+                exhausted_providers.append(provider)
+                logger.warning(f"[CREDIT] {provider}: balance={balance} — EXHAUSTED")
+            else:
+                logger.info(f"[CREDIT] {provider}: balance={balance:.2f} (threshold={threshold*100:.0f}%)")
+
+        if exhausted_providers:
+            logger.error(f"[CREDIT] Exhausted providers: {exhausted_providers} — aborting batch")
+            return True, balances
+
+        logger.info(f"[CREDIT] All providers have credits — proceeding")
+        return False, balances
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
@@ -679,6 +724,10 @@ if __name__ == "__main__":
         "--upload-to-socials", action="store_true",
         help="Post to Facebook/TikTok with Variant-A caption after video generation (VP-030 A/B testing)"
     )
+    parser.add_argument(
+        "--skip-credit-check", action="store_true",
+        help="Skip credit balance check before running pipeline (e.g., to force a manual run)"
+    )
     args = parser.parse_args()
 
     logger.info("=" * 60)
@@ -690,6 +739,7 @@ if __name__ == "__main__":
     logger.info(f"  Dry run     : {args.dry_run}")
     logger.info(f"  Upload     : {args.upload_to_socials}")
     logger.info(f"  Config      : {args.config or 'configs/business/video_config_productivity.json'}")
+    logger.info(f"  Skip credit : {args.skip_credit_check}")
 
     if args.telegram_only:
         logger.info("--telegram-only: skipping processing")
@@ -704,6 +754,7 @@ if __name__ == "__main__":
         content_calenar_id=args.content_calendar_id,
         config_path=args.config,
         upload_to_socials=args.upload_to_socials,
+        skip_credit_check=args.skip_credit_check,
     )
 
     results = gen.run()

@@ -54,3 +54,18 @@ class SceneDurationError(Exception):
             msg = (f"Scene {scene_id} TTS too long: {actual_duration:.1f}s "
                    f"(max: {max_duration:.1f}s)")
         super().__init__(msg)
+
+
+class CaptionGenerationError(PipelineError):
+    """Raised when LLM caption generation fails after all retries.
+
+    Attributes:
+        reason: string describing why generation failed (e.g. 'json_parse_error', 'missing_field:insight')
+        original_error: optional underlying exception
+    """
+
+    def __init__(self, reason: str, original_error: Exception = None):
+        self.reason = reason
+        self.original_error = original_error
+        msg = f"Caption generation failed: {reason}"
+        super().__init__(msg)

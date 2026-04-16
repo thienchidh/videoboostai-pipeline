@@ -185,8 +185,13 @@ class ContentIdeaGenerator:
         cfg = self._channel_config
         kw_list_str = ", ".join(keywords) if keywords else ""
         kw_line = f"Từ khóa: {kw_list_str}\n" if kw_list_str else ""
-        all_char_names = [c.name for c in cfg.characters if c.name]
-        char_list_str = ", ".join(all_char_names)
+
+        # Build character list with voice context for LLM
+        char_lines = []
+        for c in cfg.characters:
+            voice_info = getattr(c, 'voice_id', '') or ""
+            char_lines.append(f"- {c.name}: {voice_info}")
+        char_list_str = "\n".join(char_lines)
 
         tts = cfg.tts
         tts_context = (
@@ -195,19 +200,13 @@ class ContentIdeaGenerator:
             f"(với tốc độ 2.5 từ/giây)."
         )
 
-        # Build image style string from channel config for consistent art generation
+        # Build image style constraint fields from channel config
         img_style = cfg.image_style
-        if img_style:
-            style_parts = [
-                img_style.art_style or "",
-                img_style.lighting or "",
-                img_style.camera or "",
-                img_style.environment or "",
-                img_style.composition or "",
-            ]
-            art_style_str = ", ".join(p for p in style_parts if p)
-        else:
-            art_style_str = cfg.style or "3D render"
+        lighting_val = img_style.lighting if img_style else None
+        camera_val = img_style.camera if img_style else None
+        art_style_val = img_style.art_style if img_style else None
+        environment_val = img_style.environment if img_style else None
+        composition_val = img_style.composition if img_style else None
 
         desc_line = f"NỘI DUNG THAM KHẢO:\n{description[:1000]}\n" if description else ""
 
@@ -217,25 +216,39 @@ Viết {num_scenes} scene giữ chân người xem từ giây đầu tiên.
 Tiêu đề: {title}
 {desc_line}{kw_line}Phong cách nội dung: {angle}{tts_context}
 
-PHONG CÁCH HÌNH ẢNH CỦA KÊNH (CỐ ĐỊNH - KHÔNG ĐƯỢC THAY ĐỔI):
-{art_style_str}
+PHONG CÁCH HÌNH ẢNH CỦA KÊNH (phải TUÂN THỦ tuyệt đối):
+- Lighting: {lighting_val or 'warm'}
+- Camera: {camera_val or 'eye-level'}
+- Art style: {art_style_val or '3D render'}
+- Environment: {environment_val or 'modern office'}
+- Composition: {composition_val or 'professional'}
 
-YÊU CẦU BẮT BUỘC:
-- Lời thoại VIẾT TIẾNG VIỆT CÓ DẤU, tự nhiên như người nói thật
-- KHÔNG dùng tiếng Anh - dùng tiếng Việt tương đương
-- Chỉ chọn MỘT nhân vật duy nhất từ danh sách: [{char_list_str}] cho mỗi scene
-- Background phải TUÂN THỦ tuyệt đối phong cách hình ảnh cố định ở trên - KHÔNG được tự ý thay đổi lighting, art_style, camera, environment hay composition
+PHONG CÁCH KÊNH (brand tone):
+{cfg.style}
 
-CẤU TRÚC SCENE:
-- Scene 1 (MÓC HÓI): Mở đầu bằng statement táo bạo, câu hỏi gây sốc, hoặc số liệu bất ngờ. KHÔNG giới thiệu chủ đề — nhảy thẳng vào nội dung.
-- Scene 2 đến Scene {num_scenes-1} (NỘI DUNG CHÍNH): Mỗi scene có 1 ý chính + ví dụ cụ thể, có thể kể chuyện hoặc dùng số liệu.
-- Scene {num_scenes} (CTA): Không nói "like, follow, share" — hãy kể CTA như đang nói chuyện với viewer, ví dụ: "Bạn đã thử cách nào trong số này? Comment cho mình biết nhé!"
+NHÂN VẬT VÀ GIỌNG NÓI:
+{char_list_str}
+
+Mỗi scene chỉ chọn MỘT nhân vật. Lời thoại phải PHÙ HỢP với giọng nói của nhân vật được chọn.
+
+VIẾT TRỰC TIẾP image_prompt VÀ lipsync_prompt — KHÔNG cần metadata từng trường:
 
 MỖI SCENE CẦN CÓ:
-- id: số nguyên (1, 2, 3...)
-- script: lời thoại tiếng Việt có dấu, 25-35 từ, mỗi câu không quá 10 từ
-- background: mô tả cảnh nền 5-15 từ, BẮT BUỘC chứa phong cách hình ảnh cố định [{art_style_str}] - ví dụ: "văn phòng hiện đại, {art_style_str}"
-- character: tên MỘT nhân vật duy nhất được chọn từ [{char_list_str}]
+- id, script, background, character (như hiện tại)
+- image_prompt: PROMPT HOÀN CHỈNH cho image gen. VIẾT LUÔN một chuỗi đầy đủ, không liệt kê từng trường.
+  Phải CHỨA các ràng buộc phong cách hình ảnh ở trên.
+- lipsync_prompt: PROMPT HOÀN CHỈNH cho lipsync. VIẾT LUÔN một chuỗi mô tả người nói.
+  Phải mô tả: phong cách người nói (phù hợp brand tone), character name + voice_id, biểu cảm, hành động, tư thế, pace.
+
+Ví dụ JSON output:
+[{{
+  "id": 1,
+  "script": "Hãy bắt đầu với kế hoạch hôm nay...",
+  "background": "văn phòng hiện đại",
+  "character": "NamMinh",
+  "image_prompt": "A confident professional speaker in modern office, warm lighting, eye-level camera, 3D render style, professional and knowledgeable atmosphere, gesturing naturally while speaking Vietnamese",
+  "lipsync_prompt": "Friendly speaker, NamMinh, vi-VN-NamMinhNeural, smiling warmly, gesturing while explaining, slight lean forward, steady and measured pace, Vietnamese language naturally"
+}}]
 
 Trả về CHỈ JSON array, không kèm markdown."""
 
@@ -346,6 +359,7 @@ Hãy viết lại kịch bản này để có độ dài phù hợp (khoảng {t
         - character: str (not array)
         - 'characters' key removed if present
         - Falls back to first available character from config if missing.
+        - image_prompt and lipsync_prompt are None (not missing) if absent.
         Always normalizes — channel_config only affects default character fallback.
         """
         # Determine default character from config if available
@@ -372,6 +386,9 @@ Hãy viết lại kịch bản này để có độ dài phù hợp (khoảng {t
             scene["character"] = char
             # Always remove 'characters' key — inconsistent field
             scene.pop("characters", None)
+            # Normalize: ensure image_prompt and lipsync_prompt are present (or None)
+            scene["image_prompt"] = scene.get("image_prompt") or None
+            scene["lipsync_prompt"] = scene.get("lipsync_prompt") or None
             validated.append(scene)
 
         return validated

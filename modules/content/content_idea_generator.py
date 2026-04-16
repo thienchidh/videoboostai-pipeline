@@ -221,6 +221,14 @@ PHONG CÁCH KÊNH (brand tone):
 NHÂN VẬT VÀ GIỌNG NÓI:
 {char_list_str}
 
+TRƯỚC TIÊN: Dựa trên title, keywords và content_angle, xác định "video_message" — thông điệp chính mà người xem sẽ MANG GÌ ĐI sau khi xem video này. Message phải NGẮN GỌN (1-2 câu), CÓ Ý NGHĨA RÕ RÀNG.
+
+SAU ĐÓ: Viết {num_scenes} scenes, mỗi scene phải:
+- Cùng hướng về video_message đã xác định ở trên
+- Nội dung mỗi scene phải SUPPORT hoặc ILLUSTRATE cái message đó
+- Khác nhau về visual concept, emotion, camera angle, setting
+- KHÔNG được viết scene mà content không liên quan đến video_message
+
 ---
 
 VÍ DỤ TỐT (học cách viết creative brief + prompts):
@@ -299,25 +307,28 @@ MỖI SCENE PHẢI KHÁC NHAU — CAM KẾT TRƯỚC:
 ---
 
 ĐỊNH DẠNG JSON OUTPUT:
-[
-  {{
-    "id": 1,
-    "script": "lời thoại TTS...",
-    "character": "NamMinh",
-    "creative_brief": {{
-      "visual_concept": "mô tả ngắn gọn concept visual",
-      "emotion": "mood chính của scene",
-      "camera_mood": "camera angle + depth of field",
-      "setting_vibe": "mô tả không gian/background",
-      "unique_angle": "detail đặc biệt chỉ có scene này",
-      "action_description": "mô tả body language, gesture"
-    }},
-    "image_prompt": "PROMPT HOÀN CHỈNH cho image gen, CHỨÁ creative_brief elements",
-    "lipsync_prompt": "PROMPT HOÀN CHỈNH cho lipsync, CHỨÁ emotion + action + pace"
-  }}
-]
+{{
+  "video_message": "thông điệp chính mà người xem MANG ĐI sau khi xem xong video — NGẮN GỌN (1-2 câu), CÓ Ý NGHĨA RÕ RÀNG. Tất cả scenes phải SUPPORT hoặc ILLUSTRATE thông điệp này.",
+  "scenes": [
+    {{
+      "id": 1,
+      "script": "lời thoại TTS...",
+      "character": "NamMinh",
+      "creative_brief": {{
+        "visual_concept": "mô tả ngắn gọn concept visual",
+        "emotion": "mood chính của scene",
+        "camera_mood": "camera angle + depth of field",
+        "setting_vibe": "mô tả không gian/background",
+        "unique_angle": "detail đặc biệt chỉ có scene này",
+        "action_description": "mô tả body language, gesture"
+      }},
+      "image_prompt": "PROMPT HOÀN CHỈNH cho image gen, CHỨÁ creative_brief elements",
+      "lipsync_prompt": "PROMPT HOÀN CHỈNH cho lipsync, CHỨÁ emotion + action + pace"
+    }}
+  ]
+}}
 
-Trả về CHỈ JSON array, không kèm markdown."""
+Trả về CHỈ JSON object có video_message và scenes, không kèm markdown."""
 
     def _parse_scenes(self, text: str) -> List[SceneConfig]:
         """Parse JSON scenes from LLM response text."""

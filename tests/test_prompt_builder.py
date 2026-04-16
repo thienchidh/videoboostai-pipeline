@@ -318,3 +318,26 @@ def test_validate_creative_brief_missing():
     is_valid, violations = pb.validate_creative_brief(None)
     assert is_valid is False
     assert "creative_brief missing" in violations
+
+
+def test_scene_meta_creative_brief_in_scene_config():
+    """SceneConfig.creative_brief is stored and retrievable."""
+    from modules.pipeline.models import SceneConfig
+    brief = {
+        "visual_concept": "Test concept",
+        "emotion": "happy",
+        "camera_mood": "wide",
+        "setting_vibe": "outdoor",
+        "unique_angle": "low angle",
+        "action_description": "walking"
+    }
+    scene = SceneConfig(
+        id=5,
+        script="Test",
+        creative_brief=brief
+    )
+    # creative_brief accessible and serializable
+    assert scene.creative_brief == brief
+    # Should serialize to dict correctly
+    as_dict = scene.model_dump()
+    assert as_dict["creative_brief"] == brief

@@ -254,6 +254,7 @@ class SingleCharSceneProcessor(SceneProcessor):
                 "tts_text": getattr(scene, 'tts', '') or getattr(scene, 'script', ''),
                 "characters": [c.name if hasattr(c, 'name') else str(c) for c in chars],
                 "video_prompt": getattr(scene, 'video_prompt', None),
+                "creative_brief": getattr(scene, 'creative_brief', None),
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
             with open(meta_path, "w", encoding="utf-8") as f:
@@ -299,6 +300,13 @@ class SingleCharSceneProcessor(SceneProcessor):
         if not img_is_valid:
             log(f"  ⚠️ image_prompt violations: {img_violations}")
         log(f"  📝 Prompt: {img_prompt[:80]}...")
+
+        # Validate creative_brief depth
+        brief = getattr(scene, 'creative_brief', None)
+        if brief:
+            is_valid, violations = self._prompt_builder.validate_creative_brief(brief)
+            if not is_valid:
+                log(f"  ⚠️ creative_brief shallow: {violations}")
 
         # 1. TTS and Image in PARALLEL
         audio_output = scene_output / f"audio_tts_{self.timestamp}.mp3"

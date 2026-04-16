@@ -660,16 +660,17 @@ class ContentPipeline:
             result = pipeline.run()
 
             # Get output video from runner's media_dir (VideoPipelineRunner manages its own directory structure)
+            _runner = getattr(pipeline, '_runner', None)
             output_video = None
-            if result and hasattr(pipeline, '_runner') and pipeline._runner is not None:
-                media_dir = pipeline._runner.media_dir
+            if result and _runner is not None:
+                media_dir = _runner.media_dir
                 if media_dir is not None:
                     for f in media_dir.glob("*.mp4"):
                         output_video = str(f)
                         break
 
             # Save captions to final/ folder
-            run_dir = pipeline._runner.run_dir if hasattr(pipeline, '_runner') and pipeline._runner is not None else None
+            run_dir = _runner.run_dir if _runner is not None else None
             if run_dir:
                 final_dir = run_dir / "final"
                 fb_text = fb_caption.for_facebook() if fb_caption else ""
@@ -682,7 +683,7 @@ class ContentPipeline:
             return {
                 "success": result is not None,
                 "output_video": output_video,
-                "run_dir": str(pipeline._runner.run_dir) if hasattr(pipeline, '_runner') and pipeline._runner is not None else None,
+                "run_dir": str(_runner.run_dir) if _runner is not None else None,
                 "captions": {
                     "facebook": fb_caption.for_facebook() if fb_caption else None,
                     "tiktok": tt_caption.for_tiktok() if tt_caption else None,

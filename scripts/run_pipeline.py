@@ -179,7 +179,7 @@ def run_video_pipeline(channel_id: str, scenario_path: str,
     logger.info(f"  Scenario: {scenario_path}")
     logger.info(f"  Dry run: {dry_run}, TTS: {dry_run_tts}, Images: {dry_run_images}")
 
-    pipeline = VideoPipelineV3(channel_id, scenario_path, resume=resume)
+    pipeline = VideoPipelineV3(channel_id, scenario_path, resume=resume, skip_image=skip_image)
     logger.info(f"  Title: {pipeline.ctx.scenario.title}")
     logger.info(f"  Scenes: {len(pipeline.ctx.scenario.scenes)}")
     logger.info(f"  Run ID: {pipeline.run_id}")
@@ -234,6 +234,7 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
             dry_run_tts=False,
             dry_run_images=False,
             resume=resume,
+            skip_image=skip_image,
         )
         return {"videos": [{"scenario": scenario_path, "video_path": video_path}]}
 

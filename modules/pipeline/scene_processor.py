@@ -31,6 +31,7 @@ from core.video_utils import LipsyncQuotaError  # noqa: F401
 from modules.pipeline.config import PipelineContext
 from modules.pipeline.models import SceneConfig, CharacterConfig, VoiceConfig, SceneCharacter
 from modules.pipeline.exceptions import SceneDurationError
+from modules.media.prompt_builder import PromptBuilder
 
 
 def _safe_attr(obj, name, default):
@@ -226,6 +227,10 @@ class SingleCharSceneProcessor(SceneProcessor):
     def __init__(self, ctx, run_dir, resume=False, run_id=None):
         super().__init__(ctx, run_dir, resume)
         self.run_id = run_id
+        self._prompt_builder = PromptBuilder(
+            channel_style=getattr(self.ctx.channel, 'image_style', None),
+            brand_tone=getattr(self.ctx.channel, 'style', '') or ''
+        )
 
     def process(self, scene: SceneConfig, scene_output: Path,
                tts_fn, image_fn, lipsync_fn) -> Tuple[Optional[str], List[Dict]]:
@@ -299,11 +304,11 @@ class SingleCharSceneProcessor(SceneProcessor):
         if isinstance(first_char, SceneCharacter) and first_char.speed:
             speed = chars[0].speed
 
-        prompt = self.get_video_prompt(scene)
-        log(f"  📝 Prompt: {prompt[:80]}...")
-
-        # Build image prompt: include character name + gender so image matches TTS voice
-        img_prompt = f"{gender} {char_name}, {prompt}"
+        img_prompt = self._prompt_builder.get_image_prompt(scene)
+        img_is_valid, img_violations = self._prompt_builder.validate_image_prompt(img_prompt)
+        if not img_is_valid:
+            log(f"  ⚠️ image_prompt violations: {img_violations}")
+        log(f"  📝 Prompt: {img_prompt[:80]}...")
 
         # 1. TTS and Image in PARALLEL
         audio_output = scene_output / f"audio_tts_{self.timestamp}.mp3"
@@ -435,13 +440,18 @@ class SingleCharSceneProcessor(SceneProcessor):
         lipsync_error = None
         actual_duration = get_audio_duration(str(audio))
 
+        lipsync_prompt = self._prompt_builder.get_lipsync_prompt(scene)
         if not lipsync_step_done and not video_raw.exists():
             log(f"  🎬 Generating lipsync video...")
             actual_error = None
             result_path = None
+            lipsync_is_valid, lipsync_violations = self._prompt_builder.validate_lipsync_prompt(
+                lipsync_prompt, character_name=char_name)
+            if not lipsync_is_valid:
+                log(f"  ⚠️ lipsync_prompt violations: {lipsync_violations}")
             try:
                 result_path = lipsync_fn(str(scene_img), audio, str(video_raw),
-                                        scene_id=scene_id, prompt=prompt)
+                                        scene_id=scene_id, prompt=lipsync_prompt)
             except LipsyncQuotaError as e:
                 actual_error = str(e)
                 result_path = None
@@ -473,7 +483,7 @@ class SingleCharSceneProcessor(SceneProcessor):
                 input_image=str(scene_img),
                 input_audio=str(audio),
                 input_duration=actual_duration,
-                prompt=prompt,
+                prompt=lipsync_prompt,
                 provider="kieai",
                 actual_mode=lipsync_actual_mode or "kieai",
                 attempted_mode=lipsync_attempted_mode or "kieai",

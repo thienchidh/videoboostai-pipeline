@@ -128,7 +128,7 @@ class VideoPipelineRunner:
         self.music_provider = self._build_music_provider()
 
         # Scene processors
-        self.single_processor = SingleCharSceneProcessor(ctx, self.run_dir, resume=self._resume)
+        self.single_processor = SingleCharSceneProcessor(ctx, self.run_dir, resume=self._resume, run_id=self.run_id)
 
     # ---- Provider builders ----
 

@@ -10,10 +10,13 @@ import subprocess
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from unittest.mock import MagicMock
 
 from core.paths import PROJECT_ROOT, get_whisper, get_ffmpeg, get_ffprobe
+from modules.pipeline.scene_checkpoint import StepCheckpointWriter, _get_first_incomplete_step
 from core.video_utils import (
     log,
     get_audio_duration,
@@ -28,6 +31,16 @@ from core.video_utils import LipsyncQuotaError  # noqa: F401
 from modules.pipeline.config import PipelineContext
 from modules.pipeline.models import SceneConfig, CharacterConfig, VoiceConfig, SceneCharacter
 from modules.pipeline.exceptions import SceneDurationError
+
+
+def _safe_attr(obj, name, default):
+    """Safely get attribute from object that may be a MagicMock."""
+    val = getattr(obj, name, None)
+    if val is None:
+        return default
+    if isinstance(val, MagicMock):
+        return default
+    return val
 
 
 class SceneProcessor:
@@ -210,6 +223,10 @@ class SingleCharSceneProcessor(SceneProcessor):
     3. Return (video_path, timestamps)
     """
 
+    def __init__(self, ctx, run_dir, resume=False, run_id=None):
+        super().__init__(ctx, run_dir, resume)
+        self.run_id = run_id
+
     def process(self, scene: SceneConfig, scene_output: Path,
                tts_fn, image_fn, lipsync_fn) -> Tuple[Optional[str], List[Dict]]:
         """Process a single-character scene.
@@ -229,9 +246,39 @@ class SingleCharSceneProcessor(SceneProcessor):
         chars = scene.characters or []
 
         scene_output.mkdir(parents=True, exist_ok=True)
+
+        # Write scene_meta.json
+        meta_path = scene_output / "scene_meta.json"
+        if not meta_path.exists():
+            chars = scene.characters or []
+            scene_meta = {
+                "scene_id": scene_id,
+                "scene_index": getattr(scene, 'scene_index', 0),
+                "title": getattr(scene, 'title', None),
+                "script": getattr(scene, 'script', None) or getattr(scene, 'tts', ''),
+                "tts_text": getattr(scene, 'tts', '') or getattr(scene, 'script', ''),
+                "characters": [c.name if hasattr(c, 'name') else str(c) for c in chars],
+                "video_prompt": getattr(scene, 'video_prompt', None),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            with open(meta_path, "w", encoding="utf-8") as f:
+                json.dump(scene_meta, f, ensure_ascii=False, indent=2)
+
         existing = scene_output / "video_9x16.mp4"
         if self.resume and existing.exists():
             log(f"  ✅ scene_{scene_id}: video_9x16.mp4 exists - skipping (resume mode)")
+            ts_file = scene_output / "words_timestamps.json"
+            timestamps = []
+            if ts_file.exists():
+                with open(ts_file, encoding="utf-8") as f:
+                    timestamps = json.load(f)
+            return str(existing), timestamps
+
+        # Step-level checkpoint scan
+        checkpoint_writer = StepCheckpointWriter(scene_output, scene_id)
+        next_step = _get_first_incomplete_step(scene_output)
+        if next_step == 5:
+            # All steps done
             ts_file = scene_output / "words_timestamps.json"
             timestamps = []
             if ts_file.exists():
@@ -287,12 +334,67 @@ class SingleCharSceneProcessor(SceneProcessor):
                 return None, []
             log(f"  ✅ TTS done: {Path(audio).stat().st_size/1024:.1f}KB")
 
+            # Write TTS checkpoint
+            tts_provider_name = provider  # resolved voice provider
+            tts_cfg = self.get_tts_config()
+            checkpoint_writer.write_tts(
+                output=str(audio),
+                duration_seconds=get_audio_duration(str(audio)),
+                text=tts_text,
+                provider=tts_provider_name,
+                voice=voice,
+                speed=speed,
+                model=_safe_attr(tts_cfg, 'model', "edge-tts"),
+                sample_rate=_safe_attr(tts_cfg, 'sample_rate', 32000),
+                bitrate=str(_safe_attr(tts_cfg, 'bitrate', "128k")),
+                format=_safe_attr(tts_cfg, 'format', "mp3"),
+            )
+
             if img_future:
                 img_result = img_future.result()
                 if not img_result:
                     log(f"  ❌ Image gen failed")
                     return None, []
                 log(f"  ✅ Image done: {scene_img.stat().st_size/1024:.1f}KB")
+
+                # Write image checkpoint
+                img_gen = getattr(self.ctx.technical, 'generation', None)
+                img_cfg = getattr(img_gen, 'image', None) if img_gen else None
+                chan_video = getattr(self.ctx.channel, 'video', None) if self.ctx.channel else None
+                checkpoint_writer.write_image(
+                    output=str(scene_img),
+                    input_text=str(audio),
+                    input_duration=get_audio_duration(str(audio)),
+                    prompt=img_prompt,
+                    provider="minimax",
+                    model=_safe_attr(img_cfg, 'model', "image-01") if img_cfg else "image-01",
+                    aspect_ratio=_safe_attr(chan_video, 'aspect_ratio', "9:16") if chan_video else "9:16",
+                    gender=gender,
+                    character_name=char_name,
+                    timeout=_safe_attr(img_cfg, 'timeout', 120) if img_cfg else 120,
+                    poll_interval=_safe_attr(img_cfg, 'poll_interval', 5) if img_cfg else 5,
+                    max_polls=_safe_attr(img_cfg, 'max_polls', 24) if img_cfg else 24,
+                )
+            else:
+                # Image already existed — write checkpoint for it
+                if scene_img.exists():
+                    img_gen = getattr(self.ctx.technical, 'generation', None)
+                    img_cfg = getattr(img_gen, 'image', None) if img_gen else None
+                    chan_video = getattr(self.ctx.channel, 'video', None) if self.ctx.channel else None
+                    checkpoint_writer.write_image(
+                        output=str(scene_img),
+                        input_text=str(audio),
+                        input_duration=get_audio_duration(str(audio)),
+                        prompt=img_prompt,
+                        provider="minimax",
+                        model=_safe_attr(img_cfg, 'model', "image-01") if img_cfg else "image-01",
+                        aspect_ratio=_safe_attr(chan_video, 'aspect_ratio', "9:16") if chan_video else "9:16",
+                        gender=gender,
+                        character_name=char_name,
+                        timeout=_safe_attr(img_cfg, 'timeout', 120) if img_cfg else 120,
+                        poll_interval=_safe_attr(img_cfg, 'poll_interval', 5) if img_cfg else 5,
+                        max_polls=_safe_attr(img_cfg, 'max_polls', 24) if img_cfg else 24,
+                    )
 
         # 3. Validate duration
         tts_cfg = self.get_tts_config()
@@ -324,31 +426,116 @@ class SingleCharSceneProcessor(SceneProcessor):
 
         # 5. Lipsync (depends on both audio and image)
         video_raw = scene_output / "video_raw.mp4"
-        if not video_raw.exists():
+        lipsync_step_done = next_step > 3
+        lipsync_actual_mode = None
+        lipsync_attempted_mode = None
+        lipsync_fallback_reason = None
+        lipsync_task_id = None
+        lipsync_api_response = None
+        lipsync_error = None
+        actual_duration = get_audio_duration(str(audio))
+
+        if not lipsync_step_done and not video_raw.exists():
             log(f"  🎬 Generating lipsync video...")
+            actual_error = None
+            result_path = None
             try:
-                lipsync_result = lipsync_fn(str(scene_img), audio, str(video_raw),
-                                             scene_id=scene_id, prompt=prompt)
+                result_path = lipsync_fn(str(scene_img), audio, str(video_raw),
+                                        scene_id=scene_id, prompt=prompt)
             except LipsyncQuotaError as e:
-                log(f"  ⚠️ Lipsync quota exceeded: {e} — falling back to static image + audio")
-                lipsync_result = None
-            if not lipsync_result:
-                log(f"  ⚠️ Lipsync failed - falling back to static image + audio")
-                lipsync_result = create_static_video_with_audio(str(scene_img), audio, str(video_raw))
-            if not lipsync_result:
-                log(f"  ❌ Static video fallback also failed")
-                return None, []
+                actual_error = str(e)
+                result_path = None
+            if not result_path:
+                log(f"  ⚠️ Lipsync failed — falling back to static image + audio")
+                result_path = create_static_video_with_audio(str(scene_img), audio, str(video_raw))
+                if result_path:
+                    lipsync_fallback_reason = actual_error or "lipsync returned None"
+                    lipsync_actual_mode = "static_fallback"
+                    lipsync_attempted_mode = "kieai"
+                else:
+                    lipsync_error = actual_error or "static fallback also failed"
+                    # Both lipsync and fallback failed — actual mode is static_fallback (what was attempted)
+                    lipsync_actual_mode = "static_fallback"
+            if result_path:
+                video_raw = Path(result_path)
+
+        # If we got a result_path, it was from the primary lipsync attempt (success or fallback)
+        if result_path and lipsync_actual_mode is None:
+            lipsync_actual_mode = "kieai"
+            lipsync_attempted_mode = "kieai"
+
+        # Write lipsync checkpoint
+        if not lipsync_step_done:
+            lip_gen = getattr(self.ctx.technical, 'generation', None)
+            lip_cfg = getattr(lip_gen, 'lipsync', None) if lip_gen else None
+            checkpoint_writer.write_lipsync(
+                output=str(video_raw),
+                input_image=str(scene_img),
+                input_audio=str(audio),
+                input_duration=actual_duration,
+                prompt=prompt,
+                provider="kieai",
+                actual_mode=lipsync_actual_mode or "kieai",
+                attempted_mode=lipsync_attempted_mode or "kieai",
+                fallback_reason=lipsync_fallback_reason,
+                resolution=_safe_attr(lip_cfg, 'resolution', "480p") if lip_cfg else "480p",
+                max_wait=_safe_attr(lip_cfg, 'max_wait', 300) if lip_cfg else 300,
+                poll_interval=_safe_attr(lip_cfg, 'poll_interval', 10) if lip_cfg else 10,
+                retries=_safe_attr(lip_cfg, 'retries', 2) if lip_cfg else 2,
+                task_id=lipsync_task_id,
+                error=lipsync_error,
+            )
+
+        if video_raw.exists():
             log(f"  ✅ Lipsync done: {video_raw.stat().st_size/1024/1024:.1f}MB")
 
         # 6. Crop to 9:16
         video_9x16 = scene_output / "video_9x16.mp4"
         if not video_9x16.exists():
             log(f"  📐 Cropping to 9:16...")
+            # Get input dimensions for checkpoint
+            w, h = 0, 0
+            try:
+                import re
+                result = subprocess.run(
+                    [str(get_ffprobe()), "-v", "error", "-select_streams", "v:0",
+                     "-show_entries", "stream=width,height", "-of", "csv=p=0",
+                     str(video_raw)],
+                    capture_output=True, text=True, timeout=30
+                )
+                dims = result.stdout.strip().split(",")
+                if len(dims) == 2:
+                    w, h = int(dims[0]), int(dims[1])
+            except Exception:
+                pass
+            crop_filter = f"crop=iw:iw*9/16"
+            scale_filter = "scale=1080:1920"
             if not crop_to_9x16(str(video_raw), str(video_9x16)):
                 video_raw.unlink(missing_ok=True)
                 log(f"  ❌ Crop failed")
                 return None, []
             log(f"  ✅ Crop done: {video_9x16.stat().st_size/1024/1024:.1f}MB")
+
+            # Write crop checkpoint
+            if w > 0 and h > 0:
+                cmd = [get_ffmpeg(), "-i", str(video_raw), "-vf", crop_filter, "-s", "1080x1920", str(video_9x16)]
+                checkpoint_writer.write_crop(
+                    output=str(video_9x16),
+                    input=str(video_raw),
+                    input_duration=actual_duration,
+                    input_width=w,
+                    input_height=h,
+                    input_ratio=w/h,
+                    output_width=1080,
+                    output_height=1920,
+                    output_duration=actual_duration,
+                    crop_filter=crop_filter,
+                    scale_filter=scale_filter,
+                    ffmpeg_cmd=" ".join(str(x) for x in cmd),
+                    codec="libx264",
+                    crf=23,
+                    preset="fast",
+                )
 
         return str(video_9x16), word_timestamps or []
 

@@ -23,11 +23,19 @@ class SceneMetadata(BaseModel):
     facial_expression: Optional[str] = None  # e.g. "smiling warmly", "focused look"
     upper_body_pose: Optional[str] = None  # e.g. "slight lean forward", "upright posture"
     pace: Optional[str] = None           # e.g. "steady and measured", "fast-paced excitement"
+    hook_style: Optional[str] = None     # e.g. "bold statement", "surprising stat", "rhetorical question"
+    viewer_level: Optional[str] = None    # e.g. "beginner", "intermediate", "advanced"
+    key_point: Optional[str] = None      # e.g. "prioritize ruthlessly", "time blocking method"
 ```
+
+**New fields:**
+- `hook_style` — how the scene opens. Affects lipsync prompt energy at the start of the scene.
+- `viewer_level` — who the viewer is. Affects image tone and TTS pace (beginner = slower, more explanatory).
+- `key_point` — the single takeaway. Enables much richer prompts: image can show the concept visually, lipsync prompt can emphasize the main point.
 
 ### `ChannelStyleProfile` — extends existing `ImageStyleConfig`
 
-Existing `ImageStyleConfig` fields are renamed/mapped into a style profile:
+Existing `ImageStyleConfig` fields are renamed/mapped into a style profile. Additionally, `ChannelConfig.style` (the brand tone string, e.g. `"chuyên gia tài chính thân thiện"`) is passed separately to `PromptBuilder` as `brand_tone`.
 
 | Field | Type | Default | Example |
 |-------|------|---------|---------|
@@ -64,8 +72,9 @@ Single responsibility: compose image, lipsync, and TTS guidance prompts from sce
 
 ```python
 class PromptBuilder:
-    def __init__(self, channel_style: Optional[ImageStyleConfig] = None):
+    def __init__(self, channel_style: Optional[ImageStyleConfig] = None, brand_tone: Optional[str] = None):
         self.channel_style = channel_style or ImageStyleConfig()
+        self.brand_tone = brand_tone  # e.g. "chuyên gia tài chính thân thiện"
 
     def build_image_prompt(
         self,
@@ -78,15 +87,19 @@ class PromptBuilder:
         self,
         scene: SceneConfig,
         metadata: Optional[SceneMetadata] = None,
+        character_name: Optional[str] = None,
+        voice_id: Optional[str] = None,
     ) -> str:
-        """Compose lipsync prompt describing speaker's expression, action, and tone."""
+        """Compose lipsync prompt describing speaker's expression, action, tone, and character voice."""
 
     def build_tts_guidance(
         self,
         scene: SceneConfig,
         metadata: Optional[SceneMetadata] = None,
+        character_name: Optional[str] = None,
+        voice_id: Optional[str] = None,
     ) -> str:
-        """Build TTS style guidance hint from metadata (for TTS provider or voice selection)."""
+        """Build TTS style guidance hint from metadata + character voice for provider/voice selection."""
 ```
 
 ### Prompt Templates
@@ -94,41 +107,49 @@ class PromptBuilder:
 **`build_image_prompt`:**
 ```
 "{scene.video_prompt or scene.background or 'A person speaking'},
-{mood or 'engaged'} atmosphere,
+{key_point or scene topic},
+mood: {mood or 'engaged'},
+viewer level: {viewer_level or 'general'},
 {facial_expression or 'natural expression'},
-{dominant_action or 'slight movement'},
+{dominant_action or 'slight movement'} while speaking,
 {lighting_mood or channel_style.lighting_mood} lighting,
 {camera or channel_style.camera} camera angle,
 {art_style or channel_style.art_style} style,
 {environment or channel_style.environment},
 {composition or channel_style.composition} composition,
-{emotion or 'natural'} mood"
+brand tone: {channel_style.expression or 'natural'}"
 ```
 
 Example output:
-> "Time management tips, confident atmosphere, smiling warmly, gesturing while explaining, warm lighting, eye-level camera angle, 3D render style, modern office, professional composition, natural mood"
+> "Time management tips, prioritize ruthlessly, mood: confident, viewer level: working professionals, smiling warmly, gesturing while explaining, warm lighting, eye-level camera angle, 3D render style, modern office, professional composition, brand tone: friendly"
 
 **`build_lipsync_prompt`:**
 ```
 "A {emotion or 'natural'} speaker,
 {facial_expression or 'natural expression'},
-{dominant_action or 'subtle movement'},
+{dominant_action or 'subtle movement'}},
 {upper_body_pose or 'upright posture'},
 {pace or 'steady pace'} speaking,
+hook opens with: {hook_style or 'engaging statement'},
 Vietnamese language naturally,
-{scene.video_prompt or scene.background or 'topic'}"
+key point: {key_point or scene.topic},
+brand tone: {channel_style.expression or 'friendly'}"
 ```
 
 Example output:
-> "A friendly speaker, smiling warmly, gesturing while explaining, slight lean forward, steady pace speaking, Vietnamese language naturally, Time management tips"
+> "A friendly speaker, smiling warmly, gesturing while explaining, slight lean forward, steady pace speaking, hook opens with: bold statement, Vietnamese language naturally, key point: prioritize ruthlessly, brand tone: friendly"
 
 **`build_tts_guidance`:**
 ```
-"Style: {mood or 'natural'}. Tone: {emotion or 'conversational'}. Pace: {pace or 'normal'}."
+"Style: {mood or 'natural'}.
+Tone: {emotion or 'conversational'} — {channel_style.expression or 'brand voice'}.
+Pace: {pace or 'normal'} for {viewer_level or 'general'} viewers.
+Key point to emphasize: {key_point or 'main idea'}.
+Character voice: {character_name} ({voice_id or 'default'})."
 ```
 
 Example output:
-> "Style: confident. Tone: friendly. Pace: steady and measured."
+> "Style: confident. Tone: friendly — chuyên gia tài chính thân thiện. Pace: steady and measured for intermediate viewers. Key point to emphasize: prioritize ruthlessly. Character voice: NamMinh (vi-VN-NamMinhNeural)."
 
 ### Helper: metadata-aware field resolution
 
@@ -147,6 +168,37 @@ def _resolve(scene_metadata, style_config, scene_field, style_field, default=Non
 ## 3. Updated Scene Generation — `content_idea_generator.py`
 
 ### `_build_scene_prompt` — updated system prompt
+
+**Additional context now passed to the LLM:**
+
+1. **Character voice descriptions** — for each character, include their `voice_id` (e.g., `"NamMinh: vi-VN-NamMinhNeural, style=chuyên gia tài chính"`). This tells the LLM how the character sounds so it can write dialogue appropriate to the voice model.
+
+2. **Channel brand tone** — `cfg.style` (e.g., `"chuyên gia tài chính thân thiện"`) added to all prompt guidance so visuals and tone match brand.
+
+3. **Character-per-scene voice binding** — each scene names one character; the LLM must write dialogue that matches that character's voice quality.
+
+**Character voice list construction (in `_build_scene_prompt`):**
+
+```python
+# Build character list with voice context for LLM
+char_lines = []
+for c in cfg.characters:
+    voice_info = c.voice_id if hasattr(c, 'voice_id') else ""
+    char_lines.append(f"- {c.name}: {voice_info}")
+char_list_str = "\n".join(char_lines)
+```
+
+Example output:
+```
+- NamMinh: vi-VN-NamMinhNeural, chuyên gia tài chính
+- HoaiMy: vi-VN-HoaiMyNeural, diễn giả truyền cảm hứng
+```
+
+**Channel brand tone** is also included in the prompt header:
+```
+PHONG CÁCH KÊNH: {cfg.style}
+```
+This is separate from image style and is used by `PromptBuilder` to inform the brand tone in all 3 prompts.
 
 The LLM is instructed to extract and output `SceneMetadata` alongside each scene's script. The JSON output format is updated:
 
@@ -181,6 +233,17 @@ VỚI MỖI SCENE, TRẢ VỀ THÊM METADATA:
 - facial_expression: biểu cảm (smiling warmly | serious | excited | calm | thoughtful)
 - upper_body_pose: tư thế (slight lean forward | upright posture | relaxed posture | straight back)
 - pace: tốc độ nói (steady and measured | fast-paced excitement | slow and deliberate | conversational)
+- hook_style: cách mở đầu scene (bold statement | surprising stat | rhetorical question | story hook)
+- viewer_level: trình độ viewer (beginner | intermediate | advanced | general)
+- key_point: điểm chính cần nhớ của scene (1 cụm từ)
+```
+
+Character voice binding section added to system prompt:
+```
+NHÂN VẬT VÀ GIỌNG NÓI:
+{char_list_str_with_voice_ids}
+
+Mỗi scene chỉ chọn MỘT nhân vật. Lời thoại phải PHÙ HỢP với giọng nói của nhân vật được chọn.
 ```
 
 ### `_parse_scenes` — updated to parse metadata
@@ -197,6 +260,9 @@ def _validate_scenes(self, scenes: List[Dict]) -> List[Dict]:
             "facial_expression": s.get("facial_expression"),
             "upper_body_pose": s.get("upper_body_pose"),
             "pace": s.get("pace"),
+            "hook_style": s.get("hook_style"),
+            "viewer_level": s.get("viewer_level"),
+            "key_point": s.get("key_point"),
         }
     return scenes
 ```
@@ -217,28 +283,36 @@ explicit = scene.video_prompt
 ```python
 from modules.media.prompt_builder import PromptBuilder
 
-prompt_builder = PromptBuilder(channel_style=self.ctx.channel.image_style)
+brand_tone = getattr(self.ctx.channel, 'style', None) or ""
+prompt_builder = PromptBuilder(
+    channel_style=self.ctx.channel.image_style,
+    brand_tone=brand_tone
+)
 img_prompt = prompt_builder.build_image_prompt(scene, metadata=scene.metadata)
 ```
 
-### Lipsync prompt — use PromptBuilder
+### Lipsync prompt — use PromptBuilder with character voice
 
-**OLD:**
 ```python
-prompt = self.get_video_prompt(scene)  # same as image prompt
+char_name = char.name if hasattr(char, 'name') else str(char)
+voice_id = char.tts if hasattr(char, 'tts') else None  # voice_id from SceneCharacter
+lipsync_prompt = prompt_builder.build_lipsync_prompt(
+    scene, metadata=scene.metadata,
+    character_name=char_name, voice_id=voice_id
+)
 ```
 
-**NEW:**
-```python
-lipsync_prompt = prompt_builder.build_lipsync_prompt(scene, metadata=scene.metadata)
-```
-
-### TTS guidance — optional enhancement
+### TTS guidance — optional enhancement with character voice
 
 ```python
-tts_guidance = prompt_builder.build_tts_guidance(scene, metadata=scene.metadata)
+tts_guidance = prompt_builder.build_tts_guidance(
+    scene, metadata=scene.metadata,
+    character_name=char_name, voice_id=voice_id
+)
 # Optional: pass to TTS provider or use as voice selection hint
 ```
+
+**Note:** `scene.metadata` is populated by `ContentIdeaGenerator._generate_scenes` after LLM extraction. `scene.metadata` is None for scenarios loaded directly from YAML (backward-compatible — `PromptBuilder` degrades to defaults).
 
 ---
 

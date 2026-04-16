@@ -1,8 +1,8 @@
 """
-modules/content/caption_generator.py — Auto-generate social media captions
+modules/content/caption_generator.py — Auto-generate social media captions via LLM
 
-Uses LLM provider via PluginRegistry for caption generation.
-Falls back to template-based captions if LLM is unavailable.
+Uses LLM provider via PluginRegistry. No template fallback — any LLM failure
+raises CaptionGenerationError.
 
 Usage:
     # Default: use MiniMax from PluginRegistry
@@ -15,10 +15,9 @@ Usage:
 
 import json
 import logging
-import random
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from core.plugins import get_provider
 from modules.pipeline.exceptions import CaptionGenerationError
@@ -48,56 +47,6 @@ class GeneratedCaption:
             "full_caption": self.full_caption,
         }
 
-HEADLINE_TEMPLATES = [
-    "Bạn chưa biết điều này về {topic}",
-    "Sự thật ít người biết về {topic}",
-    "Cách {topic} thay đổi cuộc sống của bạn",
-    " Bí kíp về {topic} ai cũng nên biết",
-    "Tại sao {topic} lại quan trọng đến vậy?",
-    "Những điều {topic} mà bạn chưa nghe bao giờ",
-    "Cách để {topic} hiệu quả nhất",
-    "Thủ thuật {topic} ít người dùng",
-]
-
-CTA_TEMPLATES = [
-    "Đừng quên LIKE và SHARE để ủng hộ kênh!",
-    "Follow để không bỏ lỡ những video tiếp theo nhé!",
-    "Comment xem bạn nghĩ sao về điều này!",
-    "Lưu lại để xem lại khi cần nhé!",
-    "Chia sẻ cho bạn bè cùng xem nào!",
-    "Đăng ký kênh và bật thông báo để không bỏ lỡ!",
-    "Tag người bạn cần xem video này!",
-    "LIKE nếu bạn thấy video hữu ích!",
-]
-
-HASHTAG_SETS = {
-    "productivity": [
-        "#nangsuatlaoviec", "#thoigian", "#congviec", "#moilame",
-        "#cuocsong", "#thanhluu", "#tuanlamviec", "#motivational"
-    ],
-    "seafood": [
-        "#haiisan", "#amthuc", "#monngon", "#haisan",
-        "#anhchivlog", "#foodtiktok", "#tinhhoaculinary", "#douyin"
-    ],
-    "business": [
-        "#kinhdoanh", "#khanhhoa", "#startup", "#entrepreneur",
-        "#business", "#thanhcong", "#taichinh", "#ceo"
-    ],
-    "tech": [
-        "#congnghe", "#ai", "#technology", "#innovation",
-        "#future", "#smartphone", "#laptop", "#tech"
-    ],
-    "lifestyle": [
-        "#lifestyle", "#cuocsong", "#xuhuong", "#vietnamtiktok",
-        "#songtot", "#sangkhoe", "#thichly", "#fyp"
-    ],
-    "general": [
-        "#vietnamtiktok", "#fyp", "#trending", "#viral",
-        "#foryou", "#explore", "#contentcreator", "#motivation"
-    ],
-}
-
-
 class CaptionGenerator:
     """Generate social media captions from video script via LLM provider."""
 
@@ -116,42 +65,6 @@ class CaptionGenerator:
             import os
             api_key = os.getenv("MINIMAX_API_KEY", "")
             self._llm = provider_cls(api_key=api_key) if api_key else None
-
-    def _extract_topic(self, script: str) -> str:
-        """Extract main topic/keyword from script."""
-        script_lower = script.lower()
-        words = re.findall(r"[a-zA-ZÀ-ỹ]{4,}", script_lower)
-        if not words:
-            return "nội dung"
-        word_freq: Dict[str, int] = {}
-        for w in words:
-            word_freq[w] = word_freq.get(w, 0) + 1
-        return max(words, key=lambda w: len(w) + word_freq[w] * 0.5)
-
-    def _detect_category(self, script: str) -> str:
-        """Detect category from script keywords."""
-        script_lower = script.lower()
-        scores: Dict[str, int] = {}
-        for cat, keywords in {
-            "productivity": ["năng suất", "làm việc", "thời gian", "công việc", "hiệu quả", "mục tiêu"],
-            "seafood": ["hải sản", "tôm", "cá", "mực", "ghẹ", "nấu", "ăn", "ngon"],
-            "business": ["kinh doanh", "bán", "tiền", "thu nhập", "khách hàng", "marketing"],
-            "tech": ["công nghệ", "app", "ứng dụng", "AI", "internet", "thiết bị"],
-        }.items():
-            scores[cat] = sum(1 for kw in keywords if kw in script_lower)
-        if scores:
-            best = max(scores, key=scores.get)
-            if scores[best] > 0:
-                return best
-        return "general"
-
-    def _combine_caption(self, headline: str, body: str, cta: str,
-                        hashtags: List[str], platform: str) -> str:
-        if platform == "tiktok":
-            lines = [f"🔥 {headline}", body, cta, " ".join(hashtags[:5])]
-        else:
-            lines = [f"**{headline}**", body, f"👉 {cta}", " ".join(hashtags)]
-        return "\n".join(l for l in lines if l)
 
     def _generate_via_llm(self, script: str, platform: str) -> GeneratedCaption:
         """Generate caption via LLM with chain-of-thought prompting.
@@ -303,28 +216,6 @@ class CaptionGenerator:
         """Generate caption via LLM only. No fallback."""
         return self._generate_via_llm(script, platform)
 
-    def _generate_template(self, script: str, platform: str) -> GeneratedCaption:
-        """Generate caption using templates (fallback when LLM unavailable)."""
-        topic = self._extract_topic(script)
-        category = self._detect_category(script)
-        hashtag_set = HASHTAG_SETS.get(category, HASHTAG_SETS["general"])
-
-        headline = random.choice(HEADLINE_TEMPLATES).format(topic=topic)
-        body = script[:100].rsplit(" ", 1)[0] + "..." if len(script) > 100 else script
-        cta = random.choice(CTA_TEMPLATES)
-
-        if platform == "tiktok":
-            body = body[:80].rsplit(" ", 1)[0] + "..." if len(body) > 80 else body
-
-        full = self._combine_caption(headline, body, cta, hashtag_set, platform)
-        return GeneratedCaption(
-            headline=headline,
-            body=body,
-            hashtags=hashtag_set[:5],
-            cta=cta,
-            full_caption=full,
-        )
-
     def batch_generate(self, scripts: List[Dict[str, Any]],
                        platform: str = "tiktok") -> List[GeneratedCaption]:
         """Generate captions for multiple scripts."""
@@ -345,9 +236,7 @@ if __name__ == "__main__":
     test_script = sys.argv[1] if len(sys.argv) > 1 else "Hải sản là nguồn dinh dưỡng tuyệt vời cho sức khỏe."
     gen = CaptionGenerator()
     cap = gen.generate(test_script, platform="tiktok")
-    print("\n=== TikTok Caption ===")
-    print(cap.for_tiktok())
-    print("\n=== Facebook Caption ===")
-    print(cap.for_facebook())
+    print("\n=== Caption ===")
+    print(cap.full_caption)
     print("\n=== JSON ===")
     print(json.dumps(cap.to_dict(), ensure_ascii=False, indent=2))

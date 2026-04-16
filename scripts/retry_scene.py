@@ -26,7 +26,7 @@ def load_step(scene_dir: Path, step: int) -> dict:
     if not step_path.exists():
         return {}
     try:
-        return json.loads(step_path.read_text())
+        return json.loads(step_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return {}
 
@@ -46,7 +46,7 @@ def list_steps(scene_dir: Path) -> None:
     run_meta = scene_dir / "run_meta.json"
     if run_meta.exists():
         try:
-            meta = json.loads(run_meta.read_text())
+            meta = json.loads(run_meta.read_text(encoding="utf-8"))
             print(f"Run ID:    {meta.get('run_id', 'N/A')}")
             print(f"Channel:   {meta.get('channel_id', 'N/A')}")
             print(f"Slug:      {meta.get('slug', 'N/A')}")
@@ -57,7 +57,7 @@ def list_steps(scene_dir: Path) -> None:
     scene_meta = scene_dir / "scene_meta.json"
     if scene_meta.exists():
         try:
-            meta = json.loads(scene_meta.read_text())
+            meta = json.loads(scene_meta.read_text(encoding="utf-8"))
             print(f"Scene ID:  {meta.get('scene_id', 'N/A')}")
             print(f"Title:     {meta.get('title', 'N/A')}")
         except (json.JSONDecodeError, OSError):
@@ -82,7 +82,7 @@ def list_steps(scene_dir: Path) -> None:
             error_str = ""
         else:
             try:
-                data = json.loads(step_path.read_text())
+                data = json.loads(step_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 status_icon = "⚠️"
                 status_str = "corrupt"

@@ -192,7 +192,9 @@ def test_research_fails_fast_on_api_exhaustion(mock_idea_gen, mock_topic_researc
 
     cfg = ContentPipelineConfig(page={}, content={})
     pipeline = ContentPipeline(project_id=1, dry_run=True, channel_id="test_channel", config=cfg)
-    results = pipeline.run_research_phase()
+    # Ensure research phase actually runs (pending pool may already have items)
+    with patch.object(pipeline, 'should_trigger_research', return_value=True):
+        results = pipeline.run_research_phase()
     assert results.get("status") == "research_failed"
 
 

@@ -990,6 +990,7 @@ def get_keywords_for_research(limit: int = 20, days_old: int = None) -> List[Dic
         subq = session.query(
             models.ContentKeywordPool.keyword,
             models.ContentKeywordPool.source_topic_id,
+            models.ContentKeywordPool.created_at,
             func.row_number().over(
                 partition_by=models.ContentKeywordPool.keyword,
                 order_by=models.ContentKeywordPool.created_at.desc()
@@ -1000,7 +1001,7 @@ def get_keywords_for_research(limit: int = 20, days_old: int = None) -> List[Dic
         rows = session.query(
             subq.c.keyword,
             subq.c.source_topic_id,
-        ).filter(subq.c.rn == 1).limit(limit).all()
+        ).filter(subq.c.rn == 1).order_by(subq.c.created_at.desc()).limit(limit).all()
         return [{"keyword": r.keyword, "source_topic_id": r.source_topic_id} for r in rows]
 
 

@@ -114,7 +114,7 @@ class TestStepCheckpointWriter:
 
         step_file = _step_file(scene_dir, 1)
         assert step_file.exists()
-        data = json.loads(step_file.read_text())
+        data = json.loads(step_file.read_text(encoding="utf-8"))
         assert data["step"] == 1
         assert data["name"] == "tts"
         assert data["status"] == "done"
@@ -153,7 +153,7 @@ class TestStepCheckpointWriter:
         )
 
         step_file = _step_file(scene_dir, 1)
-        data = json.loads(step_file.read_text())
+        data = json.loads(step_file.read_text(encoding="utf-8"))
         assert data["error"] == "Connection timeout after 30s"
 
     def test_write_image_checkpoint(self, tmp_path):
@@ -179,7 +179,7 @@ class TestStepCheckpointWriter:
 
         step_file = _step_file(scene_dir, 2)
         assert step_file.exists()
-        data = json.loads(step_file.read_text())
+        data = json.loads(step_file.read_text(encoding="utf-8"))
         assert data["step"] == 2
         assert data["name"] == "image"
         assert data["status"] == "done"
@@ -221,7 +221,7 @@ class TestStepCheckpointWriter:
         )
 
         step_file = _step_file(scene_dir, 2)
-        data = json.loads(step_file.read_text())
+        data = json.loads(step_file.read_text(encoding="utf-8"))
         assert data["error"] == "API rate limit exceeded"
 
     def test_write_lipsync_checkpoint_with_fallback(self, tmp_path):
@@ -252,7 +252,7 @@ class TestStepCheckpointWriter:
 
         step_file = _step_file(scene_dir, 3)
         assert step_file.exists()
-        data = json.loads(step_file.read_text())
+        data = json.loads(step_file.read_text(encoding="utf-8"))
         assert data["step"] == 3
         assert data["name"] == "lipsync"
         assert data["status"] == "done"
@@ -299,7 +299,7 @@ class TestStepCheckpointWriter:
         )
 
         step_file = _step_file(scene_dir, 3)
-        data = json.loads(step_file.read_text())
+        data = json.loads(step_file.read_text(encoding="utf-8"))
         assert data["task_id"] is None
         assert data["job_id"] is None
         assert data["api_request_payload"] is None
@@ -331,7 +331,7 @@ class TestStepCheckpointWriter:
 
         step_file = _step_file(scene_dir, 4)
         assert step_file.exists()
-        data = json.loads(step_file.read_text())
+        data = json.loads(step_file.read_text(encoding="utf-8"))
         assert data["step"] == 4
         assert data["name"] == "crop"
         assert data["status"] == "done"
@@ -379,5 +379,5 @@ class TestStepCheckpointWriter:
         )
 
         step_file = _step_file(scene_dir, 4)
-        data = json.loads(step_file.read_text())
+        data = json.loads(step_file.read_text(encoding="utf-8"))
         assert data["error"] == "FFmpeg encode failed: invalid codec"

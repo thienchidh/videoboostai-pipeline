@@ -203,8 +203,8 @@ def test_parse_scenes_includes_image_and_lipsync_prompts():
     }])
     scenes = gen._parse_scenes(json_text)
     assert len(scenes) == 1
-    assert scenes[0]["image_prompt"] == "A confident professional speaker in modern office, warm lighting, eye-level camera, 3D render style, professional atmosphere"
-    assert scenes[0]["lipsync_prompt"] == "Friendly speaker, NamMinh, vi-VN-NamMinhNeural, smiling warmly, gesturing while explaining"
+    assert scenes[0].image_prompt == "A confident professional speaker in modern office, warm lighting, eye-level camera, 3D render style, professional atmosphere"
+    assert scenes[0].lipsync_prompt == "Friendly speaker, NamMinh, vi-VN-NamMinhNeural, smiling warmly, gesturing while explaining"
 
 
 def test_validate_scenes_normalizes_image_and_lipsync_prompts():
@@ -228,8 +228,8 @@ def test_validate_scenes_normalizes_image_and_lipsync_prompts():
         "image_prompt": None,
         "lipsync_prompt": None
     }])
-    assert scenes[0]["image_prompt"] is None
-    assert scenes[0]["lipsync_prompt"] is None
+    assert scenes[0].image_prompt is None
+    assert scenes[0].lipsync_prompt is None
 
     # Scene missing both keys entirely
     scenes = gen._validate_scenes([{
@@ -238,8 +238,8 @@ def test_validate_scenes_normalizes_image_and_lipsync_prompts():
         "character": "NamMinh"
     }])
     # Missing keys should normalize to None (not KeyError)
-    assert scenes[0]["image_prompt"] is None
-    assert scenes[0]["lipsync_prompt"] is None
+    assert scenes[0].image_prompt is None
+    assert scenes[0].lipsync_prompt is None
 
 
 def test_scene_config_creative_brief_field():

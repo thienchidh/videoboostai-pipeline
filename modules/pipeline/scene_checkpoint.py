@@ -37,7 +37,7 @@ def _get_first_incomplete_step(scene_dir: Path) -> int:
         if not step_path.exists():
             return step_num
         try:
-            data = json.loads(step_path.read_text())
+            data = json.loads(step_path.read_text(encoding="utf-8"))
             status = data.get("status", "")
             if status != "done":
                 return step_num
@@ -228,4 +228,4 @@ class StepCheckpointWriter:
     def _write(self, step_num: int, fields: dict) -> None:
         """Internal helper: write fields dict to step checkpoint file."""
         step_path = _step_file(self.scene_dir, step_num)
-        step_path.write_text(json.dumps(fields, indent=2, ensure_ascii=False))
+        step_path.write_text(json.dumps(fields, indent=2, ensure_ascii=False), encoding="utf-8")

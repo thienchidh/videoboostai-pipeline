@@ -400,6 +400,7 @@ class SceneConfig(BaseModel):
     background: Optional[str] = None     # legacy fallback for YAML scenes
     image_prompt: Optional[str] = None   # LLM-generated, ready to use
     lipsync_prompt: Optional[str] = None # LLM-generated, ready to use
+    creative_brief: Optional[Dict[str, Any]] = None
 
     @classmethod
     def from_dict(cls, data: dict) -> "SceneConfig":
@@ -424,6 +425,7 @@ class SceneConfig(BaseModel):
             background=data.get("background"),
             image_prompt=data.get("image_prompt"),
             lipsync_prompt=data.get("lipsync_prompt"),
+            creative_brief=data.get("creative_brief"),
         )
 
 

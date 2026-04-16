@@ -240,3 +240,38 @@ def test_validate_scenes_normalizes_image_and_lipsync_prompts():
     # Missing keys should normalize to None (not KeyError)
     assert scenes[0]["image_prompt"] is None
     assert scenes[0]["lipsync_prompt"] is None
+
+
+def test_scene_config_creative_brief_field():
+    from modules.pipeline.models import SceneConfig
+    brief = {
+        "visual_concept": "Close-up khuôn mặt tập trung",
+        "emotion": "serious but approachable",
+        "camera_mood": "shallow DOF, intimate close-up",
+        "setting_vibe": "home office with plants",
+        "unique_angle": "shooting from above desk",
+        "action_description": "speaking directly to camera"
+    }
+    scene = SceneConfig(id=1, script="test", creative_brief=brief)
+    assert scene.creative_brief == brief
+    assert scene.creative_brief["visual_concept"] == "Close-up khuôn mặt tập trung"
+
+
+def test_scene_config_from_dict_with_creative_brief():
+    from modules.pipeline.models import SceneConfig
+    data = {
+        "id": 1,
+        "script": "Hãy bắt đầu",
+        "character": "NamMinh",
+        "creative_brief": {
+            "visual_concept": "Close-up khuôn mặt tập trung",
+            "emotion": "serious but approachable",
+            "camera_mood": "shallow DOF, intimate close-up",
+            "setting_vibe": "home office with plants",
+            "unique_angle": "shooting from above desk",
+            "action_description": "speaking directly to camera"
+        }
+    }
+    scene = SceneConfig.from_dict(data)
+    assert scene.creative_brief is not None
+    assert scene.creative_brief["emotion"] == "serious but approachable"

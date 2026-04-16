@@ -64,7 +64,7 @@ class SceneProcessor:
                 return voice
         return None
 
-    def resolve_voice(self, character, scene: Dict[str, Any]) -> Tuple[str, str, float, str]:
+    def resolve_voice(self, character, scene: SceneConfig) -> Tuple[str, str, float, str]:
         """Resolve (provider, model, speed, gender) from voice_id or fallback to channel config.
 
         Returns:
@@ -90,7 +90,9 @@ class SceneProcessor:
         if voices:
             fallback_voice_id = voices[0].id
 
-        return fallback_provider or "edge", getattr(character, 'tts_voice', fallback_voice_id), getattr(character, 'tts_speed', 1.0), "female"
+        # CharacterConfig only has name and voice_id - no tts_voice/tts_speed,
+        # so getattr always falls back to the voice catalog fallback
+        return fallback_provider or "edge", fallback_voice_id, 1.0, "female"
 
     def get_video_prompt(self, scene: SceneConfig) -> str:
         """Get video prompt from scene config, with image_style appended from channel config."""

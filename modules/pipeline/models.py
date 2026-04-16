@@ -64,7 +64,7 @@ class GenerationLipsync(BaseModel):
     provider: str = "kieai"
     prompt: str = "A person talking"
     resolution: str = "480p"
-    max_wait: int = 300
+    max_wait: int = 900   # was 300 — align with YAML config floor
     poll_interval: int = 10
     retries: int = 2
     seed: Optional[int] = None

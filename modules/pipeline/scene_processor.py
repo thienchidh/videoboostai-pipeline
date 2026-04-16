@@ -31,6 +31,7 @@ from modules.pipeline.config import PipelineContext
 from modules.pipeline.models import SceneConfig, CharacterConfig, VoiceConfig, SceneCharacter
 from modules.pipeline.exceptions import SceneDurationError
 from modules.media.prompt_builder import PromptBuilder
+from modules.media.tts import get_whisper_timestamps
 
 
 
@@ -136,42 +137,7 @@ class SceneProcessor:
     def get_tts_config(self):
         return self.ctx.channel.tts
 
-    def get_whisper_timestamps(self, audio_path: str, output_dir: Optional[Path] = None) -> Optional[List[Dict]]:
-        """Get word timestamps from audio using Whisper."""
-        if not Path(audio_path).exists():
-            return None
-        if output_dir is None:
-            output_dir = Path(tempfile.mkdtemp())
-        else:
-            output_dir.mkdir(parents=True, exist_ok=True)
-
-        log(f"  🎯 Running Whisper for word timestamps...")
-        try:
-            result = subprocess.run(
-                [str(get_whisper()), audio_path, "--model", "small", "--word_timestamps", "True",
-                 "--output_format", "json", "--output_dir", str(output_dir)],
-                capture_output=True, encoding="utf-8", errors="replace", timeout=120
-            )
-            json_path = output_dir / f"{Path(audio_path).stem}.json"
-            if json_path.exists():
-                with open(json_path, encoding="utf-8") as f:
-                    data = json.load(f)
-                timestamps = []
-                for seg in data.get("segments", []):
-                    for w in seg.get("words", []):
-                        word = w.get("word", "").strip()
-                        if word:
-                            timestamps.append({
-                                "word": word,
-                                "start": w["start"],
-                                "end": w["end"]
-                            })
-                log(f"  🎯 Whisper got {len(timestamps)} word timestamps")
-                return timestamps
-        except Exception as e:
-            log(f"  ⚠️ Whisper error: {e}")
-        return None
-
+    
 
 def align_word_timestamps(whisper_timestamps: List[Dict], script_words: List[str]) -> List[Dict]:
     """Replace Whisper words with script words when count matches.
@@ -411,7 +377,7 @@ class SingleCharSceneProcessor(SceneProcessor):
         audio_file = scene_output / "audio_tts.mp3"
         shutil.copy(audio, str(audio_file))
         if not word_timestamps:
-            word_timestamps = self.get_whisper_timestamps(str(audio_file), scene_output)
+            word_timestamps = get_whisper_timestamps(str(audio_file), str(scene_output))
         if word_timestamps:
             # Align Whisper words with script words when counts match
             script_words = tts_text.split()

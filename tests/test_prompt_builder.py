@@ -238,5 +238,5 @@ def test_validate_scenes_normalizes_image_and_lipsync_prompts():
         "character": "NamMinh"
     }])
     # Missing keys should normalize to None (not KeyError)
-    assert scenes[1]["image_prompt"] is None
-    assert scenes[1]["lipsync_prompt"] is None
+    assert scenes[0]["image_prompt"] is None
+    assert scenes[0]["lipsync_prompt"] is None

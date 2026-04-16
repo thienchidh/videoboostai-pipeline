@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement comprehensive resume at every pipeline granularity: idea-level (content), scene-level (video), and step-level (video scene processing).
+**Goal:** Implement comprehensive resume at every pipeline granularity with human-editable checkpoint files that support fallback re-run (e.g., lipsync fails → static fallback → user fixes lipsync URL → retry from step).
 
-**Architecture:** 3-layer checkpoint system — (1) DB status as implicit checkpoint for content ideas, (2) file existence for scene-level video skip, (3) wired `CheckpointHelper` for step-level within-scene resume.
+**Architecture:** Step checkpoint files (`step_01_tts.json`, `step_02_image.json`, etc.) written after each step completes. Files are human-readable and editable. Retry script reads files and re-runs steps where user has edited the `mode` field.
 
-**Tech Stack:** Existing `CheckpointHelper` + `SceneCheckpoint` DB table, no new files.
+**Tech Stack:** Step checkpoint JSON files per scene, no new DB tables.
 
 ---
 
@@ -16,170 +16,270 @@
 
 | Phase | Resume Mechanism | Works? |
 |-------|-----------------|--------|
-| Research | Distributed lock with 2hr timeout | Partial — lock auto-expires but no per-topic checkpoint |
-| Ideas generation | DB status `raw` → `script_ready` | Yes — scripts saved individually to DB |
-| Script generation | JSON checkpoint file per run | Partial — checkpoint only at idea boundaries |
-| Produce video | `produce_video` checks DB status | Yes — skips ideas already `script_ready` |
+| Research | Distributed lock with 2hr timeout | Partial |
+| Ideas generation | DB status `raw` → `script_ready` | Yes |
+| Script generation | JSON checkpoint file per run | Partial |
+| Produce video | `produce_video` checks DB status | Yes |
 
 ### Video Pipeline Phases
 
 | Phase | Resume Mechanism | Works? |
 |-------|-----------------|--------|
-| Scene-level skip | `video_9x16.mp4` exists + `resume=True` | Yes — entire scene skipped |
-| Step-level within scene | `CheckpointHelper` defined in `checkpoint.py` | **No — never called from scene_processor** |
-| Retry script | `retry_from_checkpoint.py` lists/clears DB steps | **No — DB steps never written during processing** |
-
-The step-level checkpoint system (5 steps per scene: TTS→image→lipsync→crop→done) is dead code.
+| Scene-level skip | `video_9x16.mp4` exists + `resume=True` | Yes |
+| Step-level within scene | `CheckpointHelper` defined in `checkpoint.py` | **No — never called** |
+| Retry script | `retry_from_checkpoint.py` | **Not wired to scene_processor** |
 
 ---
 
 ## Design
 
-### Layer 1: Content Pipeline — Idea-Level (Implicit via DB)
+### Layer 1: Content Pipeline — Idea-Level (No Changes)
 
-**No code changes needed.** Each idea's script is saved to DB as JSON immediately after generation (`ContentIdea.script_json`). The `produce_video` method checks `status = script_ready` and skips ideas that already have scripts.
+Each idea's script is saved to DB immediately. `produce_video` skips ideas with `status = script_ready`. No changes needed.
 
-The JSON checkpoint file (`checkpoint_path` in `run_full_cycle`) is retained for the multi-idea batch loop — it tracks `last_processed_idea_index` so that if the batch crashes between ideas, the next run starts from the next idea. This is already implemented.
+### Layer 2: Video Pipeline — Scene-Level (No Changes)
 
-### Layer 2: Video Pipeline — Scene-Level (Already Works)
+`scene_processor.process()` skips entire scene if `video_9x16.mp4` exists + `resume=True`. Already works.
 
-**No code changes needed.** `scene_processor.process()` checks for `video_9x16.mp4` existence when `resume=True`. If the final output exists, the entire scene is skipped. Already implemented.
+### Layer 3: Video Pipeline — Step-Level (New)
 
-### Layer 3: Video Pipeline — Step-Level (Wire CheckpointHelper)
+#### Step Checkpoint Files
 
-**This is the primary implementation work.**
+After each step completes, write a JSON file to the scene directory:
+
+```
+scene_1/
+  step_01_tts.json        # TTS done
+  step_02_image.json      # image done
+  step_03_lipsync.json    # lipsync done (or fallback)
+  step_04_crop.json       # crop done
+  video_9x16.mp4         # final output
+```
+
+#### File naming
+
+Files use 2-digit step numbers (01-04) matching execution order:
+
+| File | Step | Output |
+|------|------|--------|
+| `step_01_tts.json` | TTS | `audio_tts.mp3` |
+| `step_02_image.json` | Image gen | `scene.png` |
+| `step_03_lipsync.json` | Lipsync | `video_raw.mp4` |
+| `step_04_crop.json` | Crop to 9:16 | `video_9x16.mp4` |
+
+#### Checkpoint JSON format
+
+```json
+{
+  "step": 1,
+  "name": "tts",
+  "status": "done",
+  "mode": "edge",
+  "output": "audio_tts.mp3",
+  "created_at": "2026-04-16T10:30:00",
+  "error": null
+}
+```
+
+**Fields:**
+- `step`: step number (1-4)
+- `name`: step name (tts, image, lipsync, crop)
+- `status`: `"done"` | `"failed"` | `"retry"`
+- `mode`: how the step was executed:
+  - TTS: `"edge"` | `"minimax"` | `"mock"`
+  - Image: `"minimax"` | `"kie"` | `"wavespeed"` | `"mock"`
+  - Lipsync: `"kieai"` | `"wavespeed"` | `"static_fallback"` | `"mock"`
+  - Crop: `"ffmpeg"`
+- `output`: filename written by the step
+- `created_at`: ISO timestamp
+- `error`: error message if status is `"failed"`, null otherwise
+
+#### Fallback recording
+
+When a step falls back (e.g., lipsync → static image):
+
+```json
+{
+  "step": 3,
+  "name": "lipsync",
+  "status": "done",
+  "mode": "static_fallback",
+  "output": "video_raw.mp4",
+  "created_at": "2026-04-16T10:35:00",
+  "error": "LipsyncQuotaError: quota exceeded"
+}
+```
 
 #### Changes to `scene_processor.py`
 
-`SingleCharSceneProcessor.process()` currently:
-1. Checks `resume` + `video_9x16.mp4` exists → skip scene entirely
-2. If not skipping: runs all 4 steps sequentially (TTS → image → lipsync → crop)
+`SingleCharSceneProcessor.process()` new flow:
 
-**New flow:**
-1. Same scene-level skip check (unchanged)
-2. If not skipping: use `CheckpointHelper` to find first incomplete step
-3. For each step, check if already done via `helper.is_step_done()` — skip if yes
-4. After each step completes: call `helper.save_step()` to persist to DB
-5. If a step fails mid-way: exception propagates, DB row for that step is NOT written (partial completion is safe — step N-1 is committed, step N will be retried)
-
-#### CheckpointHelper integration
-
-```python
-# In SingleCharSceneProcessor.__init__:
-self._checkpoint_helper = CheckpointHelper(run_id, run_dir)
-
-# In process(), before each step:
-if self._checkpoint_helper.is_step_done(scene_num, STEP_TTS):
-    log(f"  ⏭️  TTS step already done — skipping")
-else:
-    # run TTS
-    helper.save_step(scene_num, STEP_TTS, audio_path)
+```
+1. Scene-level skip check (unchanged — video_9x16.mp4 exists + resume)
+2. Scan step files 01-04 in scene dir to find first missing or retry-marked step
+3. For each step to run:
+   a. Run step
+   b. Write step_XX_{name}.json with mode + status
+   c. If step fails and fallback available:
+      - Run fallback
+      - Write step_XX_{name}.json with mode="static_fallback" and error field
+4. If final video exists after all steps: scene done
 ```
 
-#### Step constants (already defined in checkpoint.py)
+Key behavior:
+- If `step_03_lipsync.json` exists with `"status": "done"` → skip lipsync step
+- If user edits it to `"status": "retry"` and fixes the config → lipsync re-runs
+- If user edits it to `"status": "done"` and `"mode": "retry_lipsync"` → lipsync re-runs with new mode
+
+#### Step skip logic
 
 ```python
-STEP_TTS = 1    # audio_tts.mp3 written
-STEP_IMAGE = 2   # scene.png written
-STEP_LIPSYNC = 3 # video_raw.mp4 written
-STEP_CROP = 4   # video_9x16.mp4 written
-STEP_DONE = 5   # scene complete
+def _get_first_incomplete_step(scene_dir: Path) -> int:
+    """Return 1-based step number of first step not yet done, or 5 if all done."""
+    for step_num in range(1, 5):  # steps 1-4
+        step_file = scene_dir / f"step_{step_num:02d}_{STEP_NAMES[step_num]}.json"
+        if not step_file.exists():
+            return step_num
+        with open(step_file) as f:
+            data = json.load(f)
+        if data.get("status") == "retry":
+            return step_num
+        if data.get("status") != "done":
+            return step_num
+    return 5  # all done
 ```
 
-#### `retry_from_checkpoint.py` integration
+#### Changes to `pipeline_runner.py`
 
-The `retry_from_checkpoint.py` script already lists/clears step-level checkpoints. After wiring `CheckpointHelper` into `scene_processor`, the script will show real data. No changes needed to the script itself.
+- `SingleCharSceneProcessor` no longer needs `run_id` (files are in scene_dir, no DB)
+- `CheckpointHelper` from `checkpoint.py` is **not used** — replaced by file-based approach
+- `resume=True` passed to `single_processor` enables step-level file scanning
 
-#### Passing `run_id` to `SingleCharSceneProcessor`
+#### Changes to `retry_from_checkpoint.py`
 
-`VideoPipelineRunner.__init__` creates `SingleCharSceneProcessor(ctx, self.run_dir, resume=self._resume)`. Currently does not pass `run_id`. The `CheckpointHelper` needs `run_id` to build scene_id keys (`run_{run_id}_scene_{num}`).
+Rename to `retry_scene.py` or extend with new flags:
 
-**Change:** `VideoPipelineRunner` passes `self.run_id` to `SingleCharSceneProcessor` → `CheckpointHelper` is initialized with `run_id`.
+```
+# Re-run from a specific step within a scene
+python scripts/retry_scene.py --scene-dir output/.../scene_3 --step 3
+
+# Clear step checkpoint (force re-run from that step)
+python scripts/retry_scene.py --scene-dir output/.../scene_3 --step 3 --clear
+
+# List current step status
+python scripts/retry_scene.py --scene-dir output/.../scene_3 --list
+```
+
+The script reads `step_XX_*.json` files from the scene directory and prints a table:
+
+```
+scene_3/
+  step_01_tts.json       done  edge
+  step_02_image.json     done  minimax
+  step_03_lipsync.json   done  static_fallback  ⚠️ LipsyncQuotaError
+  step_04_crop.json     done  ffmpeg
+```
+
+User sees `static_fallback` with error → edits `step_03_lipsync.json` to set `"status": "retry"` → fixes config → re-runs.
 
 ---
 
 ## Data Flow
 
-### Video Scene Processing with Checkpoints
+### Happy path (no failures)
 
 ```
-process_scene(scene_id=3):
-  helper = CheckpointHelper(run_id=42, run_dir)
-
-  next_step = helper.get_next_step(3)
-  if next_step == 99:  # fully done
-    return existing_video
-
-  if next_step > STEP_TTS:     → skip TTS (already done)
-  if next_step > STEP_IMAGE:    → skip image (already done)
-  if next_step > STEP_LIPSYNC: → skip lipsync (already done)
-  if next_step > STEP_CROP:    → skip crop (already done)
-
-  # Run first incomplete step
-  run_step_n()
-  helper.save_step(3, STEP_n, output_path)
-  # Continue to next step...
+scene_1/ (empty)
+  → run TTS → write step_01_tts.json {"status": "done", "mode": "edge"}
+  → run image → write step_02_image.json {"status": "done", "mode": "minimax"}
+  → run lipsync → write step_03_lipsync.json {"status": "done", "mode": "kieai"}
+  → run crop → write step_04_crop.json {"status": "done", "mode": "ffmpeg"}
+scene_1/ (all done)
 ```
 
-### Resume at Different Granularities
+### Lipsync falls back to static
 
-| Failure point | Resume behavior |
-|--------------|-----------------|
-| Crash after TTS, before image | Image step re-runs, TTS skipped |
-| Crash after image, before lipsync | Lipsync step re-runs, TTS+image skipped |
-| Crash after lipsync, before crop | Crop step re-runs, TTS+image+lipsync skipped |
-| Crash after crop, before done | STEP_DONE written, scene fully complete |
-| Entire scene output deleted | Scene re-processed from step 1 (DB checkpoints still exist — use `--clear` to wipe them) |
+```
+scene_1/ (after step 02)
+  → run lipsync → LIPSYNC FAILS (quota exceeded)
+    → catch LipsyncQuotaError → run static fallback
+    → write step_03_lipsync.json {"status": "done", "mode": "static_fallback", "error": "LipsyncQuotaError"}
+  → run crop → write step_04_crop.json {"status": "done", "mode": "ffmpeg"}
+scene_1/ (done but using static fallback)
+```
+
+### User retries lipsync with fixed config
+
+```
+User edits step_03_lipsync.json:
+  {"status": "done", "mode": "static_fallback", ...}
+  → changed to:
+  {"status": "retry", "mode": "kieai", ...}
+
+User fixes kieai URL in config
+
+User runs: python scripts/retry_scene.py --scene-dir scene_3 --step 3
+
+Script reads step_03 → sees status=retry → re-runs lipsync with new config
+→ write step_03_lipsync.json {"status": "done", "mode": "kieai"}
+```
+
+---
+
+## File Changes
+
+### New files
+
+- `scripts/retry_scene.py` — reads step checkpoint files from scene dir, re-runs specific steps
+
+### Modified files
+
+- `modules/pipeline/scene_processor.py` — write `step_XX_*.json` after each step; scan for first incomplete/retry step on resume
+- `modules/pipeline/pipeline_runner.py` — pass `run_id` no longer needed; `resume` param still passed
+
+### Removed/changed
+
+- `CheckpointHelper` from `checkpoint.py` — no longer used for step-level resume (DB checkpoints remain used for other purposes if any)
+- `retry_from_checkpoint.py` — superseded by `retry_scene.py` focused on file-based step retry
 
 ---
 
 ## Edge Cases
 
-### Step output file deleted but DB checkpoint exists
+### Step output file deleted but checkpoint file exists
 
-If `audio_tts.mp3` is deleted from disk but DB shows `STEP_TTS` done, the step will be skipped (DB is authoritative). This is correct behavior — the file can be regenerated from TTS API if needed.
+Checkpoint file says step is `"done"`. Step output (e.g., `audio_tts.mp3`) was manually deleted. On resume, step is skipped (checkpoint is authoritative). If user wants to re-run, they must edit the checkpoint file to set `"status": "retry"`.
 
-### DB checkpoint exists but step output file also exists
+### Step checkpoint file deleted but output exists
 
-Both TTS output and DB checkpoint exist — skip the step. No regeneration needed.
+No checkpoint file but `audio_tts.mp3` exists. Treat as step done — skip. (Checkpoint file would be re-created on next complete run.)
 
-### Crash during step N (DB not yet updated)
+### Crash during step N (checkpoint not written)
 
-Step N-1 is committed to DB. Step N is not. On retry, `get_next_step()` returns N (first incomplete) — correct.
+Step N starts running but crashes before completing → checkpoint file for step N is NOT written. On retry, `_get_first_incomplete_step` finds step N (no file = incomplete) → step N re-runs. Step N-1's checkpoint exists → skipped. Correct.
 
-### Concurrent retry on same scene
+### Concurrent retry
 
-`retry_from_checkpoint.py` has no locking. If two processes retry the same scene simultaneously, both could re-run the same step. Acceptable for MVP — the output file would be overwritten. Distributed locking per scene can be added later if needed.
-
-### Scene number vs scene_id confusion
-
-`scene.id` (from config) is used as the scene number for checkpointing. This is already how `scene_processor` uses it. Consistent throughout.
-
----
-
-## Files to Modify
-
-- `modules/pipeline/scene_processor.py` — wire `CheckpointHelper`, pass `run_id`
-- `modules/pipeline/pipeline_runner.py` — pass `run_id` to `SingleCharSceneProcessor`
-- No new files, no new DB tables (schema already exists)
-- `retry_from_checkpoint.py` works automatically once checkpoints are written
+Two processes retry the same scene simultaneously. Both could overwrite the same step output file. Acceptable — last write wins. Distributed locking can be added later if needed.
 
 ---
 
 ## Testing
 
-1. Run a scene with `resume=True` after partial completion — verify only incomplete steps re-run
-2. Verify DB step checkpoints are written after each step
-3. Verify `retry_from_checkpoint.py --list` shows correct step state after partial run
-4. Verify `retry_from_checkpoint.py --clear` + re-run re-executes from step 1
+1. Run scene with partial failure → verify step checkpoint files written with correct `mode` and `error` fields
+2. Run with `resume=True` after partial → verify only incomplete steps re-run
+3. Simulate lipsync fallback → edit checkpoint to `"status": "retry"` → verify lipsync re-runs
+4. `retry_scene.py --list` shows correct step status table
+5. `retry_scene.py --step 3 --clear` wipes step 3 checkpoint → re-run from step 3
 
 ---
 
 ## Verification
 
-- [ ] `CheckpointHelper` is instantiated in `SingleCharSceneProcessor` with `run_id`
-- [ ] Each step (TTS, image, lipsync, crop) checks `is_step_done()` before running
-- [ ] Each step calls `save_step()` after successful completion
-- [ ] `VideoPipelineRunner` passes `run_id` to `SingleCharSceneProcessor`
-- [ ] `retry_from_checkpoint.py --list` shows step-level data after a partial run
+- [ ] Each step writes `step_XX_{name}.json` after completion
+- [ ] `mode` field reflects actual provider/fallback used
+- [ ] `error` field populated when step falls back or fails
+- [ ] `_get_first_incomplete_step()` returns correct step on resume
+- [ ] Editing `status` to `"retry"` causes step to re-run
+- [ ] `retry_scene.py --list` shows readable status table
 - [ ] All 286 existing tests pass

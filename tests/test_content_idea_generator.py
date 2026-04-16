@@ -282,3 +282,46 @@ class TestContentIdeaGenerator:
         assert scenes[0].creative_brief is not None
         assert scenes[0].creative_brief["emotion"] == "serious but approachable"
         assert scenes[0].creative_brief["unique_angle"] == "shooting from above desk, papers visible"
+
+    def test_parse_scenes_handles_video_message_format(self):
+        """_parse_scenes handles new format with video_message key and scenes array."""
+        import json
+        from unittest.mock import MagicMock
+        from modules.content.content_idea_generator import ContentIdeaGenerator
+
+        mock_channel = MagicMock()
+        mock_channel.name = "Test Channel"
+        mock_channel.style = "chuyên gia thân thiện"
+        mock_channel.characters = [MagicMock(name="NamMinh", voice_id="vi-VN-NamMinhNeural")]
+        mock_channel.tts = MagicMock(max_duration=15.0, min_duration=5.0)
+        mock_channel.image_style = MagicMock(
+            lighting="warm", camera="eye-level", art_style="3D render",
+            environment="office", composition="professional"
+        )
+
+        gen = ContentIdeaGenerator(channel_config=mock_channel)
+
+        json_text = json.dumps({
+            "video_message": "Tập trung vào 1 việc quan trọng nhất trước",
+            "scenes": [
+                {
+                    "id": 1,
+                    "script": "Hãy bắt đầu với kế hoạch hôm nay",
+                    "character": "NamMinh",
+                    "creative_brief": {
+                        "visual_concept": "Close-up khuôn mặt tập trung",
+                        "emotion": "serious but approachable",
+                        "camera_mood": "shallow DOF, intimate close-up",
+                        "setting_vibe": "home office with plants",
+                        "unique_angle": "shooting from above desk",
+                        "action_description": "speaking directly to camera"
+                    },
+                    "image_prompt": "Close-up of a focused woman...",
+                    "lipsync_prompt": "NamMinh speaking with warm smile..."
+                }
+            ]
+        })
+        scenes = gen._parse_scenes(json_text)
+        assert len(scenes) == 1
+        assert scenes[0].script == "Hãy bắt đầu với kế hoạch hôm nay"
+        assert scenes[0].creative_brief["emotion"] == "serious but approachable"

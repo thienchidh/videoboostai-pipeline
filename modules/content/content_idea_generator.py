@@ -331,18 +331,37 @@ MỖI SCENE PHẢI KHÁC NHAU — CAM KẾT TRƯỚC:
 Trả về CHỈ JSON object có video_message và scenes, không kèm markdown."""
 
     def _parse_scenes(self, text: str) -> List[SceneConfig]:
-        """Parse JSON scenes from LLM response text."""
+        """Parse JSON scenes from LLM response text.
+
+        Handles two formats:
+        - Legacy: bare list [...]
+        - New: {"video_message": "...", "scenes": [...]}
+        """
         try:
-            scenes = json.loads(text)
-            if isinstance(scenes, dict):
-                scenes = scenes.get("scenes", [scenes])
-            if isinstance(scenes, list) and scenes:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                scenes = parsed.get("scenes", [])
+                if not isinstance(scenes, list):
+                    scenes = [scenes]
+            elif isinstance(parsed, list):
+                scenes = parsed
+            else:
+                return []
+            if scenes:
                 return self._validate_scenes(scenes)
         except json.JSONDecodeError:
+            # Try to find JSON array in text (legacy fallback)
             match = re.search(r'\[.*\]', text, re.DOTALL)
             if match:
                 try:
-                    return self._validate_scenes(json.loads(match.group()))
+                    parsed = json.loads(match.group())
+                    if isinstance(parsed, dict):
+                        scenes = parsed.get("scenes", [parsed])
+                    elif isinstance(parsed, list):
+                        scenes = parsed
+                    else:
+                        return []
+                    return self._validate_scenes(scenes) if scenes else []
                 except json.JSONDecodeError:
                     pass
         return []

@@ -312,6 +312,30 @@ class TestKieAIInfinitalkQuotaDetection:
                     )
         assert "Kie.ai Infinitalk quota exceeded" in str(exc_info.value)
 
+    def test_kieai_mid_poll_quota_raises_lipsync_quota_error(self, mock_kieai_config):
+        """KieAIInfinitalkProvider.generate() should raise LipsyncQuotaError on mid-poll quota."""
+        from modules.media.lipsync import KieAIInfinitalkProvider
+
+        provider = self._make_kieai_provider(mock_kieai_config)
+
+        # Submit succeeds
+        with patch.object(
+            provider._client, "infinitalk",
+            return_value={"success": True, "task_id": "fake-task-id"},
+        ):
+            # Poll returns mid-poll quota exhaustion
+            with patch.object(
+                provider._client, "poll_task",
+                return_value={"success": False, "error": "Quota exhausted mid-poll"},
+            ):
+                with pytest.raises(LipsyncQuotaError) as exc_info:
+                    provider.generate(
+                        image_path="/tmp/fake.jpg",
+                        audio_path="/tmp/fake.mp3",
+                        output_path="/tmp/out.mp4",
+                    )
+        assert "Kie.ai Infinitalk quota exceeded" in str(exc_info.value)
+
     def test_raises_lipsync_quota_error_on_cn_quota_message(self, mock_kieai_config):
         """Chinese quota keywords (余额 / 配额 / 额度) also detected."""
         from modules.media.lipsync import KieAIInfinitalkProvider

@@ -10,7 +10,7 @@ import json
 import logging
 import re
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from modules.llm import get_llm_provider
 from modules.pipeline.models import ChannelConfig, TechnicalConfig, SceneConfig
@@ -92,7 +92,7 @@ class ContentIdeaGenerator:
         angle = idea.get("content_angle", self.content_angle)
         description = idea.get("description", "")  # actual article content from research
 
-        scenes = self._generate_scenes(title, keywords, angle, description, num_scenes)
+        scenes, video_message = self._generate_scenes(title, keywords, angle, description, num_scenes)
 
         # Read from validated ChannelConfig — no hardcoded fallbacks
         if not self._channel_config:
@@ -105,13 +105,14 @@ class ContentIdeaGenerator:
             "content_angle": angle,
             "keywords": keywords,
             "scenes": scenes,
+            "video_message": video_message,
             "watermark": watermark,
             "style": style,
             "generated_at": datetime.now().isoformat()
         }
 
     def _generate_scenes(self, title: str, keywords: List[str], angle: str,
-                          description: str = "", num_scenes: int = 3) -> List[Dict]:
+                          description: str = "", num_scenes: int = 3) -> Tuple[List[SceneConfig], Optional[str]]:
         """Generate scene scripts using LLM provider with exponential backoff retry.
 
         After initial generation, each scene's TTS is validated against channel
@@ -144,13 +145,14 @@ class ContentIdeaGenerator:
             reraise=True,
         )
         def _call_llm():
-            text = llm.chat(prompt, max_tokens=self._llm.max_tokens if self._llm else 1536)
-            scenes = self._parse_scenes(text)
+            raw_text = llm.chat(prompt, max_tokens=self._llm.max_tokens if self._llm else 1536)
+            video_message = self._extract_video_message(raw_text)
+            scenes = self._parse_scenes(raw_text)
             if not scenes:
                 raise ValueError("Invalid scene format")
-            return scenes
+            return scenes, video_message
 
-        scenes = _call_llm()
+        scenes, video_message = _call_llm()
         logger.info(f"Generated {len(scenes)} scenes from LLM")
 
         # Validate each scene's TTS duration and regenerate if out of bounds
@@ -174,7 +176,7 @@ class ContentIdeaGenerator:
                     )
                     scene.tts = regenerated
 
-        return scenes
+        return scenes, video_message
 
     def _build_scene_prompt(self, title: str, keywords: List[str], angle: str,
                              description: str = "", num_scenes: int = 3) -> str:
@@ -365,6 +367,16 @@ Trả về CHỈ JSON object có video_message và scenes, không kèm markdown.
                 except json.JSONDecodeError:
                     pass
         return []
+
+    def _extract_video_message(self, raw_text: str) -> Optional[str]:
+        """Extract video_message from raw LLM JSON response."""
+        try:
+            parsed = json.loads(raw_text)
+            if isinstance(parsed, dict):
+                return parsed.get("video_message") or None
+        except json.JSONDecodeError:
+            pass
+        return None
 
     def _estimate_tts_duration(self, text: str, wps: float = 2.5) -> float:
         """Estimate TTS duration in seconds from text word count."""

@@ -218,7 +218,7 @@ class TestContentIdeaGenerator:
 
         with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
             with patch.object(gen, "_regenerate_scene_tts", return_value="ngắn gọn và đúng vào việc thôi"):
-                scenes = gen._generate_scenes("Test Title", ["test"], "tips", "", num_scenes=2)
+                scenes, video_message = gen._generate_scenes("Test Title", ["test"], "tips", "", num_scenes=2)
 
         assert len(scenes) == 2
         # The too-long scene should have been regenerated
@@ -325,3 +325,45 @@ class TestContentIdeaGenerator:
         assert len(scenes) == 1
         assert scenes[0].script == "Hãy bắt đầu với kế hoạch hôm nay"
         assert scenes[0].creative_brief["emotion"] == "serious but approachable"
+
+
+def test_generate_script_from_idea_includes_video_message():
+    """generate_script_from_idea returns video_message from LLM response."""
+    import json
+    from unittest.mock import MagicMock, patch
+    from modules.content.content_idea_generator import ContentIdeaGenerator
+    from modules.pipeline.models import GenerationLLM
+
+    mock_channel = MagicMock()
+    mock_channel.name = "Test Channel"
+    mock_channel.style = "friendly"
+    mock_channel.characters = [MagicMock(name="NamMinh", voice_id="vi-VN-NamMinhNeural")]
+    mock_channel.tts = MagicMock(max_duration=15.0, min_duration=5.0)
+    mock_channel.watermark = MagicMock(text="@test")
+    mock_channel.image_style = MagicMock(lighting="warm", camera="eye-level", art_style="3D render",
+                                         environment="office", composition="professional")
+
+    gen = ContentIdeaGenerator(project_id=1, channel_config=mock_channel)
+    # Set _llm so _generate_scenes doesn't raise ConfigMissingKeyError
+    gen._llm = GenerationLLM(provider="minimax", model="MiniMax-M2.7", max_tokens=1536, retry_attempts=3, retry_backoff_max=10)
+
+    mock_llm = MagicMock()
+    mock_llm.chat.return_value = json.dumps({
+        "video_message": "Tập trung vào 1 việc quan trọng nhất trước",
+        "scenes": [
+            {"id": 1, "script": "Bắt đầu ngay", "character": "NamMinh",
+             "creative_brief": {"visual_concept": "test", "emotion": "serious",
+                               "camera_mood": "close-up", "setting_vibe": "office",
+                               "unique_angle": "desk", "action_description": "speaking"}},
+        ]
+    })
+
+    with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
+        result = gen.generate_script_from_idea({
+            "title": "Test Title",
+            "content_angle": "tips",
+            "topic_keywords": ["test"]
+        }, num_scenes=1)
+
+    assert "video_message" in result, f"video_message not in result keys: {list(result.keys())}"
+    assert result["video_message"] == "Tập trung vào 1 việc quan trọng nhất trước"

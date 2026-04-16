@@ -222,7 +222,7 @@ class TestContentIdeaGenerator:
 
         assert len(scenes) == 2
         # The too-long scene should have been regenerated
-        assert scenes[0]["tts"] == "ngắn gọn và đúng vào việc thôi"
+        assert scenes[0].tts == "ngắn gọn và đúng vào việc thôi"
 
     def test_validate_scene_duration_skips_when_no_tts_config(self):
         """When channel config has no tts, validation returns True (skip)."""
@@ -279,6 +279,6 @@ class TestContentIdeaGenerator:
         }])
         scenes = gen._parse_scenes(json_text)
         assert len(scenes) == 1
-        assert scenes[0]["creative_brief"] is not None
-        assert scenes[0]["creative_brief"]["emotion"] == "serious but approachable"
-        assert scenes[0]["creative_brief"]["unique_angle"] == "shooting from above desk, papers visible"
+        assert scenes[0].creative_brief is not None
+        assert scenes[0].creative_brief["emotion"] == "serious but approachable"
+        assert scenes[0].creative_brief["unique_angle"] == "shooting from above desk, papers visible"

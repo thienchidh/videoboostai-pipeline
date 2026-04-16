@@ -122,6 +122,7 @@ def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = 
         config=_build_content_pipeline_config(channel_id),
         dry_run=dry_run,
         channel_id=channel_id,
+        skip_image=skip_image,
     )
 
     logger.info("=" * 60)
@@ -149,7 +150,8 @@ def run_content_pipeline(channel_id: str, ideas_count: int = 3, dry_run: bool = 
 
 def run_video_pipeline(channel_id: str, scenario_path: str,
                       dry_run: bool = False, dry_run_tts: bool = False,
-                      dry_run_images: bool = False, resume: bool = False) -> tuple:
+                      dry_run_images: bool = False, resume: bool = False,
+                      skip_image: bool = False) -> tuple:
     """Run video production from a scenario YAML file.
 
     Args:
@@ -403,6 +405,7 @@ if __name__ == "__main__":
                 channel_id=ch,
                 ideas_count=args.ideas,
                 dry_run=args.dry_run,
+                skip_image=args.skip_image,
             )
             logger.info(f"Generated {len(ideas)} ideas for {ch}")
             print(f"\nGot {len(ideas)} ideas")

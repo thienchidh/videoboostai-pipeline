@@ -16,6 +16,8 @@ from unittest.mock import patch, MagicMock, call
 
 import pytest
 
+from modules.media.kie_ai_client import KieAIClient
+
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────────
 
@@ -437,6 +439,69 @@ class TestQuotaErrorDetection:
         result = client.poll_task("task_gen_789", interval=5, max_wait=60)
         assert result["success"] is False
         assert result["error"] == "Model temporarily unavailable"
+
+
+class TestIsZeroBalance:
+    """Tests for _is_zero_balance() helper."""
+
+    def test_zero_credits_returns_true(self):
+        """Should return True when credits is 0."""
+        client = KieAIClient(api_key="test-key")
+        result = {"success": True, "data": {"credits": 0}}
+        assert client._is_zero_balance(result) is True
+
+    def test_nonzero_credits_returns_false(self):
+        """Should return False when credits > 0."""
+        client = KieAIClient(api_key="test-key")
+        result = {"success": True, "data": {"credits": 50}}
+        assert client._is_zero_balance(result) is False
+
+    def test_balance_field_zero_returns_true(self):
+        """Should return True when balance field is 0 (alternative field name)."""
+        client = KieAIClient(api_key="test-key")
+        result = {"success": True, "data": {"balance": 0}}
+        assert client._is_zero_balance(result) is True
+
+    def test_missing_data_returns_false(self):
+        """Should return False when data field is absent."""
+        client = KieAIClient(api_key="test-key")
+        result = {"success": True, "data": {}}
+        assert client._is_zero_balance(result) is False
+
+
+class TestPollTaskMidBalanceCheck:
+    """Tests for mid-poll balance check in poll_task()."""
+
+    def test_mid_poll_quota_exhaustion_returns_error(self):
+        """Should return error dict immediately when balance hits zero mid-poll."""
+        client = KieAIClient(api_key="test-key")
+
+        # Mock get_task to return "queuing" forever, get_balance to return zero balance
+        queuing_response = {"success": True, "data": {"state": "queuing"}}
+        zero_balance = {"success": True, "data": {"credits": 0}}
+
+        def mock_get_task(task_id):
+            return queuing_response
+
+        def mock_get_balance():
+            return zero_balance
+
+        client.get_task = mock_get_task
+        client.get_balance = mock_get_balance
+
+        # Patch time so 60+ seconds elapse quickly (balance check fires at ~60s)
+        start_time = [100.0]
+
+        def mock_time():
+            start_time[0] += 65  # Advance past 60s threshold
+            return start_time[0]
+
+        with patch("modules.media.kie_ai_client.time.time", side_effect=mock_time):
+            with patch("modules.media.kie_ai_client.time.sleep"):
+                result = client.poll_task(task_id="fake-task-id", interval=1, max_wait=120)
+
+        assert result["success"] is False
+        assert "quota" in result["error"].lower() or "exhausted" in result["error"].lower()
 
 
 # ─── get_balance() tests ──────────────────────────────────────────────────────

@@ -124,6 +124,7 @@ class KieAIClient:
             or {"success": False, "error": "..."}
         """
         start = time.time()
+        last_balance_check = 0
         while time.time() - start < max_wait:
             result = self.get_task(task_id)
             if not result["success"]:
@@ -156,12 +157,27 @@ class KieAIClient:
                 logger.error(f"Task {task_id} failed: {fail_msg}")
                 return {"success": False, "error": fail_msg, "data": task_data}
 
+            # Mid-poll balance check every 60 seconds
+            elapsed = time.time() - start
+            if elapsed - last_balance_check >= 60:
+                balance = self.get_balance()
+                if balance.get("success") and self._is_zero_balance(balance):
+                    logger.error(f"Task {task_id}: quota exhausted mid-poll")
+                    return {"success": False, "error": "Quota exhausted mid-poll"}
+                last_balance_check = elapsed
+
             logger.debug(f"Task {task_id}: {state} ({int(time.time()-start)}s)")
             time.sleep(interval)
 
         return {"success": False, "error": "Polling timeout"}
 
     # ─── Account ─────────────────────────────────────────────────
+
+    def _is_zero_balance(self, balance_result: Dict) -> bool:
+        """Return True if balance_result indicates zero credits."""
+        data = balance_result.get("data", {})
+        credits = data.get("credits", data.get("balance", data.get("quota", -1)))
+        return credits == 0
 
     def get_balance(self) -> Dict[str, Any]:
         """Get account balance/credits."""

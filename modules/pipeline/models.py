@@ -396,8 +396,10 @@ class SceneConfig(BaseModel):
     tts: Optional[str] = None
     script: Optional[str] = None  # alternative to tts
     characters: List["SceneCharacter | str"] = []
-    video_prompt: Optional[str] = None
-    background: Optional[str] = None
+    video_prompt: Optional[str] = None   # legacy fallback for YAML scenes
+    background: Optional[str] = None     # legacy fallback for YAML scenes
+    image_prompt: Optional[str] = None   # LLM-generated, ready to use
+    lipsync_prompt: Optional[str] = None # LLM-generated, ready to use
 
     @classmethod
     def from_dict(cls, data: dict) -> "SceneConfig":
@@ -420,6 +422,8 @@ class SceneConfig(BaseModel):
             characters=parsed_chars,
             video_prompt=data.get("video_prompt"),
             background=data.get("background"),
+            image_prompt=data.get("image_prompt"),
+            lipsync_prompt=data.get("lipsync_prompt"),
         )
 
 

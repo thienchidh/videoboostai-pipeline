@@ -353,7 +353,7 @@ def add_background_music(video_path: str,
             music_dir = str(PROJECT_ROOT / "music")
         music_path = Path(music_dir)
         if music_path.exists():
-            mp3_files = [f for f in music_path.glob("*.mp3") + music_path.glob("*.ogg")
+            mp3_files = [f for f in list(music_path.glob("*.mp3")) + list(music_path.glob("*.ogg"))
                          if f.stat().st_size > 500000]
             if mp3_files:
                 music_file = str(random.choice(mp3_files))

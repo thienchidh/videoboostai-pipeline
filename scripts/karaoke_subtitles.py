@@ -175,8 +175,6 @@ def add_karaoke_subtitles(
             t = i / fps
             frame = render_frame(timestamps, t, w, h, font_obj)
             frame.save(tmpdir / f"frame_{i+1:06d}.png")
-            if (i + 1) % 50 == 0:
-                print(f"[karaoke] Frame {i+1}/{num_frames}")
 
         print(f"[karaoke] Frames generated: {num_frames}")
 

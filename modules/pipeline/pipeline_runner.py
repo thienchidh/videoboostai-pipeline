@@ -159,10 +159,13 @@ class VideoPipelineRunner:
     def _build_lipsync_provider(self):
         """Instantiate lipsync provider via PluginRegistry."""
         # Prefer channel lipsync config, fall back to technical
-        if self.ctx.channel.lipsync:
+        if self.ctx.channel and self.ctx.channel.lipsync:
             lipsync_name = self.ctx.channel.lipsync.provider
-        else:
+        elif self.ctx.technical and self.ctx.technical.generation and self.ctx.technical.generation.lipsync:
             lipsync_name = self.ctx.technical.generation.lipsync.provider
+        else:
+            lipsync_name = "kieai"  # Default if nothing configured
+
         provider_cls = get_provider("lipsync", lipsync_name)
         if provider_cls is None:
             raise ValueError(f"Unknown lipsync provider: {lipsync_name}")
@@ -265,10 +268,14 @@ class VideoPipelineRunner:
 
         # Get lipsync config from channel.generation (preferred) or technical
         lipsync_cfg = None
-        if self.ctx.channel.generation and self.ctx.channel.generation.lipsync:
+        if self.ctx.channel and self.ctx.channel.generation and self.ctx.channel.generation.lipsync:
             lipsync_cfg = self.ctx.channel.generation.lipsync
-        elif self.ctx.technical.generation.lipsync:
+        elif self.ctx.technical and self.ctx.technical.generation and self.ctx.technical.generation.lipsync:
             lipsync_cfg = self.ctx.technical.generation.lipsync
+
+        if lipsync_cfg is None:
+            log(f"  ⚠️ No lipsync config found — using static video fallback")
+            return create_static_video_with_audio(image_path, audio_path, output_path)
 
         return self.lipsync_provider.generate(image_path, audio_path, output_path, config=lipsync_cfg)
 

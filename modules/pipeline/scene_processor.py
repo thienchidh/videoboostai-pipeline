@@ -263,12 +263,22 @@ class SingleCharSceneProcessor(SceneProcessor):
         scene_img = scene_output / "scene.png"
 
         with ThreadPoolExecutor(max_workers=2) as executor:
-            # Submit TTS task
+            # Submit BOTH TTS and Image tasks simultaneously
             tts_future = executor.submit(self._run_tts, tts_fn, tts_text, voice, speed, str(audio_output))
-            # Submit Image task (if not exists) - use img_prompt with character
             img_future = executor.submit(image_fn, img_prompt, str(scene_img)) if not scene_img.exists() else None
 
-            # Wait for TTS first to validate
+            # Wait for both — fail fast if either raises an exception
+            done_futures = []
+            for future in as_completed([f for f in [tts_future, img_future] if f]):
+                done_futures.append(future)
+                if future.exception() is not None:
+                    # Fail fast — cancel the other if still running
+                    for f in [tts_future, img_future]:
+                        if f not in done_futures and f is not None:
+                            f.cancel()
+                    raise RuntimeError(f"Task failed: {future.exception()}") from future.exception()
+
+            # Both succeeded — extract results
             audio_result = tts_future.result()
             audio = audio_result[0] if isinstance(audio_result, tuple) else audio_result
             word_timestamps = audio_result[1] if isinstance(audio_result, tuple) else None
@@ -277,7 +287,6 @@ class SingleCharSceneProcessor(SceneProcessor):
                 return None, []
             log(f"  ✅ TTS done: {Path(audio).stat().st_size/1024:.1f}KB")
 
-            # Wait for Image
             if img_future:
                 img_result = img_future.result()
                 if not img_result:

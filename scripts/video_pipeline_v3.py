@@ -113,7 +113,9 @@ class VideoPipelineV3:
         scenario_path: Full path to scenario YAML file.
     """
 
-    def __init__(self, channel_id: str, scenario_path: str, resume: bool = False):
+    def __init__(self, channel_id: str, scenario_path: str, resume: bool = False,
+                 dry_run: bool = None, dry_run_tts: bool = None,
+                 dry_run_images: bool = None, use_static_lipsync: bool = None):
         from modules.pipeline.config import PipelineContext
         from modules.pipeline.pipeline_runner import VideoPipelineRunner
 
@@ -123,13 +125,19 @@ class VideoPipelineV3:
 
         self.timestamp = int(time.time())
 
+        # Use explicit parameter if provided, otherwise fall back to global
+        effective_dry_run = dry_run if dry_run is not None else DRY_RUN
+        effective_dry_run_tts = dry_run_tts if dry_run_tts is not None else DRY_RUN_TTS
+        effective_dry_run_images = dry_run_images if dry_run_images is not None else DRY_RUN_IMAGES
+        effective_static_lipsync = use_static_lipsync if use_static_lipsync is not None else USE_STATIC_LIPSYNC
+
         # Instantiate the real runner (handles DB setup + run_id internally)
         self._runner = VideoPipelineRunner(
             self.ctx,
-            dry_run=DRY_RUN,
-            dry_run_tts=DRY_RUN_TTS,
-            dry_run_images=DRY_RUN_IMAGES,
-            use_static_lipsync=USE_STATIC_LIPSYNC,
+            dry_run=effective_dry_run,
+            dry_run_tts=effective_dry_run_tts,
+            dry_run_images=effective_dry_run_images,
+            use_static_lipsync=effective_static_lipsync,
             timestamp=self.timestamp,
             resume=resume,
         )
@@ -209,5 +217,3 @@ class VideoPipelineV3:
                     log(f"  🗑️ Deleted scene output: {scene_output_dir}")
                 
                 log(f"  🔄 Retrying scene {e.scene_id} ({attempt}/{max_retries})")
-        
-        return None  # Should not reach here

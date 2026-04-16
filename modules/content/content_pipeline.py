@@ -492,13 +492,10 @@ class ContentPipeline:
                         scheduled.append({"idea_id": idea_id, "platform": platform, "calendar_id": cal_id})
                         logger.info(f"  Scheduled {idea_id} for {platform}")
         finally:
-            # Always clean up checkpoint on any exit
-            try:
-                if checkpoint_path.exists():
-                    checkpoint_path.unlink()
-                    logger.info("  Checkpoint cleaned up")
-            except Exception as e:
-                logger.warning(f"Could not delete checkpoint: {e}")
+            # Checkpoint is preserved for crash recovery.
+            # Explicit --resume will re-process from last checkpoint.
+            # Only clean up if the pipeline explicitly succeeded.
+            pass
 
         # Mark topic source as completed after all YAML files are saved successfully
         if source_id:
@@ -655,8 +652,15 @@ class ContentPipeline:
             # rel_parts = (channel_id, "scenarios", date, slug.yaml)
             channel_id = rel_parts[0]
 
-            # Run pipeline with channel_id + full YAML path
-            pipeline = VideoPipelineV3(channel_id, str(config_path))
+            # Run pipeline with channel_id + full YAML path (explicit flags to avoid global timing race)
+            pipeline = VideoPipelineV3(
+                channel_id,
+                str(config_path),
+                dry_run=False,
+                dry_run_tts=False,
+                dry_run_images=False,
+                use_static_lipsync=self.skip_lipsync,
+            )
             result = pipeline.run()
 
             # Get output video from runner's media_dir (VideoPipelineRunner manages its own directory structure)

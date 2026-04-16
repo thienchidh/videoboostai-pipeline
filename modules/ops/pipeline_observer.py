@@ -313,6 +313,9 @@ def register_run(run_id: int, total_scenes: int = 0) -> None:
         "started_at": now,
         "updated_at": now,
         "credits_by_provider": {},
+        "scene_durations": [],
+        "api_call_counts": {"success": 0, "failure": 0},
+        "start_time": time.time(),
     }
     # Persist to DB: update total_scenes on the video_run record
     try:
@@ -351,6 +354,12 @@ def update_run_progress(run_id: int, **kwargs) -> None:
             run["errors"].append(kwargs["error"])
         run["updated_at"] = now
 
+    # Build broadcast payload — include avg_scene_duration if we have data
+    broadcast_data = dict(run)
+    if run.get("scene_durations"):
+        durations = run["scene_durations"]
+        broadcast_data["avg_scene_duration_s"] = sum(durations) / len(durations)
+
     # Persist to DB
     try:
         db_kwargs = {}
@@ -362,7 +371,7 @@ def update_run_progress(run_id: int, **kwargs) -> None:
     except Exception:
         pass
 
-    _broadcast_run(run_id, dict(run))
+    _broadcast_run(run_id, broadcast_data)
 
 
 def _broadcast_run(run_id: int, data: dict) -> None:
@@ -371,6 +380,33 @@ def _broadcast_run(run_id: int, data: dict) -> None:
     This is a no-op if SSE clients dict doesn't exist yet (app not started).
     """
     pass  # Will be overridden by FastAPI app's _broadcast_run when app is started
+
+
+def record_scene_completed(run_id: int, scene_id: int, duration: float) -> None:
+    """Record a scene completion with its duration in seconds."""
+    with _import_lock:
+        if run_id in _active_runs:
+            run = _active_runs[run_id]
+            run.setdefault("scene_durations", []).append(duration)
+            run["updated_at"] = datetime.now(timezone.utc).isoformat()
+            _broadcast_run(run_id, dict(run))
+
+
+def record_api_call(run_id: int, provider: str, success: bool, duration_ms: float) -> None:
+    """Record an API call outcome for a run."""
+    with _import_lock:
+        if run_id in _active_runs:
+            run = _active_runs[run_id]
+            counts = run.setdefault("api_call_counts", {"success": 0, "failure": 0})
+            key = "success" if success else "failure"
+            counts[key] = counts.get(key, 0) + 1
+            run["updated_at"] = datetime.now(timezone.utc).isoformat()
+            _broadcast_run(run_id, {
+                "type": "api_call",
+                "provider": provider,
+                "success": success,
+                "duration_ms": duration_ms,
+            })
 
 
 if _FASTAPI_AVAILABLE:

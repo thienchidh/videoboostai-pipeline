@@ -73,6 +73,7 @@ def test_pipeline_runner_completes_run_on_success():
             mock_db.start_video_run = MagicMock(return_value=42)
             mock_db.complete_video_run = MagicMock()
             mock_db.fail_video_run = MagicMock()
+            mock_db.mark_stale_runs_failed = MagicMock(return_value=0)
 
             runner = VideoPipelineRunner(ctx, dry_run=True)
 
@@ -183,6 +184,7 @@ def test_pipeline_runner_fails_run_on_error():
             mock_db.start_video_run = MagicMock(return_value=42)
             mock_db.complete_video_run = MagicMock()
             mock_db.fail_video_run = MagicMock()
+            mock_db.mark_stale_runs_failed = MagicMock(return_value=0)
 
             runner = VideoPipelineRunner(ctx, dry_run=True)
 
@@ -282,6 +284,9 @@ def test_pipeline_runner_wires_music_provider():
                 mock_db.init_db = MagicMock()
                 mock_db.get_or_create_project = MagicMock(return_value=1)
                 mock_db.start_video_run = MagicMock(return_value=42)
+                mock_db.complete_video_run = MagicMock()
+                mock_db.fail_video_run = MagicMock()
+                mock_db.mark_stale_runs_failed = MagicMock(return_value=0)
 
                 runner = VideoPipelineRunner(ctx, dry_run=True)
                 assert runner.music_provider is not None, "music_provider should be instantiated"

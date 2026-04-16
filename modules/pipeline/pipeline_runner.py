@@ -117,9 +117,13 @@ class VideoPipelineRunner:
         s3 = ctx.technical.storage.s3
         configure_s3(s3)
 
+        # Cache S3 upload lambda for lipsync (reuse across all scene calls)
+        self._lipsync_upload_fn = lambda fp: s3_upload_file(fp, f"lipsync/{self.timestamp}")
+
         # Instantiate providers via PluginRegistry
         self.tts_provider = self._build_tts_provider()
         self.image_provider = self._build_image_provider()
+        self._fallback_image_providers = self._build_fallback_image_providers()
         self.lipsync_provider = self._build_lipsync_provider()
         self.music_provider = self._build_music_provider()
 
@@ -156,6 +160,28 @@ class VideoPipelineRunner:
             return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.kie_ai)
         return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.wavespeed)
 
+    def _build_fallback_image_providers(self):
+        """Build and cache fallback image providers from config."""
+        providers = {}
+        if not (self.ctx.technical and self.ctx.technical.generation and self.ctx.technical.generation.image):
+            return providers
+        fallback_names = self.ctx.technical.generation.image.fallback_providers or []
+        for fb_name in fallback_names:
+            fb_name = fb_name.strip()
+            if not fb_name:
+                continue
+            fb_cls = get_provider("image", fb_name)
+            if not fb_cls:
+                continue
+            fb_config = self.ctx.technical
+            if fb_name == "minimax":
+                providers[fb_name] = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.minimax)
+            elif fb_name == "kieai":
+                providers[fb_name] = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.kie_ai)
+            else:
+                providers[fb_name] = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.wavespeed)
+        return providers
+
     def _build_lipsync_provider(self):
         """Instantiate lipsync provider via PluginRegistry."""
         # Prefer channel lipsync config, fall back to technical
@@ -170,17 +196,14 @@ class VideoPipelineRunner:
         if provider_cls is None:
             raise ValueError(f"Unknown lipsync provider: {lipsync_name}")
 
-        # S3 is already configured in __init__; use timestamp-based prefix to avoid collisions
-        lipsync_prefix = f"lipsync/{self.timestamp}"
-        upload_fn = lambda fp: s3_upload_file(fp, lipsync_prefix)
-
+        # S3 is already configured in __init__; use cached upload lambda
         if lipsync_name == "kieai":
             return provider_cls(
                 config=self.ctx.technical,
                 api_key=self.ctx.technical.api_keys.kie_ai,
-                upload_func=upload_fn,
+                upload_func=self._lipsync_upload_fn,
             )
-        return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.wavespeed, upload_func=upload_fn)
+        return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.wavespeed, upload_func=self._lipsync_upload_fn)
 
     def _build_music_provider(self):
         """Instantiate music provider via PluginRegistry."""
@@ -227,18 +250,20 @@ class VideoPipelineRunner:
             fb_name = fb_name.strip()
             if not fb_name:
                 continue
-            fb_cls = get_provider("image", fb_name)
-            if not fb_cls:
-                log(f"  ⚠️ Fallback provider '{fb_name}' not registered")
-                continue
-            # Pick API key + config for provider
-            fb_config = self.ctx.technical
-            if fb_name == "minimax":
-                fb_provider = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.minimax)
-            elif fb_name == "kieai":
-                fb_provider = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.kie_ai)
-            else:
-                fb_provider = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.wavespeed)
+            fb_provider = self._fallback_image_providers.get(fb_name)
+            if not fb_provider:
+                fb_cls = get_provider("image", fb_name)
+                if not fb_cls:
+                    log(f"  ⚠️ Fallback provider '{fb_name}' not registered")
+                    continue
+                # Create on-demand if not cached
+                fb_config = self.ctx.technical
+                if fb_name == "minimax":
+                    fb_provider = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.minimax)
+                elif fb_name == "kieai":
+                    fb_provider = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.kie_ai)
+                else:
+                    fb_provider = fb_cls(config=fb_config, api_key=self.ctx.technical.api_keys.wavespeed)
             log(f"  → Trying fallback provider: {fb_name}")
             try:
                 fb_result = fb_provider.generate(prompt, output_path, aspect_ratio=aspect_ratio)
@@ -261,10 +286,6 @@ class VideoPipelineRunner:
         """
         if self._dry_run:
             return create_static_video_with_audio(image_path, audio_path, output_path)
-
-        # S3 upload with scene-specific prefix (upload_fn is per-call, thread-safe)
-        lipsync_prefix = f"lipsync/{self.timestamp}/scene_{scene_id}"
-        upload_fn = lambda fp: s3_upload_file(fp, lipsync_prefix)
 
         # Get lipsync config from channel.generation (preferred) or technical
         lipsync_cfg = None
@@ -305,6 +326,11 @@ class VideoPipelineRunner:
             if self._use_static_lipsync:
                 log(f"🖼️  USE_STATIC_LIPSYNC mode: using static image + TTS for video")
             log(f"{'='*60}")
+
+            # Clean up any orphaned runs stuck in 'in_progress' for too long
+            stale_count = db.mark_stale_runs_failed()
+            if stale_count > 0:
+                log(f"  🧹 Cleaned up {stale_count} stale in_progress runs")
 
             scenes = self.ctx.scenario.scenes
             if not scenes:

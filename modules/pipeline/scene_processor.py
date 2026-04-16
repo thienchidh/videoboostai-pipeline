@@ -342,6 +342,7 @@ class SingleCharSceneProcessor(SceneProcessor):
             # Write TTS checkpoint
             tts_provider_name = provider  # resolved voice provider
             tts_cfg = self.get_tts_config()
+            assert tts_cfg is not None, "channel.tts must be set"
             checkpoint_writer.write_tts(
                 output=str(audio),
                 duration_seconds=get_audio_duration(str(audio)),
@@ -349,10 +350,10 @@ class SingleCharSceneProcessor(SceneProcessor):
                 provider=tts_provider_name,
                 voice=voice,
                 speed=speed,
-                model=_safe_attr(tts_cfg, 'model', "edge-tts"),
-                sample_rate=_safe_attr(tts_cfg, 'sample_rate', 32000),
-                bitrate=str(_safe_attr(tts_cfg, 'bitrate', "128k")),
-                format=_safe_attr(tts_cfg, 'format', "mp3"),
+                model=tts_cfg.model,
+                sample_rate=tts_cfg.sample_rate,
+                bitrate=str(tts_cfg.bitrate),
+                format=tts_cfg.format,
             )
 
             if img_future:

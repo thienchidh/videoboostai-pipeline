@@ -167,7 +167,7 @@ class ContentIdeaGenerator:
                 if not tts_text:
                     continue
                 if not self._validate_scene_duration(tts_text, tts_cfg, wps):
-                    logger.warning(f"  ⚠️ Scene {scene.get('id', '?')} TTS out of bounds "
+                    logger.warning(f"  ⚠️ Scene {scene.get('id', 0)} TTS out of bounds "
                                   f"({len(tts_text.split())} words), regenerating...")
                     regenerated = self._regenerate_scene_tts(
                         tts_text, tts_cfg, api_key=api_key, wps=wps

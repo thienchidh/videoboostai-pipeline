@@ -493,49 +493,32 @@ class SingleCharSceneProcessor(SceneProcessor):
         video_9x16 = scene_output / "video_9x16.mp4"
         if not video_9x16.exists():
             log(f"  📐 Cropping to 9:16...")
-            # Get input dimensions for checkpoint
-            w, h = 0, 0
-            try:
-                import re
-                result = subprocess.run(
-                    [str(get_ffprobe()), "-v", "error", "-select_streams", "v:0",
-                     "-show_entries", "stream=width,height", "-of", "csv=p=0",
-                     str(video_raw)],
-                    capture_output=True, text=True, timeout=30
-                )
-                dims = result.stdout.strip().split(",")
-                if len(dims) == 2:
-                    w, h = int(dims[0]), int(dims[1])
-            except Exception:
-                pass
-            crop_filter = f"crop=iw:iw*9/16"
-            scale_filter = "scale=1080:1920"
-            if not crop_to_9x16(str(video_raw), str(video_9x16)):
+            crop_result = crop_to_9x16(str(video_raw), str(video_9x16))
+            if not crop_result:
                 video_raw.unlink(missing_ok=True)
                 log(f"  ❌ Crop failed")
                 return None, []
+            video_9x16 = Path(crop_result["output"])
             log(f"  ✅ Crop done: {video_9x16.stat().st_size/1024/1024:.1f}MB")
 
-            # Write crop checkpoint
-            if w > 0 and h > 0:
-                cmd = [get_ffmpeg(), "-i", str(video_raw), "-vf", crop_filter, "-s", "1080x1920", str(video_9x16)]
-                checkpoint_writer.write_crop(
-                    output=str(video_9x16),
-                    input=str(video_raw),
-                    input_duration=actual_duration,
-                    input_width=w,
-                    input_height=h,
-                    input_ratio=w/h,
-                    output_width=1080,
-                    output_height=1920,
-                    output_duration=actual_duration,
-                    crop_filter=crop_filter,
-                    scale_filter=scale_filter,
-                    ffmpeg_cmd=" ".join(str(x) for x in cmd),
-                    codec="libx264",
-                    crf=23,
-                    preset="fast",
-                )
+            # Write crop checkpoint using actual values from crop_result
+            checkpoint_writer.write_crop(
+                output=str(video_9x16),
+                input=str(video_raw),
+                input_duration=actual_duration,
+                input_width=crop_result["input_width"],
+                input_height=crop_result["input_height"],
+                input_ratio=crop_result["input_ratio"],
+                output_width=crop_result["output_width"],
+                output_height=crop_result["output_height"],
+                output_duration=actual_duration,
+                crop_filter=crop_result["crop_filter"],
+                scale_filter=crop_result["scale_filter"],
+                ffmpeg_cmd=crop_result["ffmpeg_cmd"],
+                codec="libx264",
+                crf=23,
+                preset="fast",
+            )
 
         return str(video_9x16), word_timestamps or []
 

@@ -1704,6 +1704,88 @@ def update_scheduled_post_status(
             post.posted_at = posted_at
 
 
+# ─── Content Pipeline Run Operations (replaces .content_pipeline_checkpoint.json) ──
+
+def upsert_content_pipeline_run(
+    project_id: int,
+    channel_id: str,
+    last_processed_idea_index: int = -1,
+    source_id: int = None,
+    idea_ids_processed: list = None,
+    status: str = "running",
+) -> int:
+    """Upsert a content pipeline run checkpoint.
+
+    Returns the content_pipeline_run id.
+    """
+    now = datetime.now(timezone.utc)
+    with get_session() as session:
+        existing = session.query(models.ContentPipelineRun).filter_by(
+            project_id=project_id,
+            channel_id=channel_id,
+        ).first()
+        if existing:
+            existing.last_processed_idea_index = last_processed_idea_index
+            existing.source_id = source_id
+            existing.idea_ids_processed = idea_ids_processed or []
+            existing.status = status
+            existing.updated_at = now
+            if status == "completed":
+                existing.completed_at = now
+            session.flush()
+            return existing.id
+        else:
+            run = models.ContentPipelineRun(
+                project_id=project_id,
+                channel_id=channel_id,
+                last_processed_idea_index=last_processed_idea_index,
+                source_id=source_id,
+                idea_ids_processed=idea_ids_processed or [],
+                status=status,
+            )
+            session.add(run)
+            session.flush()
+            return run.id
+
+
+def get_content_pipeline_run(project_id: int, channel_id: str) -> Optional[Dict]:
+    """Get the current content pipeline run for a project+channel, or None."""
+    with get_session() as session:
+        row = session.query(models.ContentPipelineRun).filter_by(
+            project_id=project_id,
+            channel_id=channel_id,
+        ).first()
+        if not row:
+            return None
+        return _content_pipeline_run_to_dict(row)
+
+
+def clear_content_pipeline_run(project_id: int, channel_id: str) -> bool:
+    """Delete the content pipeline run row (clears the checkpoint)."""
+    with get_session() as session:
+        deleted = session.query(models.ContentPipelineRun).filter_by(
+            project_id=project_id,
+            channel_id=channel_id,
+        ).delete()
+        session.commit()
+        return deleted > 0
+
+
+def _content_pipeline_run_to_dict(r: models.ContentPipelineRun) -> Dict:
+    return {
+        "id": r.id,
+        "project_id": r.project_id,
+        "channel_id": r.channel_id,
+        "last_processed_idea_index": r.last_processed_idea_index,
+        "source_id": r.source_id,
+        "idea_ids_processed": r.idea_ids_processed or [],
+        "status": r.status,
+        "created_at": r.created_at,
+        "updated_at": r.updated_at,
+        "completed_at": r.completed_at,
+    }
+
+
 if __name__ == "__main__":
     init_db()
     print("Database initialized OK")

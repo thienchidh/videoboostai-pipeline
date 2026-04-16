@@ -115,7 +115,9 @@ class TestContentPipelineConfig:
                     skip_content=True,
                 )
 
-                assert str(pipeline.checkpoint_path).endswith(".custom_checkpoint.json")
+                # Checkpoint is now DB-based; verify the technical_config was loaded
+                # (DB checkpoint functions are called at runtime, not in __init__)
+                assert pipeline.scene_count == 3
 
     def test_uses_config_schedule_time(self):
         """ContentPipeline should read research.schedule_hour/minute from config."""

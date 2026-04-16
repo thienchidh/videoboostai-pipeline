@@ -654,32 +654,24 @@
     {
       "id": "VP-042",
       "title": "Replace .content_pipeline_checkpoint.json with SQL state in DB",
-      "status": "done",
+      "status": "todo",
       "priority": "medium",
       "source": "heartbeat",
       "reason": "Checkpoint is file-based (.content_pipeline_checkpoint.json); migrate to DB tables for pipeline_runs for robustness",
       "type": "refactor",
-      "blocked_by": [],
-      "assigned_to": "cron-heartbeat",
-      "claimed_at": "2026-04-16T17:57:23.370919+00:00",
-      "completed_at": "2026-04-16T18:05:00Z",
-      "note": "Migrated checkpoint from .content_pipeline_checkpoint.json to DB. New content_pipeline_runs table in db_models.py with upsert_content_pipeline_run/get_content_pipeline_run/clear_content_pipeline_run. content_pipeline.py now uses DB checkpoint. Removed CheckpointData dependency and checkpoint_path field."
+      "blocked_by": []
     },
     {
       "id": "VP-043",
       "title": "Add Telegram alert routing to credit_monitor.py \u2014 send alerts to channel topic",
-      "status": "done",
+      "status": "todo",
       "priority": "medium",
       "source": "heartbeat",
       "reason": "credit_monitor.py can send Telegram alerts but routing to correct topic thread is not configured",
       "type": "feature",
       "blocked_by": [
         "VP-041"
-      ],
-      "assigned_to": "cron-heartbeat",
-      "claimed_at": "2026-04-16T17:57:27.998237+00:00",
-      "completed_at": "2026-04-16T17:58:33.912706Z",
-      "note": "Updated _send_alert in modules/ops/credit_monitor.py to route Telegram alerts to channel -1003736681617 topic 12147 via message tool with target + threadId params. Debounce logic (30min) preserved."
+      ]
     },
     {
       "id": "VP-044",

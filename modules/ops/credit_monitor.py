@@ -269,8 +269,12 @@ class CreditMonitor:
 
     # ─── Telegram Alert ────────────────────────────────────────────────────────
 
+    # Telegram channel topic routing (from HEARTBEAT.md)
+    TELEGRAM_CHANNEL = "-1003736681617"
+    TELEGRAM_TOPIC_ID = "12147"
+
     def _send_alert(self, provider: str, balance: float, remaining_pct: float):
-        """Send low-credit Telegram alert via message tool."""
+        """Send low-credit Telegram alert via message tool to channel topic."""
         if self.dry_run:
             logger.info(f"[DRY-RUN] Would alert: {provider} credits low: {remaining_pct*100:.1f}% ({balance})")
             return
@@ -279,10 +283,11 @@ class CreditMonitor:
             from openclaw_personal_utilities import message
             message.send(
                 action="send",
-                chat_id="1397718549",
+                target=self.TELEGRAM_CHANNEL,
                 message=f"⚠️ [videopipeline] {provider} credits low: {remaining_pct*100:.1f}% ({balance:.2f})",
+                threadId=self.TELEGRAM_TOPIC_ID,
             )
-            logger.info(f"Sent Telegram alert for {provider} (balance={balance:.2f})")
+            logger.info(f"Sent Telegram alert for {provider} (balance={balance:.2f}) to topic {self.TELEGRAM_TOPIC_ID}")
         except ImportError:
             logger.warning("openclaw_personal_utilities.message not available; alert not sent")
         except Exception as e:

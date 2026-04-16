@@ -24,7 +24,6 @@ from modules.pipeline.models import (
     ScenarioConfig,
     SocialConfig,
     ContentPipelineConfig,
-    CheckpointData,
 )
 from modules.pipeline.backoff import Backoff, CircuitBreaker, CircuitOpenError
 
@@ -111,13 +110,11 @@ class ContentPipeline:
         # Read content settings from technical config
         if self.technical_config:
             self.scene_count = self.technical_config.generation.content.scene_count
-            self.checkpoint_path = self.project_root / self.technical_config.generation.content.checkpoint_path
             schedule_hour = self.technical_config.generation.research.schedule_hour
             schedule_minute = self.technical_config.generation.research.schedule_minute
             self.schedule_time = time(schedule_hour, schedule_minute)
         else:
             self.scene_count = 3
-            self.checkpoint_path = self.project_root / ".content_pipeline_checkpoint.json"
             self.schedule_time = time(9, 0)
 
         # Initialize components
@@ -239,20 +236,15 @@ class ContentPipeline:
 
         results = {}
 
-        # Check for checkpoint to resume from
-        checkpoint_path = self.checkpoint_path
-        checkpoint = None
+        # Check for checkpoint to resume from (DB-based, replaces .content_pipeline_checkpoint.json)
         start_idea_index = 0
-        if checkpoint_path.exists():
-            try:
-                with open(checkpoint_path) as f:
-                    checkpoint = CheckpointData.model_validate_json(f.read())
-                last_idx = checkpoint.last_processed_idea_index
-                if last_idx >= 0:
-                    start_idea_index = last_idx + 1
-                    logger.info(f"📍 Resume: found checkpoint, last processed idea index: {last_idx}, starting from {start_idea_index}")
-            except (json.JSONDecodeError, IOError, ValueError) as e:
-                logger.warning(f"Could not load checkpoint: {e}")
+        if not self.skip_content:
+            from db import get_content_pipeline_run
+            cp = get_content_pipeline_run(project_id=self.project_id, channel_id=self.channel_id)
+            if cp and cp.get("last_processed_idea_index", -1) >= 0:
+                start_idea_index = cp["last_processed_idea_index"] + 1
+                logger.info(f"📍 Resume: found DB checkpoint, last processed idea index: {cp['last_processed_idea_index']}, starting from {start_idea_index}")
+                results["_checkpoint"] = cp
 
         # Step 1: Run research phase if pending pool is below threshold
         from db import get_pending_topic_sources
@@ -487,15 +479,16 @@ class ContentPipeline:
             })
             logger.info(f"  Production result: {prod_result.get('success')}")
 
-            # Write checkpoint after each idea is processed
-            checkpoint = {
-                "last_processed_idea_index": i,
-                "source_id": source_id,
-                "idea_ids_processed": idea_ids[:i+1],
-                "timestamp": datetime.now().isoformat(),
-            }
-            with open(checkpoint_path, "w") as f:
-                json.dump(checkpoint, f)
+            # Write checkpoint to DB after each idea is processed
+            from db import upsert_content_pipeline_run
+            upsert_content_pipeline_run(
+                project_id=self.project_id,
+                channel_id=self.channel_id,
+                last_processed_idea_index=i,
+                source_id=source_id,
+                idea_ids_processed=idea_ids[:i+1],
+                status="running",
+            )
 
             # Schedule for social posting (if not dry_run and auto_schedule)
             if self.auto_schedule and prod_result.get("success") and not self.dry_run:
@@ -518,11 +511,12 @@ class ContentPipeline:
             try:
                 mark_topic_source_completed(source_id)
                 logger.info(f"  Topic source {source_id} marked as completed")
-                # Clear checkpoint so next run starts fresh (stale checkpoint from previous
+                # Clear checkpoint from DB so next run starts fresh (stale checkpoint from previous
                 # source would skip script generation for unrelated new ideas)
-                if checkpoint_path.exists():
-                    checkpoint_path.unlink()
-                    logger.info(f"  Cleared content pipeline checkpoint")
+                from db import clear_content_pipeline_run
+                cleared = clear_content_pipeline_run(project_id=self.project_id, channel_id=self.channel_id)
+                if cleared:
+                    logger.info(f"  Cleared content pipeline checkpoint from DB")
             except (RuntimeError, IOError) as e:
                 logger.warning(f"Could not mark topic source completed: {e}")
 

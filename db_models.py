@@ -427,3 +427,28 @@ class PipelineLock(Base):
     acquired_at = Column(DateTime, default=datetime.datetime.utcnow)
     owner_run_id = Column(String(100), nullable=False)
     expires_at = Column(DateTime, nullable=False)
+
+
+class ContentPipelineRun(Base):
+    """Tracks state for content pipeline runs — replaces .content_pipeline_checkpoint.json.
+
+    One row per content pipeline execution, keyed by project_id + channel_id.
+    Stores the checkpoint (last processed idea index, source, idea IDs) so the
+    pipeline can resume after a crash without reprocessing already-done ideas.
+    """
+    __tablename__ = "content_pipeline_runs"
+    __table_args__ = (
+        Index("idx_content_pipeline_runs_project_channel", "project_id", "channel_id"),
+        UniqueConstraint("project_id", "channel_id", name="uq_content_pipeline_runs_project_channel"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, nullable=False)
+    channel_id = Column(String(100), nullable=False)
+    last_processed_idea_index = Column(Integer, default=-1)
+    source_id = Column(Integer, nullable=True)
+    idea_ids_processed = Column(JSON, default=list)
+    status = Column(String(50), default="running")   # running | completed | failed
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)

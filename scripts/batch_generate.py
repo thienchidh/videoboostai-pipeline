@@ -371,7 +371,7 @@ class BatchGenerator:
         slug = slug[:50].strip('-')
 
         scheduled_date = item.get("scheduled_date", date.today())
-        if hasattr(scheduled_date, "strftime"):
+        if isinstance(scheduled_date, (date, datetime)):
             date_str = scheduled_date.strftime("%Y-%m-%d")
         else:
             date_str = str(scheduled_date)

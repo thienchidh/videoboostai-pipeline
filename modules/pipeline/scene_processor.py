@@ -53,10 +53,10 @@ class SceneProcessor:
         log(f"  🔊 Generating TTS...")
         return tts_fn(tts_text, voice, speed, audio_output)
 
-    def get_character(self, name: str) -> Optional[CharacterConfig]:
+    def get_character(self, voice_id: str) -> Optional[CharacterConfig]:
         chars = self.ctx.channel.characters or []
         for char in chars:
-            if char.name == name:
+            if char.voice_id == voice_id:
                 return char
         return None
 

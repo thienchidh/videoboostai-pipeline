@@ -54,7 +54,7 @@ class VideoPipelineRunner:
     def __init__(self, ctx: PipelineContext, dry_run: bool = False,
                  dry_run_tts: bool = False, dry_run_images: bool = False,
                  use_static_lipsync: bool = False, timestamp: Optional[int] = None,
-                 resume: bool = False):
+                 resume: bool = False, skip_image: bool = False):
         """
         Args:
             ctx: PipelineContext with loaded technical, channel, and scenario configs
@@ -64,6 +64,7 @@ class VideoPipelineRunner:
             use_static_lipsync: If True, use static image + TTS audio instead of real lipsync
             timestamp: Optional timestamp (seconds since epoch). If None, will be generated.
                        Pass same timestamp as VideoPipelineV3 to ensure single folder creation.
+            skip_image: If True, skip image generation (static video with audio only)
         """
         self._dry_run = dry_run
         self._dry_run_tts = dry_run_tts
@@ -71,6 +72,7 @@ class VideoPipelineRunner:
         self._force_start = False  # CLI must call runner.run(force_start=True) to enable
         self._use_static_lipsync = use_static_lipsync
         self._resume = resume
+        self._skip_image = skip_image
         self.ctx = ctx
 
         self.timestamp = timestamp if timestamp is not None else int(time.time())
@@ -129,7 +131,7 @@ class VideoPipelineRunner:
         self.music_provider = self._build_music_provider()
 
         # Scene processors
-        self.single_processor = SingleCharSceneProcessor(ctx, self.run_dir, resume=self._resume, run_id=self.run_id)
+        self.single_processor = SingleCharSceneProcessor(ctx, self.run_dir, resume=self._resume, run_id=self.run_id, skip_image=self._skip_image)
 
     # ---- Provider builders ----
 

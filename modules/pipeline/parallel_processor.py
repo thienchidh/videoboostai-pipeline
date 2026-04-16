@@ -489,10 +489,10 @@ class ParallelSceneProcessor:
 
     # ─── Helpers ─────────────────────────────────────────────
 
-    def _get_character(self, name: str) -> Optional[Dict[str, Any]]:
+    def _get_character(self, voice_id: str) -> Optional[Dict[str, Any]]:
         chars = self.ctx.channel.characters or []
         for char in chars:
-            if char.name == name:
+            if char.voice_id == voice_id:
                 return char
         return None
 

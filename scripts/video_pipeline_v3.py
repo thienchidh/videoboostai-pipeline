@@ -115,7 +115,8 @@ class VideoPipelineV3:
 
     def __init__(self, channel_id: str, scenario_path: str, resume: bool = False,
                  dry_run: bool = None, dry_run_tts: bool = None,
-                 dry_run_images: bool = None, use_static_lipsync: bool = None):
+                 dry_run_images: bool = None, use_static_lipsync: bool = None,
+                 skip_image: bool = False):
         from modules.pipeline.config import PipelineContext
         from modules.pipeline.pipeline_runner import VideoPipelineRunner
 
@@ -140,6 +141,7 @@ class VideoPipelineV3:
             use_static_lipsync=effective_static_lipsync,
             timestamp=self.timestamp,
             resume=resume,
+            skip_image=skip_image,
         )
 
         self.avatars_dir = self._runner.run_dir / "avatars"

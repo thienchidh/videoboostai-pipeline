@@ -401,6 +401,8 @@ class SceneConfig(BaseModel):
     image_prompt: Optional[str] = None   # LLM-generated, ready to use
     lipsync_prompt: Optional[str] = None # LLM-generated, ready to use
     creative_brief: Optional[Dict[str, Any]] = None
+    scene_type: Optional[str] = None   # hook | insight | technique | proof | cta
+    delivers: Optional[str] = None     # plain-language summary of viewer takeaway
 
     @classmethod
     def from_dict(cls, data: dict) -> "SceneConfig":
@@ -426,6 +428,8 @@ class SceneConfig(BaseModel):
             image_prompt=data.get("image_prompt"),
             lipsync_prompt=data.get("lipsync_prompt"),
             creative_brief=data.get("creative_brief"),
+            scene_type=data.get("scene_type"),
+            delivers=data.get("delivers"),
         )
 
 

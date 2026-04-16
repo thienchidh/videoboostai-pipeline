@@ -518,6 +518,11 @@ class ContentPipeline:
             try:
                 mark_topic_source_completed(source_id)
                 logger.info(f"  Topic source {source_id} marked as completed")
+                # Clear checkpoint so next run starts fresh (stale checkpoint from previous
+                # source would skip script generation for unrelated new ideas)
+                if checkpoint_path.exists():
+                    checkpoint_path.unlink()
+                    logger.info(f"  Cleared content pipeline checkpoint")
             except (RuntimeError, IOError) as e:
                 logger.warning(f"Could not mark topic source completed: {e}")
 

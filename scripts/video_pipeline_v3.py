@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """
 Video Pipeline v3 — thin wrapper around VideoPipelineRunner.
 

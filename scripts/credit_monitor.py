@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """
 credit_monitor.py - Credit Usage Tracking & Real-Time Alerting System.
 

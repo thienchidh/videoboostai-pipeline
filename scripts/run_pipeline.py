@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """
 Unified Pipeline Entry Point - Content Generation + Video Production.
 
@@ -270,6 +270,9 @@ def run_full_pipeline(channel_id: str, ideas_count: int = 1, produce: bool = Tru
     video_results = results.get("produced", [])
     success_count = sum(1 for v in video_results if v.get("result", {}).get("success"))
     fail_count = len(video_results) - success_count
+
+    # Ideas list: use newly generated idea_ids from the cycle, or empty if none
+    ideas = results.get("idea_ids", [])
 
     # Fallback: if content cycle found no new ideas (all duplicate),
     # try existing script_ready ideas from DB — limit to ideas_count to produce

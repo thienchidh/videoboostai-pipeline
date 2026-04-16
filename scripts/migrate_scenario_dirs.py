@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Migrate scenario YAML files from date-grouped to flat structure.
 
 Usage: python scripts/migrate_scenario_dirs.py [--dry-run]

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """
 health_check.py — Pipeline pre-flight health check.
 

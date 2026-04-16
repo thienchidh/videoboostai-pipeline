@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """
 scripts/migrate_cost_log_schema.py — Fix cost_log column names + cost_usd storage
 

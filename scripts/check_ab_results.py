@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """
 scripts/check_ab_results.py — Poll Facebook/TikTok Insights API to check A/B test CTR.
 

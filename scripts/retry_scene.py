@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """scripts/retry_scene.py — Retry/resume from a specific step within a scene."""
 
 import argparse

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """
 batch_generate.py — Cron-friendly batch video generation from content calendar.
 

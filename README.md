@@ -5,6 +5,7 @@ Một pipeline tự động tạo video ngắn (TikTok/Reels) từ kịch bản 
 ## Mục lục
 - [Quick Start](#quick-start)
 - [Cài đặt](#cài-đặt)
+- [Python Environment (IMPORTANT)](#python-environment-important)
 - [Cấu trúc Project](#cấu-trúc-project)
 - [Config](#cấu-trúc-config)
 - [Chạy Pipeline](#chạy-pipeline)
@@ -35,8 +36,10 @@ cp configs/technical/config_technical.yaml.example configs/technical/config_tech
 # 4. Tạo channel + scenario
 # Xem mẫu: configs/channels/nang_suat_thong_minh/
 
-# 5. Chạy pipeline
-./venv/bin/python scripts/video_pipeline_v3.py nang_suat_thong_minh
+# 5. Chạy pipeline (luôn dùng venv Python)
+./venv/bin/python scripts/run_pipeline.py --channel nang_suat_thong_minh --ideas 1 --produce
+# Hoặc nếu đã có direnv setup:
+python scripts/run_pipeline.py --channel nang_suat_thong_minh --ideas 1 --produce
 ```
 
 ---
@@ -59,6 +62,36 @@ pip install -r requirements.txt
 sudo apt-get install fonts-dejavu fonts-liberation
 # Hoặc copy font vào fonts/
 ```
+
+### direnv (KHUYẾN NGHỊ)
+**Setup auto-activate venv khi cd vào project directory.**
+
+```bash
+# 1. Install direnv
+curl -s https://direnv.net/install.sh | bash
+
+# 2. Thêm hook vào ~/.bashrc
+echo 'eval "$(direnv hook bash)"' >> ~/.bashrc
+
+# 3. Restart shell (đóng terminal cũ, mở terminal mới)
+
+# 4. Trong project directory, tạo .envrc
+echo "source venv/bin/activate" > .envrc
+
+# 5. Approve .envrc
+cd /path/to/videoboostai-pipeline  # (direnv sẽ yêu cầu approve)
+direnv allow .
+```
+
+Sau đó **mở terminal mới**, `cd` vào project → direnv tự động activate venv.
+
+### Auto-activate cho team (commit .envrc)
+File `.envrc` đã được commit vào repo. Mỗi thành viên chỉ cần:
+1. Install direnv
+2. Thêm `eval "$(direnv hook bash)"` vào `.bashrc`
+3. Restart shell, `cd` vào project, `direnv allow .` một lần
+
+**Lưu ý:** `.envrc` chỉ chạy khi cd vào directory — không can thiệp được shebang. Scripts vẫn cần gọi đúng Python.
 
 ---
 
@@ -185,34 +218,31 @@ scenes:
 
 ## Chạy Pipeline
 
-### Chạy đầy đủ
+**LUÔN dùng venv Python** — `./venv/bin/python scripts/...` hoặc `python scripts/...` (sau khi direnv activate).
+
+### Unified pipeline (content + video)
 ```bash
-./venv/bin/python scripts/video_pipeline_v3.py nang_suat_thong_minh
+./venv/bin/python scripts/run_pipeline.py --channel nang_suat_thong_minh --ideas 1 --produce
 ```
 
 ### Chạy với scenario cụ thể
 ```bash
-./venv/bin/python scripts/video_pipeline_v3.py nang_suat_thong_minh/2026-04-13/3-meo-tang-nangsuat
+./venv/bin/python scripts/run_pipeline.py --channel nang_suat_thong_minh --ideas 1 --produce --scenario configs/channels/nang_suat_thong_minh/scenarios/2026-04-13/3-meo-tang-nangsuat.yaml
 ```
 
 ### Dry run (không gọi API)
 ```bash
-./venv/bin/python scripts/video_pipeline_v3.py nang_suat_thong_minh --dry-run
+./venv/bin/python scripts/run_pipeline.py --channel nang_suat_thong_minh --ideas 1 --dry-run
 ```
 
-### Chỉ mock TTS
+### Skip lipsync (tiết kiệm credits)
 ```bash
-./venv/bin/python scripts/video_pipeline_v3.py nang_suat_thong_minh --dry-run-tts
-```
-
-### Stop trước lipsync (tiết kiệm credits)
-```bash
-./venv/bin/python scripts/video_pipeline_v3.py nang_suat_thong_minh --stop-before-lipsync
+./venv/bin/python scripts/run_pipeline.py --channel nang_suat_thong_minh --ideas 1 --produce --skip-lipsync
 ```
 
 ### Upload lên social sau khi tạo xong
 ```bash
-./venv/bin/python scripts/video_pipeline_v3.py nang_suat_thong_minh --upload
+./venv/bin/python scripts/run_pipeline.py --channel nang_suat_thong_minh --upload
 ```
 
 ---
@@ -304,13 +334,8 @@ Khi đang chạy full flow mà hết credits lipsync (Kie.ai/WaveSpeed), pipelin
 # Chạy tất cả tests
 ./venv/bin/pytest tests/ -v
 
-# Tests pass: 89/89 ✅
-
 # Structure tests
 ./venv/bin/pytest tests/test_scene_processor.py -v
-
-# Pipeline runner tests
-./venv/bin/pytest tests/test_pipeline_runner.py -v
 
 # Video utils tests
 ./venv/bin/pytest tests/test_video_utils.py -v
@@ -359,9 +384,13 @@ storage:
 
 ## Troubleshooting
 
-### Lỗi "ModuleNotFoundError: No module named 'yaml'"
+### Lỗi "ModuleNotFoundError: No module named 'xxx'"
+→ **Sai Python!** Có thể đang dùng linuxbrew Python 3.14 thay vì venv. Luôn dùng:
 ```bash
-pip install pyyaml
+./venv/bin/python scripts/run_pipeline.py ...
+# hoặc activate venv trước
+source venv/bin/activate
+python scripts/run_pipeline.py ...
 ```
 
 ### Lỗi "ffmpeg not found"

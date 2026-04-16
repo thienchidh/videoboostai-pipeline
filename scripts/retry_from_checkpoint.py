@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """
 scripts/retry_from_checkpoint.py — Resume a failed video pipeline run from the last checkpoint.
 

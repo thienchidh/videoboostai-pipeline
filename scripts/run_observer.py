@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """
 scripts/run_observer.py — Launch the Pipeline Observer HTTP server.
 

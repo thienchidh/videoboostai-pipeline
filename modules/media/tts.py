@@ -9,6 +9,7 @@ Provides:
 
 import json
 import os
+import sys
 import time
 import subprocess
 import requests
@@ -200,7 +201,8 @@ class EdgeTTSProvider(TTSProvider):
 
         try:
             # Run async generate with proper event loop policy for Windows
-            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+            if sys.platform == "win32":
+                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
             asyncio.run(_generate())
 
             # Verify file was created with content

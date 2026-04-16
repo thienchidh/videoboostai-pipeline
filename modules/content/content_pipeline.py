@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, date, time
 from pathlib import Path
 from typing import List, Dict, Optional, Any
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
 
@@ -443,59 +444,73 @@ class ContentPipeline:
         produced = []
         scheduled = []
 
-        try:
-            for i, idea_id in enumerate(idea_ids):
-                if i < start_idea_index:
-                    logger.info(f"  Skipping already processed idea {idea_id} (index {i})")
-                    continue
+        # ---- Phase 1: Generate all scripts in parallel ----
+        logger.info("Step 3a: Generating all scripts in parallel...")
+        script_results = []  # list of (i, idea_id, script, config_path) for non-skipped ideas
 
-                idea = ideas[i]
-                script = self.idea_gen.generate_script_from_idea(idea, num_scenes=self.scene_count)
-                self.idea_gen.update_idea_script(idea_id, script)
+        def generate_one_script(args):
+            """Generate script for one idea. Returns (i, idea_id, script, config_path) or None if skipped."""
+            i, idea_id = args
+            if i < start_idea_index:
+                return None  # already processed
+            idea = ideas[i]
+            script = self.idea_gen.generate_script_from_idea(idea, num_scenes=self.scene_count)
+            self.idea_gen.update_idea_script(idea_id, script)
+            config_path = str(self._save_script_config(idea_id, script))
+            logger.info(f"  Script generated for idea {idea_id}: {idea.get('title', '')[:50]}")
+            return (i, idea_id, script, config_path)
 
-                # Save script to file
-                config_path = self._save_script_config(idea_id, script)
-                logger.info(f"  Script saved for idea {idea_id}: {idea.get('title', '')[:50]}")
+        # Run in parallel using ThreadPoolExecutor (max_workers=3 to limit API pressure)
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {
+                executor.submit(generate_one_script, (i, idea_ids[i])): i
+                for i in range(len(idea_ids))
+            }
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    script_results.append(result)
 
-                # Produce video immediately for this just-generated script
-                logger.info(f"  Producing video for idea {idea_id}...")
-                prod_result = self.produce_video(idea_id)
-                produced.append({
-                    "idea_id": idea_id,
-                    "config_path": str(config_path),
-                    "result": prod_result,
-                })
-                logger.info(f"  Production result: {prod_result.get('success')}")
+        # Sort by original index to maintain order
+        script_results.sort(key=lambda x: x[0])
+        logger.info(f"  Generated {len(script_results)} scripts in parallel")
 
-                # Write checkpoint after each idea is processed
-                checkpoint = {
-                    "last_processed_idea_index": i,
-                    "source_id": source_id,
-                    "idea_ids_processed": idea_ids[:i+1],
-                    "timestamp": datetime.now().isoformat(),
-                }
-                with open(checkpoint_path, "w") as f:
-                    json.dump(checkpoint, f)
+        # ---- Phase 2: Produce videos sequentially (avoid disk/DB contention) ----
+        logger.info("Step 3b: Producing videos sequentially...")
+        for idx, (i, idea_id, script, config_path) in enumerate(script_results):
+            logger.info(f"  Producing video for idea {idea_id}...")
+            prod_result = self.produce_video(idea_id)
+            produced.append({
+                "idea_id": idea_id,
+                "config_path": config_path,
+                "result": prod_result,
+            })
+            logger.info(f"  Production result: {prod_result.get('success')}")
 
-                # Schedule for social posting (if not dry_run and auto_schedule)
-                if self.auto_schedule and prod_result.get("success") and not self.dry_run:
-                    platforms = ["facebook", "tiktok"] if self.idea_gen.target_platform == "both" else [self.idea_gen.target_platform]
-                    start_date = date.today()
-                    for platform in platforms:
-                        cal_id = self.calendar.schedule_idea(
-                            idea_id=idea_id,
-                            platform=platform,
-                            scheduled_date=start_date,
-                            scheduled_time=self.schedule_time,
-                            priority="medium"
-                        )
-                        scheduled.append({"idea_id": idea_id, "platform": platform, "calendar_id": cal_id})
-                        logger.info(f"  Scheduled {idea_id} for {platform}")
-        finally:
-            # Checkpoint is preserved for crash recovery.
-            # Explicit --resume will re-process from last checkpoint.
-            # Only clean up if the pipeline explicitly succeeded.
-            pass
+            # Write checkpoint after each idea is processed
+            checkpoint = {
+                "last_processed_idea_index": i,
+                "source_id": source_id,
+                "idea_ids_processed": idea_ids[:i+1],
+                "timestamp": datetime.now().isoformat(),
+            }
+            with open(checkpoint_path, "w") as f:
+                json.dump(checkpoint, f)
+
+            # Schedule for social posting (if not dry_run and auto_schedule)
+            if self.auto_schedule and prod_result.get("success") and not self.dry_run:
+                platforms = ["facebook", "tiktok"] if self.idea_gen.target_platform == "both" else [self.idea_gen.target_platform]
+                start_date = date.today()
+                for platform in platforms:
+                    cal_id = self.calendar.schedule_idea(
+                        idea_id=idea_id,
+                        platform=platform,
+                        scheduled_date=start_date,
+                        scheduled_time=self.schedule_time,
+                        priority="medium"
+                    )
+                    scheduled.append({"idea_id": idea_id, "platform": platform, "calendar_id": cal_id})
+                    logger.info(f"  Scheduled {idea_id} for {platform}")
 
         # Mark topic source as completed after all YAML files are saved successfully
         if source_id:
@@ -594,6 +609,7 @@ class ContentPipeline:
         If config_path is not provided, saves YAML from DB first.
         Returns pipeline result dict.
         """
+        import db as db_module
         from db import get_content_idea
 
         # Get idea and script
@@ -620,21 +636,31 @@ class ContentPipeline:
         if not config_path:
             config_path = str(self._save_script_config(idea_id, script_json))
 
-        if self.dry_run:
-            logger.info(f"DRY RUN: would run pipeline with {config_path}")
-            return {
-                "success": True,
-                "dry_run": True,
-                "config_path": str(config_path),
-                "idea_id": idea_id,
-                "captions": {
-                    "facebook": fb_caption.for_facebook() if fb_caption else None,
-                    "tiktok": tt_caption.for_tiktok() if tt_caption else None,
-                },
-            }
+        # Extract channel_id from path: configs/channels/{channel_id}/scenarios/...
+        config_path_obj = Path(config_path)
+        rel_parts = config_path_obj.relative_to(self.project_root / "configs" / "channels").parts
+        channel_id = rel_parts[0]
 
-        # Run pipeline directly
+        # Acquire video production lock (prevents concurrent runs on same channel)
+        video_lock_id = f"video_lock_{channel_id}_{idea_id}"
+        lock_acquired = db_module.acquire_research_lock(video_lock_id, timeout_seconds=7200)
+        if not lock_acquired:
+            return {"success": False, "error": "Another video production is in progress for this channel"}
+
         try:
+            if self.dry_run:
+                logger.info(f"DRY RUN: would run pipeline with {config_path}")
+                return {
+                    "success": True,
+                    "dry_run": True,
+                    "config_path": str(config_path),
+                    "idea_id": idea_id,
+                    "captions": {
+                        "facebook": fb_caption.for_facebook() if fb_caption else None,
+                        "tiktok": tt_caption.for_tiktok() if tt_caption else None,
+                    },
+                }
+
             # Import VideoPipelineV3 directly
             from scripts.video_pipeline_v3 import VideoPipelineV3
             import scripts.video_pipeline_v3 as vp_module
@@ -645,12 +671,6 @@ class ContentPipeline:
             vp_module.DRY_RUN_IMAGES = False
             vp_module.UPLOAD_TO_SOCIALS = False
             vp_module.USE_STATIC_LIPSYNC = self.skip_lipsync
-
-            # Extract channel_id from path: configs/channels/{channel_id}/scenarios/...
-            config_path_obj = Path(config_path)
-            rel_parts = config_path_obj.relative_to(self.project_root / "configs" / "channels").parts
-            # rel_parts = (channel_id, "scenarios", date, slug.yaml)
-            channel_id = rel_parts[0]
 
             # Run pipeline with channel_id + full YAML path (explicit flags to avoid global timing race)
             pipeline = VideoPipelineV3(
@@ -697,6 +717,8 @@ class ContentPipeline:
         except Exception as e:
             logger.error(f"Pipeline error: {e}", exc_info=True)
             return {"success": False, "error": str(e) if e else "unknown error"}
+        finally:
+            db_module.release_research_lock(video_lock_id)
 
     def produce_due_items(self, platform: str = None) -> List[Dict]:
         """

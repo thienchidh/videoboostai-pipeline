@@ -8,7 +8,7 @@ import os
 from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
 
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timezone, timedelta
 from sqlalchemy import create_engine, text, func
 from sqlalchemy.orm import sessionmaker, Session
 
@@ -191,6 +191,26 @@ def fail_video_run(run_id: int, error: str = None):
         if run:
             run.status = "failed"
             run.completed_at = datetime.now(timezone.utc)
+
+
+def mark_stale_runs_failed(threshold_seconds: int = 7200) -> int:
+    """Mark runs stuck in 'in_progress' for too long as failed.
+
+    Args:
+        threshold_seconds: Runs in_progress longer than this are considered stale.
+    Returns:
+        Number of runs marked as failed.
+    """
+    with get_session() as session:
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=threshold_seconds)
+        stale = session.query(models.VideoRun).filter(
+            models.VideoRun.status == "in_progress",
+            models.VideoRun.started_at < cutoff,
+        )
+        count = stale.count()
+        if count > 0:
+            stale.update({"status": "failed", "completed_at": datetime.now(timezone.utc)})
+        return count
 
 
 def create_video_run(project_id: int, run_dir: str, config_snapshot: dict = None,

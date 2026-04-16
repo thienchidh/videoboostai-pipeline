@@ -31,6 +31,21 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 import db
 from modules.pipeline.checkpoint import STEP_NAMES, STEP_DONE
+from typing import Optional
+
+
+def resolve_run_id_from_db(run_dir: Path) -> Optional[int]:
+    """Resolve run_id from run_dir by querying DB for matching output_video path.
+
+    Queries VideoRun rows where output_video contains the run_dir name.
+    Returns the run_id if found, None otherwise.
+    """
+    import db_models as models
+    with db.get_session() as session:
+        run = session.query(models.VideoRun).filter(
+            models.VideoRun.output_video.like(f"%{run_dir.name}%")
+        ).first()
+        return run.id if run else None
 
 
 def _build_scene_id(run_id: int, scene_num: int) -> str:
@@ -270,34 +285,8 @@ Examples:
         if not run_dir.exists():
             print(f"❌ Run dir not found: {run_dir}")
             sys.exit(1)
-        # Try to get run_id from DB by matching run_dir
-        # This is a heuristic - find the most recent run whose run_dir matches
-        # We look up the scene checkpoints to find the run_id
-        import db_models as models
-        with db.get_session() as session:
-            # Try to find a run with matching dir
-            from sqlalchemy import func
-            run_row = session.query(models.VideoRun).filter(
-                models.VideoRun.run_dir == str(run_dir)
-            ).first()
-            if run_row:
-                run_id = run_row.id
-            else:
-                # Find scene checkpoints that match the run_dir pattern
-                # Scene IDs look like "run_{run_id}_scene_{scene_num}"
-                # We need to find the run_id from the checkpoint table
-                cp_row = session.query(models.SceneCheckpoint).filter(
-                    models.SceneCheckpoint.scene_id.like(f"%_scene_%")
-                ).first()
-                if cp_row:
-                    # Parse run_id from scene_id like "run_42_scene_3"
-                    parts = cp_row.scene_id.split("_scene_")
-                    if len(parts) == 2 and parts[0].startswith("run_"):
-                        run_id = int(parts[0].replace("run_", ""))
-                    else:
-                        run_id = None
-                else:
-                    run_id = None
+        # Use DB query to resolve run_id from run_dir (not fragile checkpoint parsing)
+        run_id = resolve_run_id_from_db(run_dir)
 
         if run_id is None:
             print(f"❌ Could not determine run_id for: {run_dir}")

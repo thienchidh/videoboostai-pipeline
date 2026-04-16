@@ -11,6 +11,27 @@ class CircuitOpenError(Exception):
     pass
 
 
+class BackoffCalculator:
+    """Calculates retry delays for batch operations with configurable growth."""
+
+    def __init__(self, base_seconds: float = 10.0, cap_seconds: float = 3600.0):
+        self.base = base_seconds
+        self.cap = cap_seconds
+
+    def delay_for_attempt(self, attempt: int) -> float:
+        """Return delay in seconds for given attempt number (1-indexed)."""
+        if attempt <= 0:
+            return 0
+        # Exponential growth with cap
+        delay = self.base * (10 ** (attempt - 1))
+        return min(delay, self.cap)
+
+
+BATCH_MAX_RETRIES = 3
+BATCH_BACKOFF_BASE_SECONDS = 10.0
+BATCH_BACKOFF_CAP_SECONDS = 3600.0
+
+
 class Backoff:
     """
     Exponential backoff with capped delay.

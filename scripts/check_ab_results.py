@@ -421,16 +421,19 @@ class ABCaptionChecker:
         # CTR for variant-B is not yet available (only variant-A is posted).
         # We store variant-A's CTR and mark status. Winner decision requires
         # variant-B to be posted separately in future.
-        # For now: use variant-A CTR as the baseline.
-        # TODO(VP-030-future): Post variant-B after variant-A results are in,
-        # then compare directly.
         ctr_a = ctr_data
         ctr_b = {}  # Not yet available
 
-        # For "winner": since only variant-A has been tested, we mark
-        # "a" as provisional winner (only one variant has data)
-        # The real comparison happens when VP-030-future is implemented.
-        winner = "a"  # Provisional — only variant-A posted so far
+        # Determine winner based on CTR — only set when one variant is 20%+ better
+        winner = None
+        score_a = ctr_a.get("ctr", 0) or 0.0
+        score_b = ctr_b.get("ctr", 0) or 0.0
+
+        if score_a > score_b * 1.2:
+            winner = "a"
+        elif score_b > score_a * 1.2:
+            winner = "b"
+        # else: winner = None (inconclusive — need more data)
 
         if self.dry_run:
             logger.info(f"  [DRY-RUN] Would update test #{test_id}: winner={winner}, ctr_a={ctr_a}")
@@ -452,7 +455,10 @@ class ABCaptionChecker:
                 winner=winner,
                 status="winner_decided",
             )
-            logger.info(f"  Test #{test_id}: winner={winner.upper()} (variant-A only — provisional)")
+            if winner:
+                logger.info(f"  Test #{test_id}: winner={winner.upper()} (CTR {score_a:.4f} vs {score_b:.4f})")
+            else:
+                logger.info(f"  Test #{test_id}: inconclusive — CTR {score_a:.4f} vs {score_b:.4f} (need 20%% gap)")
         except Exception as e:
             logger.error(f"  Test #{test_id}: DB update failed: {e}")
             return {**test, "test_id": test_id, "winner": None, "error": str(e)}

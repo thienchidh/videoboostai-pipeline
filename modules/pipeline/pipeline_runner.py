@@ -9,6 +9,7 @@ import json
 import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -332,6 +333,45 @@ class VideoPipelineRunner:
             if stale_count > 0:
                 log(f"  🧹 Cleaned up {stale_count} stale in_progress runs")
 
+            # Write run_meta.json at start
+            run_meta_path = self.run_dir / "run_meta.json"
+            if not run_meta_path.exists():
+                gen = self.ctx.technical.generation if self.ctx.technical else None
+                run_meta = {
+                    "run_id": self.run_id,
+                    "run_dir": str(self.run_dir),
+                    "channel_id": self.ctx.channel_id,
+                    "scenario_slug": getattr(self.ctx.scenario, 'slug', ''),
+                    "scenario_title": getattr(self.ctx.scenario, 'title', ''),
+                    "total_scenes": len(self.ctx.scenario.scenes) if self.ctx.scenario else 0,
+                    "started_at": datetime.now(timezone.utc).isoformat(),
+                    "completed_at": None,
+                    "config_snapshot": {
+                        "tts": {
+                            "model": gen.tts.model if gen and gen.tts else "speech-2.1-hd",
+                            "sample_rate": gen.tts.sample_rate if gen and gen.tts else 32000,
+                            "bitrate": gen.tts.bitrate if gen and gen.tts else 128000,
+                            "format": gen.tts.format if gen and gen.tts else "mp3",
+                            "timeout": gen.tts.timeout if gen and gen.tts else 60,
+                        },
+                        "image": {
+                            "model": gen.image.model if gen and gen.image else "image-01",
+                            "aspect_ratio": gen.image.aspect_ratio if gen and gen.image else "9:16",
+                            "timeout": gen.image.timeout if gen and gen.image else 120,
+                        },
+                        "lipsync": {
+                            "provider": gen.lipsync.provider if gen and gen.lipsync else "kieai",
+                            "resolution": gen.lipsync.resolution if gen and gen.lipsync else "480p",
+                            "max_wait": gen.lipsync.max_wait if gen and gen.lipsync else 300,
+                            "poll_interval": gen.lipsync.poll_interval if gen and gen.lipsync else 10,
+                            "retries": gen.lipsync.retries if gen and gen.lipsync else 2,
+                        },
+                    },
+                }
+                with open(run_meta_path, "w", encoding="utf-8") as f:
+                    json.dump(run_meta, f, ensure_ascii=False, indent=2)
+                log(f"  📝 run_meta.json written")
+
             scenes = self.ctx.scenario.scenes
             if not scenes:
                 raise ValueError("Scenario has no scenes — at least one scene is required")
@@ -506,6 +546,15 @@ class VideoPipelineRunner:
 
             if self.run_id:
                 db.complete_video_run(self.run_id, status="completed")
+
+            # Update run_meta.json completed_at
+            run_meta_path = self.run_dir / "run_meta.json"
+            if run_meta_path.exists():
+                with open(run_meta_path, encoding="utf-8") as f:
+                    run_meta = json.load(f)
+                run_meta["completed_at"] = datetime.now(timezone.utc).isoformat()
+                with open(run_meta_path, "w", encoding="utf-8") as f:
+                    json.dump(run_meta, f, ensure_ascii=False, indent=2)
 
             return str(final_output), combined_timestamps
         except Exception as e:

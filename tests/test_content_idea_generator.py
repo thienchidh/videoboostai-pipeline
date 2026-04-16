@@ -367,3 +367,54 @@ def test_generate_script_from_idea_includes_video_message():
 
     assert "video_message" in result, f"video_message not in result keys: {list(result.keys())}"
     assert result["video_message"] == "Tập trung vào 1 việc quan trọng nhất trước"
+
+
+def test_generate_video_message_returns_non_null():
+    """_generate_video_message returns a non-null string when LLM succeeds."""
+    import json
+    from unittest.mock import MagicMock, patch
+    from modules.content.content_idea_generator import ContentIdeaGenerator
+    from modules.pipeline.models import GenerationLLM
+
+    mock_channel = MagicMock()
+    mock_channel.name = "Test Channel"
+    mock_channel.characters = [MagicMock(name="NamMinh", voice_id="x")]
+    mock_channel.tts = MagicMock(max_duration=15.0, min_duration=5.0)
+
+    gen = ContentIdeaGenerator(project_id=1, channel_config=mock_channel)
+    gen._llm = GenerationLLM(provider="minimax", model="MiniMax-M2.7", max_tokens=256, retry_attempts=2, retry_backoff_max=5)
+
+    mock_llm = MagicMock()
+    mock_llm.chat.return_value = json.dumps({"video_message": "90-phút thay vì 25-phút Pomodoro — Olympic dùng phương pháp này để đạt peak state"})
+
+    with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
+        result = gen._generate_video_message("Test Title", ["productivity"], "tips", "Some research description")
+
+    assert result is not None
+    assert isinstance(result, str)
+    assert len(result) > 10
+    assert "90-phút" in result
+
+
+def test_generate_video_message_raises_on_empty():
+    """_generate_video_message raises RuntimeError when LLM returns empty."""
+    from unittest.mock import MagicMock, patch
+    from modules.content.content_idea_generator import ContentIdeaGenerator
+    from modules.pipeline.models import GenerationLLM
+
+    mock_channel = MagicMock()
+    mock_channel.name = "Test Channel"
+    mock_channel.characters = [MagicMock(name="NamMinh", voice_id="x")]
+    mock_channel.tts = MagicMock(max_duration=15.0, min_duration=5.0)
+
+    gen = ContentIdeaGenerator(project_id=1, channel_config=mock_channel)
+    gen._llm = GenerationLLM(provider="minimax", model="MiniMax-M2.7", max_tokens=256, retry_attempts=2, retry_backoff_max=5)
+
+    mock_llm = MagicMock()
+    # LLM returns JSON with null video_message
+    mock_llm.chat.return_value = '{"video_message": null}'
+
+    with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
+        with pytest.raises(RuntimeError) as exc_info:
+            gen._generate_video_message("Test Title", ["productivity"], "tips", "description")
+    assert "empty/null video_message" in str(exc_info.value)

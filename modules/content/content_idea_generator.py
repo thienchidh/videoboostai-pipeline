@@ -332,6 +332,48 @@ MỖI SCENE PHẢI KHÁC NHAU — CAM KẾT TRƯỚC:
 
 Trả về CHỈ JSON object có video_message và scenes, không kèm markdown."""
 
+    def _build_video_message_prompt(self, title: str, keywords: List[str],
+                                     angle: str, description: str) -> str:
+        """Build the prompt for Step 1: generating video_message.
+
+        Returns a prompt instructing LLM to act as chief content strategist
+        and produce a single video_message JSON object.
+        """
+        if not self._channel_config:
+            raise ValueError("channel_config is required")
+
+        kw_list_str = ", ".join(keywords) if keywords else ""
+
+        return f"""Bạn là CHIEF CONTENT STRATEGIST cho kênh TikTok/Reels tiếng Việt.
+
+NHIỆM VỤ:
+Xác định "video_message" — thông điệp MANG ĐI của viewer sau khi xem video.
+
+QUY TẮC:
+1. video_message phải là 1-2 câu, NGẮN GỌN, CÓ Ý NGHĨA RÕ RÀNG
+2. KHÔNG generic — phải CỤ THỂ, có con số HOẶC promise rõ ràng
+3. Phải có "hook" — điều bất ngờ, thách thức, hoặc specific claim
+4. Dựa vào NỘI DUNG THAM KHẢO, không bịa
+
+NỘI DUNG THAM KHẢO:
+{title}
+Keywords: {kw_list_str}
+Content angle: {angle}
+Description:
+{description[:1500]}
+
+VÍ DỤ TỐT:
+- "Phương pháp 90-phút giúp deep work HIỆU QUẢ HƠN 40% so với Pomodoro"
+- "Nguyên tắc Pareto 80/20 không phải lúc nào cũng đúng — đây là version CẢI TIẾN"
+- "Đêm ngủ 8 tiếng là SAI — thực tế Olympic dùng phương pháp khác"
+
+OUTPUT JSON:
+{{
+  "video_message": "viết video_message ở đây"
+}}
+
+CHỈ JSON, không markdown, KHÔNG THÊM GÌ KHÁC."""
+
     def _parse_scenes(self, text: str) -> List[SceneConfig]:
         """Parse JSON scenes from LLM response text.
 
@@ -377,6 +419,60 @@ Trả về CHỈ JSON object có video_message và scenes, không kèm markdown.
         except json.JSONDecodeError:
             pass
         return None
+
+    def _generate_video_message(self, title: str, keywords: List[str],
+                                 angle: str, description: str) -> str:
+        """Generate video_message via dedicated LLM call.
+
+        This is Step 1 of the two-step generation. The video_message is
+        NEVER None — if LLM fails or returns empty, we raise after retries.
+
+        Args:
+            title: Topic title.
+            keywords: Topic keywords list.
+            angle: Content angle (tips, educational, etc.).
+            description: Researched content used as source knowledge.
+
+        Returns:
+            Non-empty video_message string.
+
+        Raises:
+            RuntimeError: If LLM returns empty/null video_message after max retries.
+        """
+        from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
+        from modules.pipeline.models import TechnicalConfig
+
+        if not self._llm or not self._llm.model:
+            raise ConfigMissingKeyError("generation.llm.model", "ContentIdeaGenerator")
+        tech_cfg = self._technical_config if self._technical_config else TechnicalConfig.load()
+        api_key = tech_cfg.api_keys.minimax
+        if not api_key:
+            raise RuntimeError("minimax API key not found in config")
+
+        llm = get_llm_provider(
+            name=self._llm.provider if self._llm else "minimax",
+            api_key=api_key,
+            model=self._llm.model if self._llm else "MiniMax-M2.7",
+        )
+
+        prompt = self._build_video_message_prompt(title, keywords, angle, description)
+
+        @retry(
+            stop=stop_after_attempt(self._llm.retry_attempts if self._llm else 3),
+            wait=wait_exponential(multiplier=1, min=1, max=self._llm.retry_backoff_max if self._llm else 10),
+            before_sleep=before_sleep_log(logger, logging.WARNING),
+            reraise=True,
+        )
+        def _call_llm():
+            raw = llm.chat(prompt, max_tokens=self._llm.max_tokens if self._llm else 256)
+            msg = self._extract_video_message(raw)
+            if not msg:
+                raise RuntimeError("LLM returned empty/null video_message")
+            return msg
+
+        video_message = _call_llm()
+        logger.info(f"Generated video_message: {video_message[:80]}...")
+        return video_message
 
     def _estimate_tts_duration(self, text: str, wps: float = 2.5) -> float:
         """Estimate TTS duration in seconds from text word count."""

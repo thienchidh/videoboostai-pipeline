@@ -69,46 +69,225 @@ Files use 2-digit step numbers (01-04) matching execution order:
 
 #### Checkpoint JSON format
 
+Full JSON schemas per step (all paths are absolute):
+
+**RUN-LEVEL: `run_meta.json`** (one per run directory)
+```json
+{
+  "run_id": 42,
+  "run_dir": "/path/to/run_dir",
+  "channel_id": "nang_suat_thong_minh",
+  "scenario_slug": "productivity_tips",
+  "scenario_title": "5 Tips Quản Lý Thời Gian",
+  "total_scenes": 3,
+  "started_at": "2026-04-16T10:00:00",
+  "completed_at": null,
+  "config_snapshot": {
+    "tts": { "model": "speech-2.1-hd", "sample_rate": 32000, "bitrate": 128000, "format": "mp3", "timeout": 60 },
+    "image": { "model": "image-01", "aspect_ratio": "9:16", "timeout": 120 },
+    "lipsync": { "provider": "kieai", "resolution": "480p", "max_wait": 300, "poll_interval": 10, "retries": 2 }
+  }
+}
+```
+
+**SCENE-LEVEL: `scene_meta.json`** (one per scene directory)
+```json
+{
+  "scene_id": 1,
+  "scene_index": 0,
+  "title": "Mẹo 1: Lên kế hoạch trước",
+  "script": "Hôm nay chúng ta sẽ nói về kỹ năng quản lý thời gian hiệu quả...",
+  "characters": ["speaker1"],
+  "tts_text": "Hôm nay chúng ta sẽ nói về...",
+  "video_prompt": "A female speaker, professional lighting, office background...",
+  "created_at": "2026-04-16T10:00:00"
+}
+```
+
+**STEP 1 — TTS: `step_01_tts.json`**
 ```json
 {
   "step": 1,
   "name": "tts",
   "status": "done",
   "mode": "edge",
-  "output": "audio_tts.mp3",
-  "created_at": "2026-04-16T10:30:00",
-  "error": null
+  "output": "/path/to/scene_1/audio_tts.mp3",
+  "duration_seconds": 12.5,
+  "text": "Hôm nay chúng ta sẽ nói về kỹ năng quản lý thời gian hiệu quả...",
+  "provider": "edge",
+  "voice": "vi-VN-NamMinhNeural",
+  "speed": 1.0,
+  "model": "edge-tts",
+  "sample_rate": 32000,
+  "bitrate": "128k",
+  "format": "mp3",
+  "input_duration": null,
+  "error": null,
+  "created_at": "2026-04-16T10:30:00"
 }
 ```
 
-**Fields:**
-- `step`: step number (1-4)
-- `name`: step name (tts, image, lipsync, crop)
-- `status`: `"done"` | `"failed"` | `"retry"`
-- `mode`: how the step was executed:
-  - TTS: `"edge"` | `"minimax"` | `"mock"`
-  - Image: `"minimax"` | `"kie"` | `"wavespeed"` | `"mock"`
-  - Lipsync: `"kieai"` | `"wavespeed"` | `"static_fallback"` | `"mock"`
-  - Crop: `"ffmpeg"`
-- `output`: filename written by the step
-- `created_at`: ISO timestamp
-- `error`: error message if status is `"failed"`, null otherwise
+**STEP 2 — IMAGE: `step_02_image.json`**
+```json
+{
+  "step": 2,
+  "name": "image",
+  "status": "done",
+  "mode": "minimax",
+  "output": "/path/to/scene_1/scene.png",
+  "input_text": "/path/to/scene_1/audio_tts.mp3",
+  "input_duration": 12.5,
+  "prompt": "A female speaker, professional lighting, office background, 4K quality...",
+  "provider": "minimax",
+  "model": "image-01",
+  "aspect_ratio": "9:16",
+  "gender": "female",
+  "character_name": "NamMinh",
+  "timeout": 120,
+  "poll_interval": 5,
+  "max_polls": 24,
+  "error": null,
+  "created_at": "2026-04-16T10:30:15"
+}
+```
 
-#### Fallback recording
+**STEP 3 — LIPSYNC: `step_03_lipsync.json`**
+```json
+{
+  "step": 3,
+  "name": "lipsync",
+  "status": "done",
+  "mode": "kieai",
+  "output": "/path/to/scene_1/video_raw.mp4",
+  "input_image": "/path/to/scene_1/scene.png",
+  "input_audio": "/path/to/scene_1/audio_tts.mp3",
+  "input_duration": 12.5,
+  "prompt": "A person talking confidently about time management...",
+  "provider": "kieai",
+  "actual_mode": "kieai",
+  "attempted_mode": "kieai",
+  "fallback_reason": null,
+  "resolution": "480p",
+  "max_wait": 300,
+  "poll_interval": 10,
+  "retries": 2,
+  "seed": null,
+  "task_id": "task_abc123",
+  "job_id": null,
+  "api_request_payload": { "model": "infinitalk/from-audio", "image_url": "https://...", "audio_url": "https://..." },
+  "api_response": { "success": true, "task_id": "task_abc123" },
+  "error": null,
+  "created_at": "2026-04-16T10:31:00"
+}
+```
 
-When a step falls back (e.g., lipsync → static image):
-
+**STEP 3 — LIPSYNC with FALLBACK: `step_03_lipsync.json`**
 ```json
 {
   "step": 3,
   "name": "lipsync",
   "status": "done",
   "mode": "static_fallback",
-  "output": "video_raw.mp4",
-  "created_at": "2026-04-16T10:35:00",
-  "error": "LipsyncQuotaError: quota exceeded"
+  "output": "/path/to/scene_1/video_raw.mp4",
+  "input_image": "/path/to/scene_1/scene.png",
+  "input_audio": "/path/to/scene_1/audio_tts.mp3",
+  "input_duration": 12.5,
+  "prompt": "A person talking confidently about time management...",
+  "provider": "kieai",
+  "actual_mode": "static_fallback",
+  "attempted_mode": "kieai",
+  "fallback_reason": "LipsyncQuotaError: quota exceeded",
+  "resolution": "480p",
+  "task_id": "task_abc123",
+  "api_error": "quota exceeded",
+  "error": "LipsyncQuotaError: quota exceeded",
+  "created_at": "2026-04-16T10:31:00"
 }
 ```
+
+**STEP 4 — CROP: `step_04_crop.json`**
+```json
+{
+  "step": 4,
+  "name": "crop",
+  "status": "done",
+  "mode": "ffmpeg",
+  "output": "/path/to/scene_1/video_9x16.mp4",
+  "input": "/path/to/scene_1/video_raw.mp4",
+  "input_duration": 12.5,
+  "input_width": 1920,
+  "input_height": 1080,
+  "input_ratio": 1.78,
+  "output_width": 1080,
+  "output_height": 1920,
+  "output_duration": 12.5,
+  "crop_filter": "crop=1080:1920:420:0",
+  "scale_filter": "scale=1080:1920",
+  "ffmpeg_cmd": "ffmpeg -i input -vf crop=1080:1920:420:0,scale=1080:1920 -c:v libx264 -preset fast -crf 23 -c:a aac -y output",
+  "codec": "libx264",
+  "crf": 23,
+  "preset": "fast",
+  "error": null,
+  "created_at": "2026-04-16T10:31:30"
+}
+```
+
+**Common fields across all step files:**
+- `step`: step number (1-4)
+- `name`: step name
+- `status`: `"done"` | `"failed"` | `"retry"`
+- `mode`: actual execution mode used
+- `output`: absolute path to output file
+- `created_at`: ISO timestamp
+- `error`: error message if failed, null otherwise
+
+**Per-step specific fields:**
+
+| Field | TTS | Image | Lipsync | Crop |
+|-------|-----|-------|---------|------|
+| `duration_seconds` | ✓ | — | — | — |
+| `text` | ✓ | — | — | — |
+| `provider` | ✓ | ✓ | ✓ | — |
+| `voice` | ✓ | — | — | — |
+| `speed` | ✓ | — | — | — |
+| `model` | ✓ | ✓ | — | — |
+| `sample_rate` | ✓ | — | — | — |
+| `bitrate` | ✓ | — | — | — |
+| `format` | ✓ | — | — | — |
+| `input_text` | — | ✓ | — | — |
+| `input_duration` | ✓ | ✓ | ✓ | ✓ |
+| `prompt` | — | ✓ | ✓ | — |
+| `gender` | — | ✓ | — | — |
+| `character_name` | — | ✓ | — | — |
+| `aspect_ratio` | — | ✓ | — | — |
+| `timeout` | — | ✓ | — | — |
+| `poll_interval` | — | ✓ | ✓ | — |
+| `max_polls` | — | ✓ | — | — |
+| `input_image` | — | — | ✓ | — |
+| `input_audio` | — | — | ✓ | — |
+| `attempted_mode` | — | — | ✓ | — |
+| `actual_mode` | — | — | ✓ | — |
+| `fallback_reason` | — | — | ✓ | — |
+| `resolution` | — | — | ✓ | — |
+| `max_wait` | — | — | ✓ | — |
+| `retries` | — | — | ✓ | — |
+| `seed` | — | — | ✓ | — |
+| `task_id` | — | — | ✓ | — |
+| `job_id` | — | — | ✓ | — |
+| `api_request_payload` | — | — | ✓ | — |
+| `api_response` | — | — | ✓ | — |
+| `api_error` | — | — | ✓ | — |
+| `input_width` | — | — | — | ✓ |
+| `input_height` | — | — | — | ✓ |
+| `input_ratio` | — | — | — | ✓ |
+| `output_width` | — | — | — | ✓ |
+| `output_height` | — | — | — | ✓ |
+| `crop_filter` | — | — | — | ✓ |
+| `scale_filter` | — | — | — | ✓ |
+| `ffmpeg_cmd` | — | — | — | ✓ |
+| `codec` | — | — | — | ✓ |
+| `crf` | — | — | — | ✓ |
+| `preset` | — | — | — | ✓ |
 
 #### Changes to `scene_processor.py`
 
@@ -151,33 +330,38 @@ def _get_first_incomplete_step(scene_dir: Path) -> int:
 
 #### Changes to `pipeline_runner.py`
 
-- `SingleCharSceneProcessor` no longer needs `run_id` (files are in scene_dir, no DB)
-- `CheckpointHelper` from `checkpoint.py` is **not used** — replaced by file-based approach
+- `VideoPipelineRunner.__init__` writes `run_meta.json` at start of `run()`
+- `SingleCharSceneProcessor` receives `run_id` and uses it only for `run_meta.json` linkage
 - `resume=True` passed to `single_processor` enables step-level file scanning
 
 #### Changes to `retry_from_checkpoint.py`
 
-Rename to `retry_scene.py` or extend with new flags:
+Rename to `retry_scene.py`:
 
 ```
-# Re-run from a specific step within a scene
+# List current step status
+python scripts/retry_scene.py --scene-dir output/.../scene_3
+
+# Re-run specific step
 python scripts/retry_scene.py --scene-dir output/.../scene_3 --step 3
 
 # Clear step checkpoint (force re-run from that step)
 python scripts/retry_scene.py --scene-dir output/.../scene_3 --step 3 --clear
 
-# List current step status
-python scripts/retry_scene.py --scene-dir output/.../scene_3 --list
+# Re-run from first failed/incomplete step
+python scripts/retry_scene.py --scene-dir output/.../scene_3 --resume
 ```
 
-The script reads `step_XX_*.json` files from the scene directory and prints a table:
+The script reads `step_XX_*.json` files and prints a table:
 
 ```
 scene_3/
-  step_01_tts.json       done  edge
-  step_02_image.json     done  minimax
-  step_03_lipsync.json   done  static_fallback  ⚠️ LipsyncQuotaError
-  step_04_crop.json     done  ffmpeg
+  run_meta.json       run_id=42 channel=nang_suat_thong_minh
+  scene_meta.json     scene_id=1 title="Mẹo 1..."
+  step_01_tts.json    done  edge           12.5s
+  step_02_image.json  done  minimax        1920x1080
+  step_03_lipsync.json done  static_fallback ⚠️ LipsyncQuotaError
+  step_04_crop.json  done  ffmpeg
 ```
 
 User sees `static_fallback` with error → edits `step_03_lipsync.json` to set `"status": "retry"` → fixes config → re-runs.
@@ -230,16 +414,17 @@ Script reads step_03 → sees status=retry → re-runs lipsync with new config
 
 ### New files
 
-- `scripts/retry_scene.py` — reads step checkpoint files from scene dir, re-runs specific steps
+- `scripts/retry_scene.py` — reads step checkpoint files from scene dir, re-runs specific steps, prints status table
 
 ### Modified files
 
-- `modules/pipeline/scene_processor.py` — write `step_XX_*.json` after each step; scan for first incomplete/retry step on resume
-- `modules/pipeline/pipeline_runner.py` — pass `run_id` no longer needed; `resume` param still passed
+- `modules/pipeline/scene_processor.py` — write `step_XX_*.json` and `scene_meta.json` after each step; scan for first incomplete/retry step on resume
+- `modules/pipeline/pipeline_runner.py` — write `run_meta.json` at start of `run()`; pass `run_id` to `SingleCharSceneProcessor`
+- `core/video_utils.py` — `crop_to_9x16()` returns a dict with crop dimensions (input_w/h, crop_filter, scale_filter, etc.) so caller can record in checkpoint
 
 ### Removed/changed
 
-- `CheckpointHelper` from `checkpoint.py` — no longer used for step-level resume (DB checkpoints remain used for other purposes if any)
+- `CheckpointHelper` from `checkpoint.py` — no longer used for step-level resume (DB checkpoints remain used for scene_run tracking)
 - `retry_from_checkpoint.py` — superseded by `retry_scene.py` focused on file-based step retry
 
 ---

@@ -34,7 +34,7 @@ def test_generated_caption_has_cot_fields():
     )
     assert cap.thought_process == "Script nói về việc người thông minh làm ít hơn"
     assert cap.insight == "Người thông minh không làm nhiều hơn, họ làm khác hơn"
-    assert "thongminh" in cap.insight
+    assert "thông minh" in cap.insight or "không làm nhiều" in cap.insight
 
 
 def test_generated_caption_to_dict_includes_cot_fields():

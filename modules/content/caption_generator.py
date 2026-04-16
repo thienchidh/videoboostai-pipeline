@@ -27,7 +27,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class GeneratedCaption:
-    """Output from caption generation."""
+    """Output from caption generation with chain-of-thought."""
+    thought_process: str   # NEW: internal reasoning from CoT
+    insight: str          # NEW: contrarian hook
     headline: str
     body: str
     hashtags: List[str]
@@ -36,37 +38,14 @@ class GeneratedCaption:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            "thought_process": self.thought_process,
+            "insight": self.insight,
             "headline": self.headline,
             "body": self.body,
             "hashtags": self.hashtags,
             "cta": self.cta,
             "full_caption": self.full_caption,
         }
-
-    def for_tiktok(self) -> str:
-        """Caption formatted for TikTok (shorter, emoji-heavy)."""
-        lines = []
-        if self.headline:
-            lines.append(f"🔥 {self.headline}")
-        if self.body:
-            lines.append(self.body)
-        if self.hashtags:
-            lines.append(" ".join(self.hashtags[:5]))
-        return "\n".join(lines)
-
-    def for_facebook(self) -> str:
-        """Caption formatted for Facebook (longer, engaging)."""
-        lines = []
-        if self.headline:
-            lines.append(f"**{self.headline}**\n")
-        if self.body:
-            lines.append(f"{self.body}\n")
-        if self.cta:
-            lines.append(f"👉 {self.cta}\n")
-        if self.hashtags:
-            lines.append(" ".join(self.hashtags))
-        return "\n".join(lines)
-
 
 HEADLINE_TEMPLATES = [
     "Bạn chưa biết điều này về {topic}",

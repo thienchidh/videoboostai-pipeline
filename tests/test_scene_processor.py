@@ -393,6 +393,64 @@ class TestSingleCharSceneProcessor:
 
         assert video_path is None
 
+    def test_scene_processor_skip_image(self, tmp_path):
+        """SceneProcessor with skip_image=True skips image generation."""
+        from modules.pipeline.scene_processor import SingleCharSceneProcessor
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig
+
+        scene_output = tmp_path / "scene_skip_image"
+        scene_output.mkdir(parents=True)
+
+        characters = [CharacterConfig(name="TestChar", voice_id="female_voice")]
+        tts_cfg = TTSConfig(min_duration=2.0, max_duration=15.0)
+        ctx = make_mock_channel(characters=characters, tts_config=tts_cfg)
+
+        processor = SingleCharSceneProcessor(ctx, tmp_path, skip_image=True)
+        assert processor.skip_image == True
+
+        scene = SceneConfig(id=1, script="Xin chào", characters=["TestChar"])
+
+        # Track calls to verify image and lipsync are NOT called
+        call_order = []
+        def mock_tts(text, voice, speed, output):
+            call_order.append("tts")
+            shutil.copy(str(AUDIO_FILE), output)
+            return str(AUDIO_FILE)
+
+        def mock_img(prompt, output):
+            call_order.append("img")
+            return output
+
+        def mock_lip(img_path, audio_path, output, scene_id=None, prompt=None):
+            call_order.append("lip")
+            return output
+
+        def mock_crop(input_path, output_path):
+            shutil.copy(str(VIDEO_9X16), output_path)
+            return {
+                "output": str(output_path),
+                "input_width": 1920,
+                "input_height": 1080,
+                "input_ratio": 1.7778,
+                "output_width": 1080,
+                "output_height": 1920,
+                "crop_filter": "crop=960:1080:480:0,scale=1080:1920",
+                "scale_filter": "scale=1080:1920",
+                "ffmpeg_cmd": f"ffmpeg -i {input_path} -vf crop=960:1080:480:0,scale=1080:1920 -c:v libx264 -preset fast -crf 23 -c:a aac -y {output_path}",
+            }
+
+        with patch("modules.pipeline.scene_processor.get_audio_duration", return_value=2.0), \
+             patch("modules.pipeline.scene_processor.crop_to_9x16", side_effect=mock_crop), \
+             patch("modules.pipeline.scene_processor.get_ffmpeg", return_value=Path("ffmpeg")):
+            video_path, timestamps = processor.process(scene, scene_output, mock_tts, mock_img, mock_lip)
+
+        assert video_path is not None
+        assert "tts" in call_order
+        # image provider should NOT be called when skip_image=True
+        assert "img" not in call_order
+        # lipsync provider should NOT be called — static video is created directly
+        assert "lip" not in call_order
+
 
 class TestAlignWordTimestamps:
     """Tests for align_word_timestamps function."""

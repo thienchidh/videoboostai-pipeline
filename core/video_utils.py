@@ -147,13 +147,18 @@ def wait_for_job(job_id: str, wsp_base: str, wsp_key: str, max_wait: int = 300) 
 
 # ==================== CROP TO 9:16 ====================
 
-def crop_to_9x16(input_video: str, output_video: str) -> Optional[str]:
+def crop_to_9x16(input_video: str, output_video: str) -> Optional[Dict]:
     """Crop/convert any video to 9:16 vertical using center crop.
 
     Strategy:
     - Horizontal (16:9) input → center crop sides → scale to 1080x1920
     - Vertical (9:16) input → scale to fit
     - Square → scale to fit
+
+    Returns:
+        Dict with keys: output, input_width, input_height, input_ratio,
+        output_width, output_height, crop_filter, scale_filter, ffmpeg_cmd
+        Returns None on failure.
     """
     log(f"  📐 Crop to 9:16...")
 
@@ -166,7 +171,7 @@ def crop_to_9x16(input_video: str, output_video: str) -> Optional[str]:
         dims = result.stdout.strip().split(',')
         if len(dims) == 2:
             w, h = int(dims[0]), int(dims[1])
-            input_ratio = w / h
+            input_ratio = round(w / h, 4)
             target_ratio = 9 / 16  # 0.5625
 
             log(f"  📐 Input: {w}x{h} ({input_ratio:.2f}:1), Target: 9:16 ({target_ratio:.2f}:1)")
@@ -184,14 +189,26 @@ def crop_to_9x16(input_video: str, output_video: str) -> Optional[str]:
             else:
                 crop_filter = "scale=1080:1920"
 
+            scale_filter = "scale=1080:1920"
             cmd = [str(get_ffmpeg()), "-i", input_video,
                   "-vf", crop_filter,
                   "-c:v", "libx264", "-preset", "fast", "-crf", "23",
                   "-c:a", "aac", "-y", output_video]
+            ffmpeg_cmd = " ".join(cmd)
             try:
                 subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=300)
                 if Path(output_video).exists():
-                    return output_video
+                    return {
+                        "output": output_video,
+                        "input_width": w,
+                        "input_height": h,
+                        "input_ratio": input_ratio,
+                        "output_width": 1080,
+                        "output_height": 1920,
+                        "crop_filter": crop_filter,
+                        "scale_filter": scale_filter,
+                        "ffmpeg_cmd": ffmpeg_cmd,
+                    }
             except Exception as e:
                 log(f"  ❌ Crop error: {e}")
     return None

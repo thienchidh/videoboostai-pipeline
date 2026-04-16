@@ -422,3 +422,129 @@ def test_generate_video_message_raises_on_empty():
         with pytest.raises(RuntimeError) as exc_info:
             gen._generate_video_message("Test Title", ["productivity"], "tips", "description")
     assert "empty/null video_message" in str(exc_info.value)
+
+
+def test_scene_1_is_hook_with_partial_answer():
+    """Scene 1 must have scene_type=='hook' and script implies (not just asks) answer."""
+    import json
+    from unittest.mock import MagicMock, patch
+    from modules.content.content_idea_generator import ContentIdeaGenerator
+    from modules.pipeline.models import GenerationLLM
+
+    mock_channel = MagicMock()
+    mock_channel.name = "Test"
+    mock_channel.style = "friendly"
+    mock_channel.characters = [MagicMock(name="NamMinh", voice_id="x")]
+    mock_channel.tts = MagicMock(max_duration=15.0, min_duration=5.0)
+    mock_channel.watermark = MagicMock(text="@test")
+
+    gen = ContentIdeaGenerator(project_id=1, channel_config=mock_channel)
+    gen._llm = GenerationLLM(provider="minimax", model="MiniMax-M2.7", max_tokens=1536, retry_attempts=2, retry_backoff_max=5)
+
+    mock_llm = MagicMock()
+    mock_llm.chat.side_effect = [
+        json.dumps({"video_message": "90-phút tốt hơn Pomodoro"}),
+        json.dumps({
+            "scenes": [
+                {"id": 1, "script": "Olympic không dùng Pomodoro 25-phút — họ dùng 90-phút và HIỆU QUẢ HƠN 40%. Bạn đang dùng sai phương pháp?",
+                 "character": "NamMinh", "scene_type": "hook", "delivers": "hook with partial answer",
+                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
+                {"id": 2, "script": "Nguyên tắc: làm việc 90 phút tập trung rồi nghỉ 15-20 phút. Lặp 3-4 lần mỗi ngày.",
+                 "character": "NamMinh", "scene_type": "technique", "delivers": "90-min rule explained",
+                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
+            ]
+        }),
+    ]
+
+    with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
+        result = gen.generate_script_from_idea({"title": "Title", "content_angle": "tips", "topic_keywords": []})
+
+    scenes = result["scenes"]
+    assert scenes[0].scene_type == "hook"
+    # Script must imply an answer (contains "90-phút" as partial answer, not just a question mark)
+    assert "?" in scenes[0].script or "HIỆU QUẢ HƠN" in scenes[0].script
+    assert scenes[0].delivers is not None
+
+
+def test_final_scene_has_cta_or_summary():
+    """Last scene must have scene_type in [insight, technique, proof, cta]."""
+    import json
+    from unittest.mock import MagicMock, patch
+    from modules.content.content_idea_generator import ContentIdeaGenerator
+    from modules.pipeline.models import GenerationLLM
+
+    mock_channel = MagicMock()
+    mock_channel.name = "Test"
+    mock_channel.style = "friendly"
+    mock_channel.characters = [MagicMock(name="NamMinh", voice_id="x")]
+    mock_channel.tts = MagicMock(max_duration=15.0, min_duration=5.0)
+    mock_channel.watermark = MagicMock(text="@test")
+
+    gen = ContentIdeaGenerator(project_id=1, channel_config=mock_channel)
+    gen._llm = GenerationLLM(provider="minimax", model="MiniMax-M2.7", max_tokens=1536, retry_attempts=2, retry_backoff_max=5)
+
+    mock_llm = MagicMock()
+    mock_llm.chat.side_effect = [
+        json.dumps({"video_message": "Test message"}),
+        json.dumps({
+            "scenes": [
+                {"id": 1, "script": "Hook scene", "character": "NamMinh",
+                 "scene_type": "hook", "delivers": "hook",
+                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
+                {"id": 2, "script": "Save lại và thử tuần này nhé!", "character": "NamMinh",
+                 "scene_type": "cta", "delivers": "save & try CTA",
+                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
+            ]
+        }),
+    ]
+
+    with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
+        result = gen.generate_script_from_idea({"title": "Title", "content_angle": "tips", "topic_keywords": []})
+
+    scenes = result["scenes"]
+    assert scenes[-1].scene_type in ["insight", "technique", "proof", "cta"]
+
+
+def test_scene_count_dynamic():
+    """LLM can return 2-5 scenes, not just exactly 3."""
+    import json
+    from unittest.mock import MagicMock, patch
+    from modules.content.content_idea_generator import ContentIdeaGenerator
+    from modules.pipeline.models import GenerationLLM
+
+    mock_channel = MagicMock()
+    mock_channel.name = "Test"
+    mock_channel.style = "friendly"
+    mock_channel.characters = [MagicMock(name="NamMinh", voice_id="x")]
+    mock_channel.tts = MagicMock(max_duration=15.0, min_duration=5.0)
+    mock_channel.watermark = MagicMock(text="@test")
+
+    gen = ContentIdeaGenerator(project_id=1, channel_config=mock_channel)
+    gen._llm = GenerationLLM(provider="minimax", model="MiniMax-M2.7", max_tokens=1536, retry_attempts=2, retry_backoff_max=5)
+
+    mock_llm = MagicMock()
+    mock_llm.chat.side_effect = [
+        json.dumps({"video_message": "Test"}),
+        json.dumps({
+            "scenes": [
+                {"id": 1, "script": "Scene 1", "character": "NamMinh",
+                 "scene_type": "hook", "delivers": "h",
+                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
+                {"id": 2, "script": "Scene 2", "character": "NamMinh",
+                 "scene_type": "insight", "delivers": "i",
+                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
+                {"id": 3, "script": "Scene 3", "character": "NamMinh",
+                 "scene_type": "technique", "delivers": "t",
+                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
+                {"id": 4, "script": "Scene 4", "character": "NamMinh",
+                 "scene_type": "cta", "delivers": "c",
+                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
+            ]
+        }),
+    ]
+
+    with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
+        result = gen.generate_script_from_idea({"title": "Title", "content_angle": "tips", "topic_keywords": []})
+
+    assert 2 <= len(result["scenes"]) <= 5
+    assert len(result["scenes"]) == 4

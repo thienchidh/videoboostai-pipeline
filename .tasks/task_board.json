@@ -2,8 +2,8 @@
   "project": "videopipeline",
   "archived": [],
   "metadata": {
-    "last_updated": "2026-04-16T15:58:00+00:00",
-    "total_tasks": 39,
+    "last_updated": "2026-04-16T17:18:00+00:00",
+    "total_tasks": 45,
     "done_tasks": 38,
     "schema_version": 1
   },
@@ -626,6 +626,68 @@
       "claimed_at": "2026-04-16T15:54:23.034339+00:00",
       "note": "TODO: Add /runs/{run_id}/cost endpoint. Aggregate cost per run: total, breakdown by operation and provider.",
       "completed_at": "2026-04-16T15:57:00+00:00"
+    },
+    {
+      "id": "VP-040",
+      "title": "Wire credit_monitor.py into batch_generate.py \u2014 fail fast on exhausted budget",
+      "status": "todo",
+      "priority": "high",
+      "source": "heartbeat",
+      "reason": "credit_monitor.py exists but is not called before pipeline runs; pipeline proceeds with API calls\u624d\u77e5\u9053budget exhausted",
+      "type": "feature",
+      "blocked_by": []
+    },
+    {
+      "id": "VP-041",
+      "title": "Add pre-flight health_check.py to cron \u2014 validate API keys/DB/S3 before batch runs",
+      "status": "todo",
+      "priority": "high",
+      "source": "heartbeat",
+      "reason": "health_check.py validates credentials but is not wired into cron heartbeat; failures only detected after pipeline starts",
+      "type": "feature",
+      "blocked_by": []
+    },
+    {
+      "id": "VP-042",
+      "title": "Replace .content_pipeline_checkpoint.json with SQL state in DB",
+      "status": "todo",
+      "priority": "medium",
+      "source": "heartbeat",
+      "reason": "Checkpoint is file-based (.content_pipeline_checkpoint.json); migrate to DB tables for pipeline_runs for robustness",
+      "type": "refactor",
+      "blocked_by": []
+    },
+    {
+      "id": "VP-043",
+      "title": "Add Telegram alert routing to credit_monitor.py \u2014 send alerts to channel topic",
+      "status": "todo",
+      "priority": "medium",
+      "source": "heartbeat",
+      "reason": "credit_monitor.py can send Telegram alerts but routing to correct topic thread is not configured",
+      "type": "feature",
+      "blocked_by": [
+        "VP-041"
+      ]
+    },
+    {
+      "id": "VP-044",
+      "title": "Add --dry-run mode to batch_generate.py for safe manual testing",
+      "status": "todo",
+      "priority": "medium",
+      "source": "heartbeat",
+      "reason": "batch_generate.py lacks --dry-run flag; running it manually for testing risks real API calls and budget spend",
+      "type": "feature",
+      "blocked_by": []
+    },
+    {
+      "id": "VP-045",
+      "title": "Delete dead code \u2014 modules/social/facebook_api.py and tiktok_api.py",
+      "status": "todo",
+      "priority": "low",
+      "source": "heartbeat",
+      "reason": "facebook_api.py and tiktok_api.py are superseded by facebook.py and tiktok.py; not referenced anywhere, safe to delete",
+      "type": "cleanup",
+      "blocked_by": []
     }
   ]
 }

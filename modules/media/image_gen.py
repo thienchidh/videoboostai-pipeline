@@ -44,7 +44,7 @@ class MiniMaxImageProvider(ImageProvider):
         self.base_url = config.api_urls.minimax_image
         self._api_key = api_key or config.api_keys.minimax
         self.timeout = config.generation.image.timeout
-        self.model = config.generation.image.model if hasattr(config.generation.image, 'model') else "image-01"
+        self.model = config.generation.image.model
 
     def generate(self, prompt: str, output_path: str,
                  aspect_ratio: str = "9:16") -> Optional[str]:

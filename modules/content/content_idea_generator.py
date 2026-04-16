@@ -178,7 +178,15 @@ class ContentIdeaGenerator:
 
     def _build_scene_prompt(self, title: str, keywords: List[str], angle: str,
                              description: str = "", num_scenes: int = 3) -> str:
-        """Build the prompt sent to LLM for scene generation."""
+        """Build the prompt sent to LLM for scene generation.
+
+        Uses Two-Phase Creative Generation:
+        Phase 1: LLM creates creative_brief for each scene (vision/plan)
+        Phase 2: LLM writes image_prompt and lipsync_prompt from creative_brief
+
+        Includes few-shot examples, anti-patterns, and diversity constraints
+        to ensure variety across scenes.
+        """
         if not self._channel_config:
             raise ValueError("channel_config is required")
 
@@ -200,28 +208,12 @@ class ContentIdeaGenerator:
             f"(với tốc độ 2.5 từ/giây)."
         )
 
-        # Build image style constraint fields from channel config
-        img_style = cfg.image_style
-        lighting_val = img_style.lighting if img_style else None
-        camera_val = img_style.camera if img_style else None
-        art_style_val = img_style.art_style if img_style else None
-        environment_val = img_style.environment if img_style else None
-        composition_val = img_style.composition if img_style else None
-
         desc_line = f"NỘI DUNG THAM KHẢO:\n{description[:1000]}\n" if description else ""
 
         return f"""Bạn là chuyên gia sản xuất video viral cho kênh "{cfg.name}".
-Viết {num_scenes} scene giữ chân người xem từ giây đầu tiên.
+Viết {num_scenes} scene với prompts SÁNG TẠO, KHÔNG LẶP LẠI.
 
-Tiêu đề: {title}
 {desc_line}{kw_line}Phong cách nội dung: {angle}{tts_context}
-
-PHONG CÁCH HÌNH ẢNH CỦA KÊNH (phải TUÂN THỦ tuyệt đối):
-- Lighting: {lighting_val or 'warm'}
-- Camera: {camera_val or 'eye-level'}
-- Art style: {art_style_val or '3D render'}
-- Environment: {environment_val or 'modern office'}
-- Composition: {composition_val or 'professional'}
 
 PHONG CÁCH KÊNH (brand tone):
 {cfg.style}
@@ -229,26 +221,101 @@ PHONG CÁCH KÊNH (brand tone):
 NHÂN VẬT VÀ GIỌNG NÓI:
 {char_list_str}
 
-Mỗi scene chỉ chọn MỘT nhân vật. Lời thoại phải PHÙ HỢP với giọng nói của nhân vật được chọn.
+---
 
-VIẾT TRỰC TIẾP image_prompt VÀ lipsync_prompt — KHÔNG cần metadata từng trường:
+VÍ DỤ TỐT (học cách viết creative brief + prompts):
 
-MỖI SCENE CẦN CÓ:
-- id, script, background, character (như hiện tại)
-- image_prompt: PROMPT HOÀN CHỈNH cho image gen. VIẾT LUÔN một chuỗi đầy đủ, không liệt kê từng trường.
-  Phải CHỨA các ràng buộc phong cách hình ảnh ở trên.
-- lipsync_prompt: PROMPT HOÀN CHỈNH cho lipsync. VIẾT LUÔN một chuỗi mô tả người nói.
-  Phải mô tả: phong cách người nói (phù hợp brand tone), character name + voice_id, biểu cảm, hành động, tư thế, pace.
+Input topic: "3 Tips Quản Lý Thời Gian"
+Characters: NamMinh (female, vi-VN-NamMinhNeural), HoaiMy (female, vi-VN-HoaiMyNeural)
 
-Ví dụ JSON output:
-[{{
-  "id": 1,
-  "script": "Hãy bắt đầu với kế hoạch hôm nay...",
-  "background": "văn phòng hiện đại",
-  "character": "NamMinh",
-  "image_prompt": "A confident professional speaker in modern office, warm lighting, eye-level camera, 3D render style, professional and knowledgeable atmosphere, gesturing naturally while speaking Vietnamese",
-  "lipsync_prompt": "Friendly speaker, NamMinh, vi-VN-NamMinhNeural, smiling warmly, gesturing while explaining, slight lean forward, steady and measured pace, Vietnamese language naturally"
-}}]
+--- Scene 1 (Tip về lập kế hoạch) ---
+creative_brief:
+  visual_concept: "Close-up khuôn mặt tập trung, ánh sáng warm từ lamp"
+  emotion: "serious but approachable"
+  camera_mood: "shallow DOF, intimate close-up"
+  setting_vibe: "home office with plants"
+  unique_angle: "shooting from above desk, papers and planner visible"
+  action_description: "speaking directly to camera, occasional hand gesture toward planner"
+
+image_prompt: "Close-up of a focused young woman at a desk with planner and scattered papers, warm lamp light creating soft shadows, shallow depth of field with desk details in bokeh, home office with small plants, looking directly at camera with determined yet approachable expression, intimate cinematic feel, professional 3D render style"
+
+lipsync_prompt: "NamMinh speaking directly to camera with warm inviting smile, slight nod on key words like 'planning' and 'important', occasional hand gesture toward planner, measured thoughtful pace, confident energy, Vietnamese language delivery"
+
+--- Scene 2 (Tip về ưu tiên) ---
+creative_brief:
+  visual_concept: "Medium shot người đang cầm list, ánh sáng bright white"
+  emotion: "energetic, motivated"
+  camera_mood: "medium shot, eye-level, slightly high angle"
+  setting_vibe: "clean minimalist workspace"
+  unique_angle: "camera to the side, showing screen with task list"
+  action_description: "pointing at list, engaging body language"
+
+image_prompt: "Young professional woman pointing at a digital task list on screen, clean minimalist white workspace, bright diffused lighting from ceiling, medium shot eye-level with slightly high angle, engaged and energetic expression, professional 3D render style"
+
+lipsync_prompt: "HoaiMy speaking with energetic enthusiasm, animated hand gestures pointing at list items, faster paced delivery with excitement on priority keywords, confident authoritative tone, Vietnamese language delivery"
+
+--- Scene 3 (Tip về nghỉ ngơi) ---
+creative_brief:
+  visual_concept: "Relaxed shot người đang uống coffee, ánh sáng soft golden"
+  emotion: "relaxed, balanced"
+  camera_mood: "wide shot, lifestyle feel"
+  setting_vibe: "cozy café corner with plants"
+  unique_angle: "over-the-shoulder showing coffee cup"
+  action_description: "relaxed posture, occasional sip, thoughtful pauses"
+
+image_prompt: "Young woman relaxing with coffee cup, soft golden hour lighting from window, cozy café corner with plants and warm wooden elements, over-the-shoulder composition showing both face and coffee, relaxed balanced expression with slight smile, lifestyle photography feel, professional 3D render style"
+
+lipsync_prompt: "NamMinh speaking in a relaxed slower pace, occasional sip of coffee between sentences, thoughtful pauses on key points, warm casual tone, gentle hand movements, peaceful balanced energy, Vietnamese language delivery"
+
+---
+
+TRÁNH CÁC PATTERN SAU — KHÔNG ĐƯỢC LẶP LẠI:
+❌ "professional speaker in modern office" — DÙNG QUÁ NHIỀU, XÓA
+❌ "warm lighting, eye-level camera" — QUÁ GENERIC, KHÔNG MÔ TẢ GÌ
+❌ Mọi scene đều là người đứng nói chuyện trước camera
+❌ Mọi scene đều có cùng background (office)
+❌ "confident, knowledgeable" — adjectives TRỐNG, không có action
+❌ "gesturing naturally" — quá mơ hồ
+❌ Tất cả scenes đều có cùng camera angle (close-up)
+❌ Prompt bắt đầu bằng "A person..." thay vì mô tả cụ thể
+
+---
+
+MỖI SCENE PHẢI KHÁC NHAU — CAM KẾT TRƯỚC:
+1. Scene N+1 phải có ÍT NHẤT 1 trong:
+   - Camera angle khác (close-up ≠ medium ≠ wide)
+   - Emotion khác (serious ≠ playful ≠ calm)
+   - Setting khác (office ≠ café ≠ outdoor)
+
+2. Không được dùng cùng lighting setup cho 2 scene liên tiếp
+   (warm lamp → bright white → golden hour → soft blue)
+
+3. Mỗi scene phải có "unique visual element" — detail nhỏ đặc biệt
+   VD: "có sách stack trên bàn", "cây cảnh trong góc", "light leak từ cửa sổ"
+
+4. Nếu script có emotion mạnh (excited, serious, funny) →
+   camera_mood phải phản ánh đúng emotion đó
+
+---
+
+ĐỊNH DẠNG JSON OUTPUT:
+[
+  {{
+    "id": 1,
+    "script": "lời thoại TTS...",
+    "character": "NamMinh",
+    "creative_brief": {{
+      "visual_concept": "mô tả ngắn gọn concept visual",
+      "emotion": "mood chính của scene",
+      "camera_mood": "camera angle + depth of field",
+      "setting_vibe": "mô tả không gian/background",
+      "unique_angle": "detail đặc biệt chỉ có scene này",
+      "action_description": "mô tả body language, gesture"
+    }},
+    "image_prompt": "PROMPT HOÀN CHỈNH cho image gen, CHỨÁ creative_brief elements",
+    "lipsync_prompt": "PROMPT HOÀN CHỈNH cho lipsync, CHỨÁ emotion + action + pace"
+  }}
+]
 
 Trả về CHỈ JSON array, không kèm markdown."""
 
@@ -389,6 +456,7 @@ Hãy viết lại kịch bản này để có độ dài phù hợp (khoảng {t
             # Normalize: ensure image_prompt and lipsync_prompt are present (or None)
             scene["image_prompt"] = scene.get("image_prompt") or None
             scene["lipsync_prompt"] = scene.get("lipsync_prompt") or None
+            scene["creative_brief"] = scene.get("creative_brief") or None
             validated.append(scene)
 
         return validated

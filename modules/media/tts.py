@@ -85,17 +85,17 @@ class MiniMaxTTSProvider(TTSProvider):
             "audio_setting": {"sample_rate": self.sample_rate, "bitrate": self.bitrate, "format": self.format, "channel": self.channel},
             "language_boost": "Vietnamese"
         }
-        logger.info(f"MiniMax TTS request: voice={voice}, speed={speed}, text_len={len(text)}")
+        logger.debug(f"MiniMax TTS request: voice={voice}, speed={speed}, text_len={len(text)}")
         payload_str = json.dumps(payload, ensure_ascii=False, indent=2)
         if len(payload_str) > 1500:
-            logger.info(f"MiniMax TTS payload (truncated): {payload_str[:1500]}... [truncated]")
+            logger.debug(f"MiniMax TTS payload (truncated): {payload_str[:1500]}... [truncated]")
         else:
-            logger.info(f"MiniMax TTS payload: {payload_str}")
+            logger.debug(f"MiniMax TTS payload: {payload_str}")
         try:
             resp = requests.post(self.base_url, headers=headers, json=payload, timeout=self.timeout)
-            logger.info(f"MiniMax TTS response status: {resp.status_code}")
+            logger.debug(f"MiniMax TTS response status: {resp.status_code}")
             data = resp.json()
-            logger.info(f"MiniMax TTS response: {json.dumps(data, ensure_ascii=False, indent=2)[:500]}")
+            logger.debug(f"MiniMax TTS response: {json.dumps(data, ensure_ascii=False, indent=2)[:500]}")
             if data.get("base_resp", {}).get("status_code", 0) != 0:
                 logger.warning(f"MiniMax TTS error: {data.get('base_resp', {}).get('status_msg', 'unknown')}")
                 return None

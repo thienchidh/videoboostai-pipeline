@@ -46,7 +46,7 @@ class KieAIClient:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         })
-        logger.info(f"KieAIClient init: api_key={api_key[:10] if api_key else 'NONE'}..., base_url={self.BASE_URL}")
+        logger.debug(f"KieAIClient init: api_key={api_key[:10] if api_key else 'NONE'}..., base_url={self.BASE_URL}")
 
     # ─── Infinitalk (audio-driven lip-sync) ───────────────────────
 
@@ -82,15 +82,15 @@ class KieAIClient:
             payload["callBackUrl"] = callback_url or self.webhook_url
 
         auth_hdr = self.session.headers.get('Authorization', '')
-        logger.info(f"Kie.ai Infinitalk request: url={url}, auth={auth_hdr[:30]}, payload={payload}")
+        logger.debug(f"Kie.ai Infinitalk request: url={url}, auth={auth_hdr[:30]}, payload={payload}")
         try:
             resp = self.session.post(url, json=payload, timeout=self.timeout)
             data = resp.json()
-            logger.info(f"Kie.ai Infinitalk response: status={resp.status_code}, body={data}")
+            logger.debug(f"Kie.ai Infinitalk response: status={resp.status_code}, body={data}")
 
             if resp.status_code == 200 and data.get("code") == 200:
                 task_id = data.get("data", {}).get("taskId") or data.get("data", {}).get("recordId")
-                logger.info(f"Kie.ai Infinitalk task submitted: {task_id}")
+                logger.debug(f"Kie.ai Infinitalk task submitted: {task_id}")
                 return {"success": True, "task_id": task_id, "data": data}
             else:
                 logger.error(f"Kie.ai Infinitalk failed: {resp.status_code} {data}")

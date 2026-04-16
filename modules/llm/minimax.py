@@ -65,13 +65,13 @@ class MiniMaxLLMProvider(LLMProvider):
             "messages": messages,
         }
 
-        logger.info(f"MiniMax API request: model={self.model}, max_tokens={max_tokens or self.max_tokens}")
+        logger.debug(f"MiniMax API request: model={self.model}, max_tokens={max_tokens or self.max_tokens}")
         # Log truncated payload for readability
         payload_str = json.dumps(body, ensure_ascii=False, indent=2)
         if len(payload_str) > 2000:
-            logger.info(f"MiniMax API payload (truncated):\n{payload_str[:2000]}\n... [truncated {len(payload_str)-2000} chars]")
+            logger.debug(f"MiniMax API payload (truncated):\n{payload_str[:2000]}\n... [truncated {len(payload_str)-2000} chars]")
         else:
-            logger.info(f"MiniMax API payload:\n{payload_str}")
+            logger.debug(f"MiniMax API payload:\n{payload_str}")
 
         resp = self._session.post(
             self.api_url,
@@ -83,14 +83,14 @@ class MiniMaxLLMProvider(LLMProvider):
             json=body,
             timeout=self.timeout,
         )
-        logger.info(f"MiniMax API response status: {resp.status_code}")
+        logger.debug(f"MiniMax API response status: {resp.status_code}")
         resp.raise_for_status()
         data = resp.json()
         response_str = json.dumps(data, ensure_ascii=False, indent=2)
         if len(response_str) > 1000:
-            logger.info(f"MiniMax API response (truncated):\n{response_str[:1000]}\n... [truncated {len(response_str)-1000} chars]")
+            logger.debug(f"MiniMax API response (truncated):\n{response_str[:1000]}\n... [truncated {len(response_str)-1000} chars]")
         else:
-            logger.info(f"MiniMax API response:\n{response_str}")
+            logger.debug(f"MiniMax API response:\n{response_str}")
 
         # Strip thinking/reasoning blocks that MiniMax sometimes includes
         content = data.get("content", [])

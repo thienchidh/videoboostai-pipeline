@@ -354,7 +354,7 @@ class KieAIInfinitalkProvider(LipsyncProvider):
             return None
 
         task_id = result["task_id"]
-        logger.info(f"Kie.ai Infinitalk task: {task_id}")
+        logger.debug(f"Kie.ai Infinitalk task: {task_id}")
 
         # Poll for completion
         poll_result = self._client.poll_task(task_id, max_wait=max_wait, interval=default_poll_interval)
@@ -379,7 +379,7 @@ class KieAIInfinitalkProvider(LipsyncProvider):
             resp = requests.get(output_url, timeout=120)
             with open(output_path, "wb") as f:
                 f.write(resp.content)
-            logger.info(f"Kie.ai Infinitalk output saved: {output_path} ({len(resp.content)/1024/1024:.1f}MB)")
+            logger.debug(f"Kie.ai Infinitalk output saved: {output_path} ({len(resp.content)/1024/1024:.1f}MB)")
             return output_path
         except Exception as e:
             logger.error(f"Kie.ai Infinitalk download error: {e}")

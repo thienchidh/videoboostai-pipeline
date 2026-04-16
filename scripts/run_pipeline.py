@@ -348,8 +348,14 @@ if __name__ == "__main__":
         help="Path to scenario YAML file. When used with --skip-content, runs video production for this specific scenario.")
     parser.add_argument("--resume", action="store_true",
         help="Resume video production from last checkpoint (skip completed scenes)")
+    parser.add_argument("--debug", action="store_true",
+        help="Set log level to DEBUG (verbose API request/response logging)")
 
     args = parser.parse_args()
+
+    # Override log level if --debug
+    if getattr(args, 'debug', False):
+        logging.getLogger().setLevel(logging.DEBUG)
 
     # Get list of channels to process
     if args.all:

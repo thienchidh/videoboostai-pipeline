@@ -50,17 +50,17 @@ class MiniMaxImageProvider(ImageProvider):
                  aspect_ratio: str = "9:16") -> Optional[str]:
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         payload = {"model": self.model, "prompt": prompt, "aspect_ratio": aspect_ratio, "num_images": 1}
-        logger.info(f"MiniMax image request: aspect_ratio={aspect_ratio}, prompt_len={len(prompt)}")
+        logger.debug(f"MiniMax image request: aspect_ratio={aspect_ratio}, prompt_len={len(prompt)}")
         payload_str = json.dumps(payload, ensure_ascii=False, indent=2)
         if len(payload_str) > 1500:
-            logger.info(f"MiniMax image payload (truncated): {payload_str[:1500]}... [truncated]")
+            logger.debug(f"MiniMax image payload (truncated): {payload_str[:1500]}... [truncated]")
         else:
-            logger.info(f"MiniMax image payload: {payload_str}")
+            logger.debug(f"MiniMax image payload: {payload_str}")
         try:
             resp = requests.post(self.base_url, headers=headers, json=payload, timeout=self.timeout)
-            logger.info(f"MiniMax image response status: {resp.status_code}")
+            logger.debug(f"MiniMax image response status: {resp.status_code}")
             data = resp.json()
-            logger.info(f"MiniMax image response: {json.dumps(data, ensure_ascii=False, indent=2)[:500]}")
+            logger.debug(f"MiniMax image response: {json.dumps(data, ensure_ascii=False, indent=2)[:500]}")
             img_url = None
             if isinstance(data.get("data"), dict):
                 urls = data["data"].get("image_urls", [])
@@ -220,12 +220,12 @@ class KieImageProvider(ImageProvider):
                 "nsfw_checker": False,
             }
         }
-        logger.info(f"Kie Z Image request: aspect_ratio={z_ratio}, prompt_len={len(prompt)}")
+        logger.debug(f"Kie Z Image request: aspect_ratio={z_ratio}, prompt_len={len(prompt)}")
         payload_str = json.dumps(payload, ensure_ascii=False, indent=2)
         if len(payload_str) > 1500:
-            logger.info(f"Kie Z Image payload (truncated): {payload_str[:1500]}... [truncated]")
+            logger.debug(f"Kie Z Image payload (truncated): {payload_str[:1500]}... [truncated]")
         else:
-            logger.info(f"Kie Z Image payload: {payload_str}")
+            logger.debug(f"Kie Z Image payload: {payload_str}")
 
         # Step 1: Create task
         try:
@@ -235,7 +235,7 @@ class KieImageProvider(ImageProvider):
                 timeout=self.timeout,
             )
             data = resp.json()
-            logger.info(f"Kie Z Image create response: {resp.status_code}, {json.dumps(data, ensure_ascii=False)[:300]}")
+            logger.debug(f"Kie Z Image create response: {resp.status_code}, {json.dumps(data, ensure_ascii=False)[:300]}")
             if resp.status_code != 200 or data.get("code") != 200:
                 logger.warning(f"Kie Z Image create failed: {data}")
                 return None
@@ -243,7 +243,7 @@ class KieImageProvider(ImageProvider):
             if not task_id:
                 logger.warning(f"Kie Z Image: no taskId in response: {data}")
                 return None
-            logger.info(f"Kie Z Image task submitted: {task_id}")
+            logger.debug(f"Kie Z Image task submitted: {task_id}")
         except Exception as e:
             logger.warning(f"Kie Z Image create error: {e}")
             return None

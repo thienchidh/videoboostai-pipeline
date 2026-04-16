@@ -555,9 +555,11 @@ class ContentPipeline:
         slug = re.sub(r'\s+', '-', slug.strip().lower())  # hyphen-separated lowercase
         slug = slug[:50].strip('-')  # limit length, remove trailing hyphens
 
-        # Build scenario output (only title + scenes for PipelineContext filter)
+        # Build scenario output (title + video_message + scenes)
+        video_message = script.get("video_message")
         scenario_data = {
             "title": title,
+            "video_message": video_message,
             "scenes": scenes,
         }
 

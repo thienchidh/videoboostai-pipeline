@@ -168,7 +168,7 @@ class TestSingleCharSceneProcessor:
     def test_process_accepts_scene_config_from_dict(self, tmp_path):
         """process() accepts a SceneConfig created via SceneConfig.from_dict()."""
         from modules.pipeline.scene_processor import SingleCharSceneProcessor
-        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig, SceneCharacter, SceneCharacter
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig, SceneCharacter
 
         scene_output = tmp_path / "scene_from_dict"
         scene_output.mkdir(parents=True)
@@ -223,7 +223,7 @@ class TestSingleCharSceneProcessor:
     def test_process_skips_existing_video(self, tmp_path):
         """process skips if video_9x16.mp4 already exists."""
         from modules.pipeline.scene_processor import SingleCharSceneProcessor
-        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig, SceneCharacter
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig
 
         scene_output = tmp_path / "scene_1"
         scene_output.mkdir(parents=True)
@@ -243,7 +243,7 @@ class TestSingleCharSceneProcessor:
 
         processor = SingleCharSceneProcessor(ctx, tmp_path, resume=True)
 
-        scene = SceneConfig(id=1, script="Xin chào", characters=[SceneCharacter(name="TestChar")])
+        scene = SceneConfig(id=1, script="Xin chào", characters=["TestChar"])
 
         # Mock all provider functions
         mock_tts = MagicMock(return_value=(str(AUDIO_FILE), None))
@@ -260,7 +260,7 @@ class TestSingleCharSceneProcessor:
     def test_process_full_flow_calls_all_providers(self, tmp_path):
         """process calls TTS → image → lipsync → crop in sequence."""
         from modules.pipeline.scene_processor import SingleCharSceneProcessor
-        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig, SceneCharacter
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig
 
         scene_output = tmp_path / "scene_1"
         scene_output.mkdir(parents=True)
@@ -271,7 +271,7 @@ class TestSingleCharSceneProcessor:
 
         processor = SingleCharSceneProcessor(ctx, tmp_path)
 
-        scene = SceneConfig(id=1, script="Xin chào", characters=[SceneCharacter(name="TestChar")])
+        scene = SceneConfig(id=1, script="Xin chào", characters=["TestChar"])
 
         # Track call order
         call_order = []
@@ -317,7 +317,7 @@ class TestSingleCharSceneProcessor:
     def test_process_validates_duration(self, tmp_path):
         """process returns None if TTS duration exceeds max."""
         from modules.pipeline.scene_processor import SingleCharSceneProcessor
-        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig, SceneCharacter
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig
 
         scene_output = tmp_path / "scene_1"
         scene_output.mkdir(parents=True)
@@ -328,7 +328,7 @@ class TestSingleCharSceneProcessor:
 
         processor = SingleCharSceneProcessor(ctx, tmp_path)
 
-        scene = SceneConfig(id=1, script="Xin chào", characters=[SceneCharacter(name="TestChar")])
+        scene = SceneConfig(id=1, script="Xin chào", characters=["TestChar"])
 
         # Track calls and create actual image file when mock_img is called
         def mock_img(prompt, output):
@@ -347,7 +347,7 @@ class TestSingleCharSceneProcessor:
     def test_process_handles_tts_failure(self, tmp_path):
         """process returns None if TTS returns falsy."""
         from modules.pipeline.scene_processor import SingleCharSceneProcessor
-        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig, SceneCharacter
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig
 
         scene_output = tmp_path / "scene_1"
         scene_output.mkdir(parents=True)
@@ -358,7 +358,7 @@ class TestSingleCharSceneProcessor:
 
         processor = SingleCharSceneProcessor(ctx, tmp_path)
 
-        scene = SceneConfig(id=1, script="Xin chào", characters=[SceneCharacter(name="TestChar")])
+        scene = SceneConfig(id=1, script="Xin chào", characters=["TestChar"])
 
         mock_tts = MagicMock(return_value=(None, None))  # TTS failed
         mock_img = MagicMock(return_value=IMAGE_FILE)
@@ -371,7 +371,7 @@ class TestSingleCharSceneProcessor:
     def test_process_handles_image_failure(self, tmp_path):
         """process returns None if image gen fails."""
         from modules.pipeline.scene_processor import SingleCharSceneProcessor
-        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig, SceneCharacter
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig
 
         scene_output = tmp_path / "scene_1"
         scene_output.mkdir(parents=True)
@@ -382,7 +382,7 @@ class TestSingleCharSceneProcessor:
 
         processor = SingleCharSceneProcessor(ctx, tmp_path)
 
-        scene = SceneConfig(id=1, script="Xin chào", characters=[SceneCharacter(name="TestChar")])
+        scene = SceneConfig(id=1, script="Xin chào", characters=["TestChar"])
 
         mock_tts = MagicMock(return_value=(str(AUDIO_FILE), None))
         mock_img = MagicMock(return_value=None)  # Image failed
@@ -396,7 +396,7 @@ class TestSingleCharSceneProcessor:
     def test_scene_processor_skip_image(self, tmp_path):
         """SceneProcessor with skip_image=True skips image generation."""
         from modules.pipeline.scene_processor import SingleCharSceneProcessor
-        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig, SceneCharacter
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig
 
         scene_output = tmp_path / "scene_skip_image"
         scene_output.mkdir(parents=True)
@@ -408,7 +408,7 @@ class TestSingleCharSceneProcessor:
         processor = SingleCharSceneProcessor(ctx, tmp_path, skip_image=True)
         assert processor.skip_image == True
 
-        scene = SceneConfig(id=1, script="Xin chào", characters=[SceneCharacter(name="TestChar")])
+        scene = SceneConfig(id=1, script="Xin chào", characters=["TestChar"])
 
         # Track calls to verify image and lipsync are NOT called
         call_order = []

@@ -10,7 +10,7 @@ import json
 import logging
 import re
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from modules.llm import get_llm_provider
 from modules.pipeline.models import ChannelConfig, TechnicalConfig, SceneConfig
@@ -92,7 +92,7 @@ class ContentIdeaGenerator:
         angle = idea.get("content_angle", self.content_angle)
         description = idea.get("description", "")  # actual article content from research
 
-        scenes = self._generate_scenes(title, keywords, angle, description, num_scenes)
+        scenes, video_message = self._generate_scenes(title, keywords, angle, description, num_scenes)
 
         # Read from validated ChannelConfig — no hardcoded fallbacks
         if not self._channel_config:
@@ -105,13 +105,14 @@ class ContentIdeaGenerator:
             "content_angle": angle,
             "keywords": keywords,
             "scenes": scenes,
+            "video_message": video_message,
             "watermark": watermark,
             "style": style,
             "generated_at": datetime.now().isoformat()
         }
 
     def _generate_scenes(self, title: str, keywords: List[str], angle: str,
-                          description: str = "", num_scenes: int = 3) -> List[Dict]:
+                          description: str = "", num_scenes: int = 3) -> Tuple[List[SceneConfig], Optional[str]]:
         """Generate scene scripts using LLM provider with exponential backoff retry.
 
         After initial generation, each scene's TTS is validated against channel
@@ -144,13 +145,14 @@ class ContentIdeaGenerator:
             reraise=True,
         )
         def _call_llm():
-            text = llm.chat(prompt, max_tokens=self._llm.max_tokens if self._llm else 1536)
-            scenes = self._parse_scenes(text)
+            raw_text = llm.chat(prompt, max_tokens=self._llm.max_tokens if self._llm else 1536)
+            video_message = self._extract_video_message(raw_text)
+            scenes = self._parse_scenes(raw_text)
             if not scenes:
                 raise ValueError("Invalid scene format")
-            return scenes
+            return scenes, video_message
 
-        scenes = _call_llm()
+        scenes, video_message = _call_llm()
         logger.info(f"Generated {len(scenes)} scenes from LLM")
 
         # Validate each scene's TTS duration and regenerate if out of bounds
@@ -174,7 +176,7 @@ class ContentIdeaGenerator:
                     )
                     scene.tts = regenerated
 
-        return scenes
+        return scenes, video_message
 
     def _build_scene_prompt(self, title: str, keywords: List[str], angle: str,
                              description: str = "", num_scenes: int = 3) -> str:
@@ -220,6 +222,14 @@ PHONG CÁCH KÊNH (brand tone):
 
 NHÂN VẬT VÀ GIỌNG NÓI:
 {char_list_str}
+
+TRƯỚC TIÊN: Dựa trên title, keywords và content_angle, xác định "video_message" — thông điệp chính mà người xem sẽ MANG GÌ ĐI sau khi xem video này. Message phải NGẮN GỌN (1-2 câu), CÓ Ý NGHĨA RÕ RÀNG.
+
+SAU ĐÓ: Viết {num_scenes} scenes, mỗi scene phải:
+- Cùng hướng về video_message đã xác định ở trên
+- Nội dung mỗi scene phải SUPPORT hoặc ILLUSTRATE cái message đó
+- Khác nhau về visual concept, emotion, camera angle, setting
+- KHÔNG được viết scene mà content không liên quan đến video_message
 
 ---
 
@@ -299,42 +309,74 @@ MỖI SCENE PHẢI KHÁC NHAU — CAM KẾT TRƯỚC:
 ---
 
 ĐỊNH DẠNG JSON OUTPUT:
-[
-  {{
-    "id": 1,
-    "script": "lời thoại TTS...",
-    "character": "NamMinh",
-    "creative_brief": {{
-      "visual_concept": "mô tả ngắn gọn concept visual",
-      "emotion": "mood chính của scene",
-      "camera_mood": "camera angle + depth of field",
-      "setting_vibe": "mô tả không gian/background",
-      "unique_angle": "detail đặc biệt chỉ có scene này",
-      "action_description": "mô tả body language, gesture"
-    }},
-    "image_prompt": "PROMPT HOÀN CHỈNH cho image gen, CHỨÁ creative_brief elements",
-    "lipsync_prompt": "PROMPT HOÀN CHỈNH cho lipsync, CHỨÁ emotion + action + pace"
-  }}
-]
+{{
+  "video_message": "thông điệp chính mà người xem MANG ĐI sau khi xem xong video — NGẮN GỌN (1-2 câu), CÓ Ý NGHĨA RÕ RÀNG. Tất cả scenes phải SUPPORT hoặc ILLUSTRATE thông điệp này.",
+  "scenes": [
+    {{
+      "id": 1,
+      "script": "lời thoại TTS...",
+      "character": "NamMinh",
+      "creative_brief": {{
+        "visual_concept": "mô tả ngắn gọn concept visual",
+        "emotion": "mood chính của scene",
+        "camera_mood": "camera angle + depth of field",
+        "setting_vibe": "mô tả không gian/background",
+        "unique_angle": "detail đặc biệt chỉ có scene này",
+        "action_description": "mô tả body language, gesture"
+      }},
+      "image_prompt": "PROMPT HOÀN CHỈNH cho image gen, CHỨÁ creative_brief elements",
+      "lipsync_prompt": "PROMPT HOÀN CHỈNH cho lipsync, CHỨÁ emotion + action + pace"
+    }}
+  ]
+}}
 
-Trả về CHỈ JSON array, không kèm markdown."""
+Trả về CHỈ JSON object có video_message và scenes, không kèm markdown."""
 
     def _parse_scenes(self, text: str) -> List[SceneConfig]:
-        """Parse JSON scenes from LLM response text."""
+        """Parse JSON scenes from LLM response text.
+
+        Handles two formats:
+        - Legacy: bare list [...]
+        - New: {"video_message": "...", "scenes": [...]}
+        """
         try:
-            scenes = json.loads(text)
-            if isinstance(scenes, dict):
-                scenes = scenes.get("scenes", [scenes])
-            if isinstance(scenes, list) and scenes:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                scenes = parsed.get("scenes", [])
+                if not isinstance(scenes, list):
+                    scenes = [scenes]
+            elif isinstance(parsed, list):
+                scenes = parsed
+            else:
+                return []
+            if scenes:
                 return self._validate_scenes(scenes)
         except json.JSONDecodeError:
+            # Try to find JSON array in text (legacy fallback)
             match = re.search(r'\[.*\]', text, re.DOTALL)
             if match:
                 try:
-                    return self._validate_scenes(json.loads(match.group()))
+                    parsed = json.loads(match.group())
+                    if isinstance(parsed, dict):
+                        scenes = parsed.get("scenes", [parsed])
+                    elif isinstance(parsed, list):
+                        scenes = parsed
+                    else:
+                        return []
+                    return self._validate_scenes(scenes) if scenes else []
                 except json.JSONDecodeError:
                     pass
         return []
+
+    def _extract_video_message(self, raw_text: str) -> Optional[str]:
+        """Extract video_message from raw LLM JSON response."""
+        try:
+            parsed = json.loads(raw_text)
+            if isinstance(parsed, dict):
+                return parsed.get("video_message") or None
+        except json.JSONDecodeError:
+            pass
+        return None
 
     def _estimate_tts_duration(self, text: str, wps: float = 2.5) -> float:
         """Estimate TTS duration in seconds from text word count."""

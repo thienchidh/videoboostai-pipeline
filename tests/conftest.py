@@ -89,3 +89,48 @@ def mock_plugin_registry():
 
     with patch.object(plugins, 'get_provider', return_value=MagicMock):
         yield plugins
+
+
+# ─── Mock config fixtures for lipsync providers ─────────────────────────────────
+
+@pytest.fixture
+def mock_wavespeed_config():
+    """Mock config for WaveSpeedLipsyncProvider (LTX lipsync)."""
+    cfg = MagicMock()
+    cfg.api_urls.wavespeed = "https://api.wavespeed.ai"
+    cfg.api_keys.wavespeed = "test_wavespeed_key"
+    cfg.generation.lipsync.poll_interval = 10
+    cfg.generation.lipsync.max_wait = 300
+    cfg.generation.lipsync.retries = 3
+    return cfg
+
+
+@pytest.fixture
+def mock_multitalk_config():
+    """Mock config for WaveSpeedMultiTalkProvider (InfiniteTalk lipsync)."""
+    cfg = MagicMock()
+    cfg.api_urls.wavespeed = "https://api.wavespeed.ai"
+    cfg.api_keys.wavespeed = "test_wavespeed_key"
+    cfg.generation.lipsync.poll_interval = 10
+    cfg.generation.lipsync.max_wait = 300
+    cfg.generation.lipsync.retries = 3
+    return cfg
+
+
+@pytest.fixture
+def mock_kieai_config():
+    """Mock config for KieAIInfinitalkProvider."""
+    cfg = MagicMock()
+    cfg.api_urls.kie_ai = "https://api.kie.ai/api/v1"
+    cfg.api_keys.kie_ai = "test_kieai_key"
+    cfg.generation.lipsync.poll_interval = 10
+    cfg.generation.lipsync.max_wait = 300
+    return cfg
+
+
+@pytest.fixture(autouse=True)
+def db_init_db_full():
+    """Initialize database with all tables before each test."""
+    from db import init_db_full
+    init_db_full()
+    yield

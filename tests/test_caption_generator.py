@@ -101,14 +101,15 @@ def test_caption_generator_fails_when_llm_returns_incomplete_json_facebook():
 # =============================================================================
 
 def test_caption_generator_retries_once_on_json_parse_error():
-    """JSON parse fail -> retry 1 time, then fail with json_parse_error."""
+    """JSON parse fail on first attempt -> retry 1 time, second attempt succeeds."""
     mock_llm = MagicMock()
-    # Lần 1: invalid JSON, Lần 2: valid but missing insight
+    # Lần 1: invalid JSON -> retry
+    # Lần 2: valid complete JSON -> success
     mock_llm.chat.side_effect = [
         "this is not json at all",
         json.dumps({
-            "thought_process": "x",
-            # missing insight
+            "thought_process": "Phân tích script",
+            "insight": "Insight mạnh",
             "headline": "🔥 Test",
             "body": "Body",
             "cta": "CTA",
@@ -117,10 +118,12 @@ def test_caption_generator_retries_once_on_json_parse_error():
     ]
 
     gen = CaptionGenerator(llm_provider=mock_llm)
-    with pytest.raises(CaptionGenerationError) as exc_info:
-        gen.generate("test script", platform="tiktok")
-    assert exc_info.value.reason == "json_parse_error"
+    cap = gen.generate("test script", platform="tiktok")
+
     assert mock_llm.chat.call_count == 2
+    assert cap.thought_process == "Phân tích script"
+    assert cap.insight == "Insight mạnh"
+    assert cap.headline == "🔥 Test"
 
 
 def test_caption_generator_fails_after_exhausted_retries():

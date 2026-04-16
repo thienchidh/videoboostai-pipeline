@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from core.plugins import get_provider
+from modules.pipeline.exceptions import CaptionGenerationError
 
 logger = logging.getLogger(__name__)
 
@@ -152,62 +153,155 @@ class CaptionGenerator:
             lines = [f"**{headline}**", body, f"👉 {cta}", " ".join(hashtags)]
         return "\n".join(l for l in lines if l)
 
-    def _generate_via_llm(self, script: str, platform: str) -> Optional[GeneratedCaption]:
-        """Generate caption via LLM provider."""
+    def _generate_via_llm(self, script: str, platform: str) -> GeneratedCaption:
+        """Generate caption via LLM with chain-of-thought prompting.
+
+        Raises CaptionGenerationError on any failure (no defaults, no fallback).
+        """
         if self._llm is None:
-            return None
+            raise CaptionGenerationError("llm_unavailable")
 
-        platform_label = "TikTok" if platform == "tiktok" else "Facebook"
-        system = (
-            f"You are a professional {platform_label} Reels caption writer for Vietnamese audience.\n"
-            "CRITICAL INSTRUCTIONS:\n"
-            "- You MUST respond with ONLY valid JSON — no markdown, no text before or after\n"
-            "- headline: string, under 10 words, curiosity hook or bold statement, include fire emoji 🔥\n"
-            "- body: string, 150-300 chars, story-telling style in Vietnamese, natural like speaking to viewer\n"
-            "- cta: string, natural call-to-action or question to engage viewer\n"
-            "- hashtags: array of 5-8 strings, each starting with #, relevant to the script content"
-        )
-        user = (
-            f"Write a caption for a video. Script: \"{script[:800]}\"\n\n"
-            f"Respond with ONLY this JSON format, nothing else:\n"
-            f'{{"headline": "...", "body": "...", "cta": "...", "hashtags": ["#tag1", "#tag2"]}}'
-        )
-
-        try:
-            response = self._llm.chat(user, system=system, max_tokens=1200)
-            m = re.search(r'\{.*\}', response, re.DOTALL)
-            if not m:
-                logger.warning(f"LLM response missing JSON: {response[:100]}")
-                return None
-
-            data = json.loads(m.group())
-            headline = data.get("headline", "🔥 Nội dung thú vị")
-            body = data.get("body", "Nội dung video rất thú vị và hữu ích.")
-            cta = data.get("cta") or random.choice(CTA_TEMPLATES)
-            hashtags = data.get("hashtags") or ["#vietnamtiktok", "#fyp", "#trending"]
-            if isinstance(hashtags, list) and len(hashtags) > 8:
-                hashtags = hashtags[:8]
-            full = self._combine_caption(headline, body, cta, hashtags, platform)
-
-            logger.info(f"Caption generated via LLM")
-            return GeneratedCaption(
-                headline=headline,
-                body=body,
-                hashtags=hashtags,
-                cta=cta,
-                full_caption=full,
+        if platform == "tiktok":
+            system = (
+                "Bạn là chuyên gia viết caption cho video TikTok/Reels Vietnamese.\n"
+                "CRITICAL: Bạn PHẢI trả lời CHỈ có JSON hợp lệ, không có gì khác.\n\n"
+                "CHUỖI SUY NGHĨ (chain-of-thought):\n"
+                "1. Đọc script và phân tích:\n"
+                "   - Điều bất ngờ/contrarian insight là gì?\n"
+                "   - Key message chính là gì?\n"
+                "   - Audience pain point là gì?\n"
+                "2. Viết caption theo format bên dưới\n\n"
+                "FORMAT JSON (bắt buộc - thiếu field = fail):\n"
+                '{\n'
+                '  "thought_process": "Chuỗi suy nghĩ của bạn khi phân tích script (1-2 câu)",\n'
+                '  "insight": "Contrarian hook rút gọn 1-2 câu, gây tò mò mạnh nhất",\n'
+                '  "headline": "🔥 headline dưới 10 từ, curiosity hook hoặc bold statement",\n'
+                '  "body": "150 chars max, direct, conversational, viết như đang nói chuyện với viewer",\n'
+                '  "cta": "CTA ngắn gọn dưới 15 từ, tự nhiên, kêu hành động cụ thể",\n'
+                '  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]\n'
+                "}\n\n"
+                "RULES:\n"
+                "- headline phải có fire emoji 🔥\n"
+                "- body không quá 150 ký tự\n"
+                "- hashtags phải là array có đúng 5 items, mỗi item phải bắt đầu bằng #\n"
+                "- Không viết thêm giải thích gì khác ngoài JSON"
             )
-        except Exception as e:
-            logger.warning(f"LLM caption generation failed: {e}")
-            return None
+            expected_hashtag_count = 5
+        else:
+            system = (
+                "Bạn là chuyên gia viết caption cho Facebook post Vietnamese.\n"
+                "CRITICAL: Bạn PHẢI trả lời CHỈ có JSON hợp lệ, không có gì khác.\n\n"
+                "CHUỖI SUY NGHĨ (chain-of-thought):\n"
+                "1. Đọc script và phân tích:\n"
+                "   - Điều bất ngờ/contrarian insight là gì?\n"
+                "   - Key message chính là gì?\n"
+                "   - Audience pain point là gì?\n"
+                "2. Viết caption theo format bên dưới\n\n"
+                "FORMAT JSON (bắt buộc - thiếu field = fail):\n"
+                '{\n'
+                '  "thought_process": "Chuỗi suy nghĩ của bạn khi phân tích script (1-2 câu)",\n'
+                '  "insight": "Contrarian hook rút gọn 1-2 câu, gây tò mò mạnh nhất",\n'
+                '  "headline": "**headline dưới 10 từ, bold statement**",\n'
+                '  "body": "300 chars, có context, có giá trị, viết tự nhiên như storyteller",\n'
+                '  "cta": "Câu hỏi gợi discussion, tag bạn bè, hoặc kêu hành động cụ thể",\n'
+                '  "hashtags": ["#tag1", "#tag2", "#tag3"]\n'
+                "}\n\n"
+                "RULES:\n"
+                "- headline không cần emoji, dùng **bold** cho emphasis\n"
+                "- body tối đa 300 ký tự\n"
+                "- hashtags phải là array có đúng 3 items, mỗi item phải bắt đầu bằng #\n"
+                "- Không viết thêm giải thích gì khác ngoài JSON"
+            )
+            expected_hashtag_count = 3
+
+        user = f'Video script:\n"{script[:800]}"\n\nViết caption theo format JSON ở trên.'
+
+        # Retry logic: 1 retry on failure (max 2 attempts total)
+        last_error = None
+        for attempt in range(2):
+            try:
+                response = self._llm.chat(user, system=system, max_tokens=1200)
+                m = re.search(r'\{.*\}', response, re.DOTALL)
+                if not m:
+                    raise CaptionGenerationError(
+                        "json_parse_error",
+                        ValueError(f"No JSON found in response: {response[:100]}")
+                    )
+
+                data = json.loads(m.group())
+
+                # Strict field presence check - all 6 fields required
+                required_fields = ["thought_process", "insight", "headline", "body", "cta", "hashtags"]
+                for field in required_fields:
+                    if field not in data:
+                        raise CaptionGenerationError(
+                            f"missing_field:{field}",
+                            ValueError(f"Response missing required field: {field}")
+                        )
+                    if data[field] is None or (isinstance(data[field], str) and not data[field].strip()):
+                        raise CaptionGenerationError(
+                            f"missing_field:{field}",
+                            ValueError(f"Field '{field}' is empty")
+                        )
+
+                # Validate hashtags structure and count
+                if not isinstance(data["hashtags"], list):
+                    raise CaptionGenerationError(
+                        "invalid_field:hashtags",
+                        ValueError("hashtags must be a list")
+                    )
+                if len(data["hashtags"]) != expected_hashtag_count:
+                    raise CaptionGenerationError(
+                        "invalid_field:hashtags",
+                        ValueError(f"{platform} requires exactly {expected_hashtag_count} hashtags, got {len(data['hashtags'])}")
+                    )
+
+                # Build full_caption pre-formatted
+                if platform == "tiktok":
+                    full = "\n".join([
+                        f"🔥 {data['headline']}",
+                        data['body'],
+                        data['cta'],
+                        " ".join(data['hashtags']),
+                    ])
+                else:
+                    full = "\n".join([
+                        f"**{data['headline']}**",
+                        data['body'],
+                        f"👉 {data['cta']}",
+                        " ".join(data['hashtags']),
+                    ])
+
+                logger.info(f"Caption generated via LLM (CoT mode)")
+                return GeneratedCaption(
+                    thought_process=data["thought_process"],
+                    insight=data["insight"],
+                    headline=data["headline"],
+                    body=data["body"],
+                    hashtags=data["hashtags"],
+                    cta=data["cta"],
+                    full_caption=full,
+                )
+
+            except CaptionGenerationError as e:
+                # json_parse_error or missing_field from our validation -> retry once
+                if attempt == 0 and e.reason == "json_parse_error":
+                    last_error = e.original_error
+                    continue  # Retry
+                raise  # Already retried or not json_parse_error, re-raise
+            except Exception as e:
+                last_error = e
+                continue  # Retry
+
+        # Both attempts failed
+        raise CaptionGenerationError(
+            "json_parse_error",
+            last_error or ValueError("Unknown error after retries")
+        )
 
     def generate(self, script: str, platform: str = "tiktok") -> GeneratedCaption:
-        """Generate caption. Uses LLM, falls back to template."""
-        result = self._generate_via_llm(script, platform)
-        if result:
-            return result
-        logger.info("Falling back to template caption generation")
-        return self._generate_template(script, platform)
+        """Generate caption via LLM only. No fallback."""
+        return self._generate_via_llm(script, platform)
 
     def _generate_template(self, script: str, platform: str) -> GeneratedCaption:
         """Generate caption using templates (fallback when LLM unavailable)."""

@@ -146,6 +146,51 @@ class TestSceneProcessorHelpers:
 class TestSingleCharSceneProcessor:
     """Tests for SingleCharSceneProcessor.process()."""
 
+    def test_process_accepts_scene_config_from_dict(self, tmp_path):
+        """process() accepts a SceneConfig created via SceneConfig.from_dict()."""
+        from modules.pipeline.scene_processor import SingleCharSceneProcessor
+        from modules.pipeline.models import CharacterConfig, TTSConfig, SceneConfig, SceneCharacter
+
+        scene_output = tmp_path / "scene_from_dict"
+        scene_output.mkdir(parents=True)
+
+        characters = [CharacterConfig(name="TestChar", voice_id="female_voice")]
+        tts_cfg = TTSConfig(min_duration=2.0, max_duration=15.0)
+        ctx = make_mock_channel(characters=characters, tts_config=tts_cfg)
+
+        processor = SingleCharSceneProcessor(ctx, tmp_path)
+
+        # Use SceneConfig.from_dict() as specified in task
+        scene = SceneConfig.from_dict({
+            "id": 1,
+            "tts": "Xin chào từ SceneConfig",
+            "characters": ["TestChar"],
+        })
+
+        # Verify it's a proper SceneConfig with SceneCharacter objects
+        assert isinstance(scene, SceneConfig)
+        assert scene.id == 1
+        assert scene.tts == "Xin chào từ SceneConfig"
+        assert len(scene.characters) == 1
+
+        # Mock all provider functions
+        mock_tts = MagicMock(return_value=(str(AUDIO_FILE), None))
+        mock_img = MagicMock(side_effect=lambda prompt, output: (shutil.copy(IMAGE_FILE, output) or output))
+        mock_lip = MagicMock(side_effect=lambda img, audio, output, **kw: (shutil.copy(VIDEO_RAW, output) or output))
+
+        def mock_crop(input_path, output_path):
+            shutil.copy(str(VIDEO_9X16), output_path)
+            return output_path
+
+        with patch("modules.pipeline.scene_processor.get_audio_duration", return_value=2.0), \
+             patch("modules.pipeline.scene_processor.crop_to_9x16", side_effect=mock_crop):
+            video_path, timestamps = processor.process(scene, scene_output, mock_tts, mock_img, mock_lip)
+
+        assert video_path is not None
+        mock_tts.assert_called_once()
+        mock_img.assert_called_once()
+        mock_lip.assert_called_once()
+
     def test_process_skips_existing_video(self, tmp_path):
         """process skips if video_9x16.mp4 already exists."""
         from modules.pipeline.scene_processor import SingleCharSceneProcessor

@@ -26,7 +26,7 @@ from core.video_utils import (
 )
 from core.video_utils import LipsyncQuotaError  # noqa: F401
 from modules.pipeline.config import PipelineContext
-from modules.pipeline.models import SceneConfig
+from modules.pipeline.models import SceneConfig, CharacterConfig, VoiceConfig, SceneCharacter
 from modules.pipeline.exceptions import SceneDurationError
 
 
@@ -49,14 +49,14 @@ class SceneProcessor:
         log(f"  🔊 Generating TTS...")
         return tts_fn(tts_text, voice, speed, audio_output)
 
-    def get_character(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_character(self, name: str) -> Optional[CharacterConfig]:
         chars = self.ctx.channel.characters or []
         for char in chars:
             if char.name == name:
                 return char
         return None
 
-    def get_voice(self, voice_id: str) -> Optional[Dict[str, Any]]:
+    def get_voice(self, voice_id: str) -> Optional[VoiceConfig]:
         """Get voice config by id from voices catalog."""
         voices = self.ctx.channel.voices or []
         for voice in voices:
@@ -73,16 +73,14 @@ class SceneProcessor:
         voice_id = character.voice_id
         voice = self.get_voice(voice_id) if voice_id else None
 
-        if voice:
-            providers = voice.providers or []
-            if providers:
-                primary = providers[0]
-                return (
-                    primary.provider,
-                    primary.model,
-                    primary.speed,
-                    voice.gender or "female",
-                )
+        if voice and voice.providers:
+            primary = voice.providers[0]
+            return (
+                primary.provider,
+                primary.model,
+                primary.speed,
+                voice.gender or "female",
+            )
 
         # Fallback: use channel config's generation.models.tts as provider
         fallback_provider = self.ctx.channel.generation.models.tts if self.ctx.channel.generation else None
@@ -210,7 +208,7 @@ class SingleCharSceneProcessor(SceneProcessor):
     3. Return (video_path, timestamps)
     """
 
-    def process(self, scene: Dict[str, Any], scene_output: Path,
+    def process(self, scene: SceneConfig, scene_output: Path,
                tts_fn, image_fn, lipsync_fn) -> Tuple[Optional[str], List[Dict]]:
         """Process a single-character scene.
 
@@ -241,7 +239,7 @@ class SingleCharSceneProcessor(SceneProcessor):
 
         # Get character name from SceneCharacter or string
         first_char = chars[0]
-        char_name = first_char.name if hasattr(first_char, 'name') else first_char
+        char_name = first_char.name if isinstance(first_char, SceneCharacter) else first_char
         char_cfg = self.get_character(char_name)
         if not char_cfg:
             log(f"  ❌ Character '{chars[0]}' not found")
@@ -249,7 +247,7 @@ class SingleCharSceneProcessor(SceneProcessor):
         provider, voice, speed, gender = self.resolve_voice(char_cfg, scene)
 
         # Per-scene character override (speed)
-        if hasattr(chars[0], 'speed') and chars[0].speed:
+        if isinstance(first_char, SceneCharacter) and first_char.speed:
             speed = chars[0].speed
 
         prompt = self.get_video_prompt(scene)

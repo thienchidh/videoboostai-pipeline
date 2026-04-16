@@ -242,7 +242,7 @@ def get_whisper_timestamps(audio_path: str, output_dir: Optional[str] = None, co
 
     try:
         result = subprocess.run(
-            [str(get_whisper()), audio_path, "--model", "small", "--word_timestamps",
+            [str(get_whisper()), audio_path, "--model", "small", "--word_timestamps", "True",
              "--output_format", "json", "--output_dir", output_dir],
             capture_output=True, encoding="utf-8", errors="replace", timeout=word_timestamp_timeout
         )

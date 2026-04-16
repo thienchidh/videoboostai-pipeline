@@ -1,0 +1,44 @@
+title: Productivity | Explainer | Education | RBA
+video_message: null
+scenes:
+- id: 1
+  script: Bạn có biết? Người thông minh không làm nhiều hơn, họ làm KHÁC hơn. Cùng
+    khám phá bí quyết!
+  background: văn phòng hiện đại
+  character: mentor_female
+  image_prompt: A confident female mentor in modern office, warm golden lighting,
+    eye-level camera angle, 3D Pixar Disney render style with vibrant professional
+    colors, smooth animation quality, standing beside sleek desk with holographic
+    productivity charts, gesturing expressively with both hands open, professional
+    yet approachable atmosphere
+  lipsync_prompt: Enthusiastic female mentor, mentor_female, vi-VN-StandardNeural,
+    wide eyes showing genuine excitement, big warm smile, animated hand gestures while
+    speaking, slight forward lean from standing position, fast energetic pace matching
+    curiosity, Vietnamese language with clear confident tone
+- id: 2
+  script: Tại sao tôi luôn bận rộn nhưng hiệu quả lại thấp? Có bí mật nào giúp làm
+    việc ít hơn nhưng đạt nhiều hơn không?
+  background: văn phòng hiện đại
+  character: student_male
+  image_prompt: A curious male student sitting at modern minimalist desk, warm office
+    lighting with soft shadows, eye-level camera, 3D Pixar Disney style render, holding
+    pen thoughtfully near chin, laptop showing task list, confindent expression, modern
+    workspace with clean lines, professional composition with slight tilt
+  lipsync_prompt: Curious male student, student_male, vi-VN-StandardNeural, raised
+    eyebrows showing genuine wonder, slight head tilt, thoughtful expression while
+    speaking, relaxed seated posture with leaning forward, steady measured pace with
+    natural pauses, Vietnamese language with engaging questioning tone
+- id: 3
+  script: Đây là kỹ thuật giúp tôi tăng năng suất gấp 3 lần chỉ trong 2 tuần. Bạn
+    sẽ không tin khi thấy kết quả!
+  background: văn phòng hiện đại
+  character: mentor_female
+  image_prompt: Excited female mentor in modern bright office, warm sunshine lighting
+    from large window, eye-level camera, 3D Pixar Disney render style with vibrant
+    colors, standing with one hand pointing upward enthusiastically, holographic productivity
+    graphs in background showing upward growth, big confident smile, dynamic professional
+    atmosphere, smooth render quality
+  lipsync_prompt: Excited female mentor, mentor_female, vi-VN-StandardNeural, sparkling
+    eyes showing genuine belief, confident big smile while speaking, energetic hand
+    gestures pointing up, standing tall with slight bounce, fast enthusiastic pace
+    with excitement, Vietnamese language naturally delivered with motivational energy

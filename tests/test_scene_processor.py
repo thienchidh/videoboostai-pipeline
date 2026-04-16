@@ -107,7 +107,7 @@ class TestSceneProcessorHelpers:
 
         processor = SceneProcessor(ctx, Path(tempfile.mkdtemp()))
 
-        char = processor.get_character("TestChar")
+        char = processor.get_character("female_voice")
         assert char is not None
         assert char.name == "TestChar"
 

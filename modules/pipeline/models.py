@@ -6,7 +6,7 @@ Provides validated config models for:
 - ChannelConfig: per-channel settings, content research
 - ScenarioConfig: scenes and title from scenario files
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, Any, List, Dict
 import yaml
 from pathlib import Path
@@ -403,6 +403,22 @@ class SceneConfig(BaseModel):
     creative_brief: Optional[Dict[str, Any]] = None
     scene_type: Optional[str] = None   # hook | insight | technique | proof | cta
     delivers: Optional[str] = None     # plain-language summary of viewer takeaway
+
+    @field_validator("characters", mode="before")
+    @classmethod
+    def _convert_characters(cls, v):
+        """Accept both ["char_name"] strings and [SceneCharacter/dict] items."""
+        if not isinstance(v, list):
+            return v
+        result = []
+        for item in v:
+            if isinstance(item, str):
+                result.append(SceneCharacter(name=item))
+            elif isinstance(item, dict):
+                result.append(SceneCharacter(**item))
+            else:
+                result.append(item)
+        return result
 
     @classmethod
     def from_dict(cls, data: dict) -> "SceneConfig":

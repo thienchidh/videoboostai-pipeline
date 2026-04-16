@@ -135,9 +135,6 @@ def add_bounce_watermark(
 
             frame.save(tmpdir / f"frame_{i+1:06d}.png")
 
-            if (i + 1) % 100 == 0:
-                print(f"[bounce] Frame {i+1}/{num_frames}")
-
         print(f"[bounce] Building video...")
 
         # Build video: video as base (0), watermark frames overlaid on top (1)

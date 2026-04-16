@@ -74,7 +74,7 @@ class MiniMaxTTSProvider(TTSProvider):
 
         logger.debug(f"MiniMax TTS: voice={voice}, speed={speed}")
 
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         payload = {
             "model": self.model,
             "text": text,
@@ -111,7 +111,7 @@ class MiniMaxTTSProvider(TTSProvider):
     def get_word_timestamps(self, text: str, voice: str,
                             speed: float) -> Optional[List[Dict[str, Any]]]:
         """Get word timestamps from MiniMax TTS API."""
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         payload = {
             "model": self.model,
             "text": text,

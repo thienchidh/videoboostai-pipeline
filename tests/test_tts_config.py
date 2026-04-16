@@ -164,6 +164,23 @@ class TestMiniMaxTTSConfig:
             MiniMaxTTSProvider(mock_config)
         assert "TechnicalConfig Pydantic model" in str(exc_info.value)
 
+    def test_minimax_tts_generate_calls_correct_api_key(self):
+        """MiniMaxTTSProvider.generate should use self._api_key (not self.api_key) in Authorization header."""
+        tech_config = make_tech_config()
+        provider = MiniMaxTTSProvider(tech_config)
+
+        with patch("requests.post") as mock_post:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {"base_resp": {"status_code": 0}, "data": {"audio": ""}}
+            mock_post.return_value = mock_resp
+
+            provider.generate("test text", "female_voice", 1.0, "/tmp/test.mp3")
+
+            call_headers = mock_post.call_args[1]["headers"]
+            assert call_headers["Authorization"] == "Bearer test-key"
+            assert not any(k for k in call_headers if "api_key" in k.lower())
+
     def test_uses_config_temp_dir(self):
         """Should use storage.temp_dir for temp file paths when configured."""
         tech_config = make_tech_config({

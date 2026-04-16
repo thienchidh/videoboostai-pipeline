@@ -13,7 +13,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from unittest.mock import MagicMock
 
 from core.paths import PROJECT_ROOT, get_whisper, get_ffmpeg, get_ffprobe
 from modules.pipeline.scene_checkpoint import StepCheckpointWriter, _get_first_incomplete_step
@@ -33,15 +32,6 @@ from modules.pipeline.models import SceneConfig, CharacterConfig, VoiceConfig, S
 from modules.pipeline.exceptions import SceneDurationError
 from modules.media.prompt_builder import PromptBuilder
 
-
-def _safe_attr(obj, name, default):
-    """Safely get attribute from object that may be a MagicMock."""
-    val = getattr(obj, name, None)
-    if val is None:
-        return default
-    if isinstance(val, MagicMock):
-        return default
-    return val
 
 
 class SceneProcessor:
@@ -341,8 +331,7 @@ class SingleCharSceneProcessor(SceneProcessor):
 
             # Write TTS checkpoint
             tts_provider_name = provider  # resolved voice provider
-            tts_cfg = self.get_tts_config()
-            assert tts_cfg is not None, "channel.tts must be set"
+            gen_tts = self.ctx.technical.generation.tts
             checkpoint_writer.write_tts(
                 output=str(audio),
                 duration_seconds=get_audio_duration(str(audio)),
@@ -350,10 +339,10 @@ class SingleCharSceneProcessor(SceneProcessor):
                 provider=tts_provider_name,
                 voice=voice,
                 speed=speed,
-                model=tts_cfg.model,
-                sample_rate=tts_cfg.sample_rate,
-                bitrate=str(tts_cfg.bitrate),
-                format=tts_cfg.format,
+                model=gen_tts.model,
+                sample_rate=gen_tts.sample_rate,
+                bitrate=str(gen_tts.bitrate),
+                format=gen_tts.format,
             )
 
             if img_future:
@@ -365,45 +354,50 @@ class SingleCharSceneProcessor(SceneProcessor):
 
                 # Write image checkpoint
                 img_gen = getattr(self.ctx.technical, 'generation', None)
-                img_cfg = getattr(img_gen, 'image', None) if img_gen else None
-                chan_video = getattr(self.ctx.channel, 'video', None) if self.ctx.channel else None
+                assert img_gen is not None, "technical.generation must be set"
+                img_cfg = img_gen.image
+                assert img_cfg is not None, "technical.generation.image must be set"
+                chan_video = getattr(self.ctx.channel, 'video', None)
                 checkpoint_writer.write_image(
                     output=str(scene_img),
                     input_text=str(audio),
                     input_duration=get_audio_duration(str(audio)),
                     prompt=img_prompt,
                     provider="minimax",
-                    model=_safe_attr(img_cfg, 'model', "image-01") if img_cfg else "image-01",
-                    aspect_ratio=_safe_attr(chan_video, 'aspect_ratio', "9:16") if chan_video else "9:16",
+                    model=img_cfg.model,
+                    aspect_ratio=chan_video.aspect_ratio if chan_video else "9:16",
                     gender=gender,
                     character_name=char_name,
-                    timeout=_safe_attr(img_cfg, 'timeout', 120) if img_cfg else 120,
-                    poll_interval=_safe_attr(img_cfg, 'poll_interval', 5) if img_cfg else 5,
-                    max_polls=_safe_attr(img_cfg, 'max_polls', 24) if img_cfg else 24,
+                    timeout=img_cfg.timeout,
+                    poll_interval=img_cfg.poll_interval,
+                    max_polls=img_cfg.max_polls,
                 )
             else:
                 # Image already existed — write checkpoint for it
                 if scene_img.exists():
                     img_gen = getattr(self.ctx.technical, 'generation', None)
-                    img_cfg = getattr(img_gen, 'image', None) if img_gen else None
-                    chan_video = getattr(self.ctx.channel, 'video', None) if self.ctx.channel else None
+                    assert img_gen is not None, "technical.generation must be set"
+                    img_cfg = img_gen.image
+                    assert img_cfg is not None, "technical.generation.image must be set"
+                    chan_video = getattr(self.ctx.channel, 'video', None)
                     checkpoint_writer.write_image(
                         output=str(scene_img),
                         input_text=str(audio),
                         input_duration=get_audio_duration(str(audio)),
                         prompt=img_prompt,
                         provider="minimax",
-                        model=_safe_attr(img_cfg, 'model', "image-01") if img_cfg else "image-01",
-                        aspect_ratio=_safe_attr(chan_video, 'aspect_ratio', "9:16") if chan_video else "9:16",
+                        model=img_cfg.model,
+                        aspect_ratio=chan_video.aspect_ratio if chan_video else "9:16",
                         gender=gender,
                         character_name=char_name,
-                        timeout=_safe_attr(img_cfg, 'timeout', 120) if img_cfg else 120,
-                        poll_interval=_safe_attr(img_cfg, 'poll_interval', 5) if img_cfg else 5,
-                        max_polls=_safe_attr(img_cfg, 'max_polls', 24) if img_cfg else 24,
+                        timeout=img_cfg.timeout,
+                        poll_interval=img_cfg.poll_interval,
+                        max_polls=img_cfg.max_polls,
                     )
 
         # 3. Validate duration
         tts_cfg = self.get_tts_config()
+        assert tts_cfg is not None, "channel.tts must be set"
         min_tts = tts_cfg.min_duration
         max_tts = tts_cfg.max_duration
         actual_duration = get_audio_duration(str(audio))
@@ -478,7 +472,9 @@ class SingleCharSceneProcessor(SceneProcessor):
         # Write lipsync checkpoint
         if not lipsync_step_done:
             lip_gen = getattr(self.ctx.technical, 'generation', None)
-            lip_cfg = getattr(lip_gen, 'lipsync', None) if lip_gen else None
+            assert lip_gen is not None, "technical.generation must be set"
+            lip_cfg = lip_gen.lipsync
+            assert lip_cfg is not None, "technical.generation.lipsync must be set"
             checkpoint_writer.write_lipsync(
                 output=str(video_raw),
                 input_image=str(scene_img),
@@ -489,10 +485,10 @@ class SingleCharSceneProcessor(SceneProcessor):
                 actual_mode=lipsync_actual_mode or "kieai",
                 attempted_mode=lipsync_attempted_mode or "kieai",
                 fallback_reason=lipsync_fallback_reason,
-                resolution=_safe_attr(lip_cfg, 'resolution', "480p") if lip_cfg else "480p",
-                max_wait=_safe_attr(lip_cfg, 'max_wait', 300) if lip_cfg else 300,
-                poll_interval=_safe_attr(lip_cfg, 'poll_interval', 10) if lip_cfg else 10,
-                retries=_safe_attr(lip_cfg, 'retries', 2) if lip_cfg else 2,
+                resolution=lip_cfg.resolution,
+                max_wait=lip_cfg.max_wait,
+                poll_interval=lip_cfg.poll_interval,
+                retries=lip_cfg.retries,
                 task_id=lipsync_task_id,
                 error=lipsync_error,
             )

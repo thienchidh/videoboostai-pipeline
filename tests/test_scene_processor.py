@@ -29,7 +29,7 @@ def make_mock_channel(characters=None, tts_config=None, image_style=None, voices
     """Create a mock PipelineContext with ChannelConfig and TechnicalConfig."""
     from modules.pipeline.models import (
         ChannelConfig, CharacterConfig, TTSConfig, ImageStyleConfig,
-        TechnicalConfig, GenerationConfig, GenerationTTS, SceneConfig
+        TechnicalConfig, GenerationConfig, GenerationTTS, SceneConfig, VideoSettings
     )
 
     chars = characters or [
@@ -43,6 +43,7 @@ def make_mock_channel(characters=None, tts_config=None, image_style=None, voices
     mock_channel.tts = tts
     mock_channel.image_style = img_style
     mock_channel.voices = voices or []
+    mock_channel.video = VideoSettings(aspect_ratio="9:16", resolution="480p")
 
     # Channel generation config
     mock_channel_generation = MagicMock()
@@ -58,12 +59,30 @@ def make_mock_channel(characters=None, tts_config=None, image_style=None, voices
     mock_generation_tts = MagicMock(spec=GenerationTTS)
     mock_generation_tts.min_duration = 5.0
     mock_generation_tts.max_duration = 15.0
+    mock_generation_tts.model = "edge-tts"
+    mock_generation_tts.sample_rate = 32000
+    mock_generation_tts.bitrate = "128k"
+    mock_generation_tts.format = "mp3"
+
+    mock_generation_image = MagicMock()
+    mock_generation_image.model = "image-01"
+    mock_generation_image.timeout = 120
+    mock_generation_image.poll_interval = 5
+    mock_generation_image.max_polls = 24
+
+    mock_generation_lipsync = MagicMock()
+    mock_generation_lipsync.resolution = "480p"
+    mock_generation_lipsync.max_wait = 300
+    mock_generation_lipsync.poll_interval = 10
+    mock_generation_lipsync.retries = 2
 
     mock_parallel = MagicMock()
     mock_parallel.max_workers = 3
 
     mock_generation = MagicMock(spec=GenerationConfig)
     mock_generation.tts = mock_generation_tts
+    mock_generation.image = mock_generation_image
+    mock_generation.lipsync = mock_generation_lipsync
     mock_generation.parallel_scene_processing = mock_parallel
 
     mock_technical = MagicMock(spec=TechnicalConfig)

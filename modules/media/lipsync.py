@@ -326,16 +326,10 @@ class KieAIInfinitalkProvider(LipsyncProvider):
             image_url = self.upload_func(image_path)
             audio_url = self.upload_func(audio_path)
 
-        # Fallback: allow dict-style config for image_url/audio_url
-        if not image_url and config and isinstance(config, dict):
-            image_url = config.get("image_url")
-        if not audio_url and config and isinstance(config, dict):
-            audio_url = config.get("audio_url")
-
         if not image_url or not audio_url:
             logger.warning(
                 f"Kie.ai Infinitalk: missing URLs image_url={bool(image_url)} "
-                f"audio_url={bool(audio_url)}. Need upload_func or config URLs."
+                f"audio_url={bool(audio_url)}. Need upload_func."
             )
             return None
 

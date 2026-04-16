@@ -128,6 +128,37 @@ class TestPipelineObserver:
         paths = [r.path for r in app.routes]
         assert "/runs/{run_id}/stream" in paths
 
+    def test_get_run_cost_not_found(self, test_client):
+        """GET /runs/99999/cost returns 404."""
+        response = test_client.get("/runs/99999/cost")
+        assert response.status_code == 404
+
+    def test_get_run_cost_structure(self, test_client):
+        """GET /runs/{id}/cost returns correct response shape."""
+        list_resp = test_client.get("/runs")
+        runs = list_resp.json()["runs"]
+        if not runs:
+            pytest.skip("No runs in DB")
+
+        run_id = runs[0]["id"]
+        response = test_client.get(f"/runs/{run_id}/cost")
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_cost" in data
+        assert "breakdown" in data
+        assert isinstance(data["total_cost"], (int, float))
+        assert isinstance(data["breakdown"], dict)
+        assert "by_operation" in data["breakdown"]
+        assert "by_provider" in data["breakdown"]
+        assert isinstance(data["breakdown"]["by_operation"], dict)
+        assert isinstance(data["breakdown"]["by_provider"], dict)
+
+    def test_get_run_cost_route_registered(self, test_client):
+        """The /runs/{run_id}/cost route is registered in the FastAPI app."""
+        from modules.ops.pipeline_observer import app
+        paths = [r.path for r in app.routes]
+        assert "/runs/{run_id}/cost" in paths
+
 
 class TestPipelineObserverStandalone:
     """Test the PipelineObserver thread runner."""

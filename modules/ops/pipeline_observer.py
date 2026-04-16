@@ -562,6 +562,28 @@ if _FASTAPI_AVAILABLE:
             logger.error(f"Error getting steps for run {run_id}: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    @app.get("/runs/{run_id}/cost", response_class=JSONResponse)
+    async def get_run_cost(run_id: int):
+        """Return cost aggregation for a run.
+
+        Response: {
+            "total_cost": float,       # total USD
+            "breakdown": {
+                "by_operation": {op: cost_usd, ...},
+                "by_provider": {prov: cost_usd, ...},
+            }
+        }
+        """
+        try:
+            run = db.get_video_run(run_id)
+            if run is None:
+                return JSONResponse({"error": "Run not found"}, status_code=404)
+            breakdown = db.get_run_cost_breakdown(run_id)
+            return breakdown
+        except Exception as e:
+            logger.error(f"Error getting cost for run {run_id}: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
 
 # ─── Observer Server (runs in background thread) ────────────────────────────────
 

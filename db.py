@@ -584,6 +584,38 @@ def _credits_log_to_dict(e: models.CreditsLog) -> Dict:
     }
 
 
+def get_run_cost_breakdown(run_id: int) -> Dict:
+    """Get cost aggregation for a run from CostLog.
+
+    Args:
+        run_id: The video run ID.
+
+    Returns:
+        Dict with total_cost (float USD) and breakdowns by_operation and by_provider.
+    """
+    with get_session() as session:
+        cost_entries = session.query(models.CostLog).filter_by(run_id=run_id).all()
+        total_cents = 0
+        by_operation: Dict[str, float] = {}
+        by_provider: Dict[str, float] = {}
+
+        for entry in cost_entries:
+            cents = entry.cost_usd or 0
+            total_cents += cents
+            op = entry.operation or "unknown"
+            prov = entry.provider or "unknown"
+            by_operation[op] = by_operation.get(op, 0) + cents
+            by_provider[prov] = by_provider.get(prov, 0) + cents
+
+        return {
+            "total_cost": total_cents / 100.0,
+            "breakdown": {
+                "by_operation": {k: v / 100.0 for k, v in by_operation.items()},
+                "by_provider": {k: v / 100.0 for k, v in by_provider.items()},
+            },
+        }
+
+
 # ─── Social Post Operations ─────────────────────────────────────────
 
 def create_social_post(run_id: int, platform: str, video_path: str = None,

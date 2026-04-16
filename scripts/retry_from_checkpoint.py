@@ -160,7 +160,6 @@ def retry_from_run(run_id: int, run_dir: Path, config_path: str = None, dry_run:
         ctx,
         dry_run=dry_run,
         timestamp=int(run_dir.name.split("_")[0]) if run_dir.name[0].isdigit() else None,
-        parallel_scenes=True,
     )
     # Override the auto-generated run_id to resume the existing one
     runner.run_id = run_id

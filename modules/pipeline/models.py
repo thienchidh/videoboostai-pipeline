@@ -74,7 +74,7 @@ class GenerationImage(BaseModel):
     provider: str = "minimax"
     fallback_providers: list[str] = []
     aspect_ratio: str = "9:16"
-    timeout: int = 120
+    timeout: int = 300
     model: str = "image-01"
     poll_interval: int = 5
     max_polls: int = 24

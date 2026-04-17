@@ -47,7 +47,7 @@ generation:
     provider: "kieai"
     fallback_providers: ["minimax"]
     aspect_ratio: "9:16"  # TikTok/Reels format
-    timeout: 120
+    timeout: 300
     poll_interval: 5
     max_polls: 24
   tts:

@@ -75,7 +75,7 @@ class MiniMaxTTSProvider(TTSProvider):
         self._api_key = api_key or config.api_keys.minimax
         self.base_url = config.api_urls.minimax_tts
         self.model = config.generation.tts.model
-        self.sample_rate = getattr(config.generation.tts, 'sample_rate', 32000)
+        self.sample_rate = config.generation.tts.sample_rate
         self.timeout = config.generation.tts.timeout
         self.bitrate = config.generation.tts.bitrate
         self.format = config.generation.tts.format
@@ -154,7 +154,7 @@ class MiniMaxTTSProvider(TTSProvider):
             "audio_setting": {"sample_rate": self.sample_rate, "bitrate": self.bitrate, "format": self.format, "channel": self.channel},
             "language_boost": "Vietnamese"
         }
-        word_timestamp_timeout = getattr(self._config.generation.tts, 'word_timestamp_timeout', 120)
+        word_timestamp_timeout = self._config.generation.tts.word_timestamp_timeout
         if word_timestamp_timeout is None:
             word_timestamp_timeout = 120
         try:

@@ -109,49 +109,39 @@ class TopicResearcher:
                 keywords.add(w_lower)
         return list(keywords)[:5]
 
-    def research_from_keywords(self, keywords: List[str] = None, count: int = 10,
-                               days_recent: int = 30) -> List[Dict]:
+    def research_from_keywords(self, keywords: List[str] = None, count: int = 10) -> List[Dict]:
         """
         Main method: research topics from keywords.
         Searches web for each keyword and aggregates results.
-        Deduplicates against recently researched titles from DB.
+
+        Note: Title dedup against recent DB topics was REMOVED - it was too aggressive
+        and blocked all YouSearch results because common keywords always return the same
+        Wikipedia/Dictionary pages. True deduplication of generated ideas is handled by
+        check_duplicate_ideas() using semantic similarity (sentence-transformers), which
+        compares idea MEANING not exact title matches.
         """
         keywords = keywords or self.niche_keywords
         all_topics = []
 
-        # Load recent titles from DB to avoid duplicates
-        try:
-            from db import get_recent_topic_titles
-            seen_titles = get_recent_topic_titles(days=days_recent)
-            logger.debug(f"Loaded {len(seen_titles)} recent titles from DB for dedup")
-        except Exception as e:
-            logger.warning(f"Could not load recent titles from DB: {e}, using empty set")
-            seen_titles = set()
-
         for kw in keywords:
-            # Search with higher count per keyword to account for dedup losses
+            # Search with higher count per keyword to account for some filtering
             search_count = max(count, 10)  # at least 10 per keyword
             logger.info(f"Researching keyword: '{kw}', search_count={search_count}")
             topics = self.web_search_trending(kw, count=search_count)
             logger.info(f"  Search results for '{kw}': {len(topics)} topics")
             for i, topic in enumerate(topics):
                 logger.info(f"    [{i+1}] {topic.get('title', '')[:80]}")
-            for i, topic in enumerate(topics):
-                logger.debug(f"    [{i+1}] {topic.get('title', '')[:80]}")
             for topic in topics:
-                title = topic.get("title", "")
-                if title and title not in seen_titles:
-                    seen_titles.add(title)
-                    topic["source_keyword"] = kw
-                    topic["researched_at"] = datetime.now().isoformat()
-                    all_topics.append(topic)
-                    extracted = self.extract_keywords_from_topic(topic)
-                    for kw_extracted in extracted:
-                        try:
-                            from db import save_keyword
-                            save_keyword(kw_extracted, source_topic_id=None)
-                        except Exception:
-                            pass  # Non-fatal
+                topic["source_keyword"] = kw
+                topic["researched_at"] = datetime.now().isoformat()
+                all_topics.append(topic)
+                extracted = self.extract_keywords_from_topic(topic)
+                for kw_extracted in extracted:
+                    try:
+                        from db import save_keyword
+                        save_keyword(kw_extracted, source_topic_id=None)
+                    except Exception:
+                        pass  # Non-fatal
             time.sleep(0.5)  # Rate limit
 
         return all_topics

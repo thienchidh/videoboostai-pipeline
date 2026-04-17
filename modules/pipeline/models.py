@@ -390,6 +390,7 @@ class SceneCharacter(BaseModel):
     name: str
     tts: Optional[str] = None
     speed: Optional[float] = None
+    gender: Optional[str] = None  # male|female from LLM
 
     @classmethod
     def from_yaml(cls, data: "str | dict") -> "SceneCharacter":

@@ -40,11 +40,11 @@ class PromptBuilder:
         prompt_lower = image_prompt.lower()
 
         constraints = {
-            "lighting": getattr(self.channel_style, "lighting", None),
-            "camera": getattr(self.channel_style, "camera", None),
-            "art_style": getattr(self.channel_style, "art_style", None),
-            "environment": getattr(self.channel_style, "environment", None),
-            "composition": getattr(self.channel_style, "composition", None),
+            "lighting": self.channel_style.lighting,
+            "camera": self.channel_style.camera,
+            "art_style": self.channel_style.art_style,
+            "environment": self.channel_style.environment,
+            "composition": self.channel_style.composition,
         }
         for name, value in constraints.items():
             if value and value.lower() not in prompt_lower:

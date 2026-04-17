@@ -18,6 +18,7 @@ from modules.media.s3_uploader import configure as configure_s3, upload_file as 
 from core.video_utils import (
     log,
     concat_videos,
+    upscale_video,
     add_subtitles,
     add_background_music,
     add_static_watermark,
@@ -483,6 +484,22 @@ class VideoPipelineRunner:
 
             shutil.copy(str(concat_output), str(final_video))
             log(f"  ✅ Concat copied: {final_video.stat().st_size/1024/1024:.1f}MB")
+
+            # Upscale video if enabled
+            upscale_cfg = self.ctx.technical.generation.get("video_upscale")
+            if upscale_cfg and upscale_cfg.get("enabled", False):
+                upscaled = self.run_dir / "video_upscale.mp4"
+                crf = upscale_cfg.get("crf", 18)
+                preset = upscale_cfg.get("preset", "slow")
+                fps = upscale_cfg.get("fps", 60)
+                log(f"\n🔍 UPSCALING VIDEO: CRF={crf}, preset={preset}, fps={fps}")
+                up_result = upscale_video(str(final_video), str(upscaled),
+                                          crf=crf, preset=preset, fps=fps)
+                if up_result and Path(up_result).exists():
+                    shutil.copy(str(up_result), str(final_video))
+                    log(f"  ✅ Upscale complete: {final_video.stat().st_size/1024/1024:.1f}MB")
+                else:
+                    log(f"  ⚠️  Upscale failed, continuing with original concat video")
 
             # Build combined timestamps with offset
             combined_timestamps = []

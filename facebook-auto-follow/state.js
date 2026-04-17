@@ -7,7 +7,11 @@ const STATE_FILE = path.join(__dirname, 'state.json')
 
 export function loadState() {
   if (!fs.existsSync(STATE_FILE)) return null
-  return JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8'))
+  try {
+    return JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8'))
+  } catch {
+    return null
+  }
 }
 
 export function saveState(state) {
@@ -23,6 +27,7 @@ export function initState(groupUrl) {
   }
 }
 
+// Note: Must not be called concurrently — no file locking
 export function updateState(updates) {
   const current = loadState() || {}
   const next = { ...current, ...updates, lastRun: new Date().toISOString() }

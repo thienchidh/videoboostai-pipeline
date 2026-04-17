@@ -104,6 +104,13 @@ class ResearchConfig(BaseModel):
     schedule_minute: int = 0
 
 
+class VideoUpscaleConfig(BaseModel):
+    enabled: bool = False
+    crf: int = 18
+    preset: str = "slow"
+    fps: int = 60
+
+
 class GenerationConfig(BaseModel):
     llm: GenerationLLM
     image: GenerationImage
@@ -114,6 +121,7 @@ class GenerationConfig(BaseModel):
     content: GenerationContent = GenerationContent()
     research: ResearchConfig = ResearchConfig()
     pipeline: GenerationPipeline = GenerationPipeline()
+    video_upscale: Optional[VideoUpscaleConfig] = None
 
 
 class S3Config(BaseModel):

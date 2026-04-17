@@ -300,3 +300,38 @@ class TestDeepMerge:
 
         assert result["api"]["key"] == "override"
         assert result["api"]["url"] == "http://base"
+
+
+class TestUpscaleVideo:
+    """Tests for upscale_video()."""
+
+    def test_upscale_video_success(self, tmp_path, monkeypatch):
+        """Test upscale_video returns output path on success."""
+        input_video = tmp_path / "input.mp4"
+        output_video = tmp_path / "output.mp4"
+
+        # Mock subprocess to simulate success
+        class MockResult:
+            returncode = 0
+            stderr = ""
+
+        monkeypatch.setattr("core.video_utils.subprocess.run", lambda *a, **kw: MockResult())
+
+        from core.video_utils import upscale_video
+        result = upscale_video(str(input_video), str(output_video), crf=18, preset="fast", fps=30)
+        assert result == str(output_video)
+
+    def test_upscale_video_failure_returns_none(self, tmp_path, monkeypatch):
+        """Test upscale_video returns None when FFmpeg fails."""
+        input_video = tmp_path / "input.mp4"
+        output_video = tmp_path / "output.mp4"
+
+        class MockResult:
+            returncode = 1
+            stderr = "Error: something failed"
+
+        monkeypatch.setattr("core.video_utils.subprocess.run", lambda *a, **kw: MockResult())
+
+        from core.video_utils import upscale_video
+        result = upscale_video(str(input_video), str(output_video))
+        assert result is None

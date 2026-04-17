@@ -524,6 +524,34 @@ class TestAlignWordTimestamps:
         assert char.gender is None
 
 
+def test_resolve_voice_auto_creates_unknown_character_with_gender():
+    """resolve_voice should auto-create character when name unknown but gender is provided."""
+    from unittest.mock import MagicMock
+    from modules.pipeline.scene_processor import SceneProcessor
+    from modules.pipeline.models import SceneConfig, SceneCharacter
+
+    ctx = MagicMock()
+    ctx.channel.characters = []  # Teacher doesn't exist
+    ctx.channel.voices = []
+    ctx.channel.generation = MagicMock()
+    ctx.channel.generation.models.tts = "edge"
+
+    processor = SceneProcessor.__new__(SceneProcessor)
+    processor.ctx = ctx
+
+    # Scene with Teacher character and male gender
+    scene_char = SceneCharacter(name="Teacher", gender="male")
+    scene = SceneConfig(id=1, characters=[scene_char], tts="Hello")
+
+    provider, model, speed, gender = processor.resolve_voice(scene_char, scene)
+
+    assert provider == "edge"
+    assert model == "vi-VN-NamMinhNeural"  # male model
+    assert gender == "male"
+    # Character should be auto-created
+    assert len(ctx.channel.characters) == 1
+    assert len(ctx.channel.voices) == 1
+
 def test_ensure_character_creates_voice_and_character():
     """_ensure_character should create VoiceConfig and CharacterConfig when character doesn't exist."""
     from modules.pipeline.scene_processor import SceneProcessor

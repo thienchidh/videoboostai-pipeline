@@ -111,7 +111,7 @@ class SceneProcessor:
         Returns:
             (provider_name, model_name, speed, gender)
         """
-        voice_id = character.voice_id
+        voice_id = getattr(character, 'voice_id', None) if character else None
         voice = self.get_voice(voice_id) if voice_id else None
 
         if voice and voice.providers:
@@ -123,16 +123,27 @@ class SceneProcessor:
                 voice.gender or "female",
             )
 
-        # Fallback: use channel config's generation.models.tts as provider
+        # Character's voice_id not found in voice catalog
+        # Try auto-creation if gender is available from scene
+        char_name = character.name if character else None
+        gender = getattr(character, 'gender', None) if character else None
+
+        if gender in ("male", "female"):
+            self._ensure_character(char_name, gender)
+            # Retry lookup with auto-generated voice_id
+            auto_voice_id = f"auto_{char_name.lower().replace(' ', '_')}"
+            voice = self.get_voice(auto_voice_id)
+            if voice and voice.providers:
+                primary = voice.providers[0]
+                return (primary.provider, primary.model, primary.speed, gender)
+
+        # Final fallback: use channel config's generation.models.tts as provider
         fallback_provider = self.ctx.channel.generation.models.tts if self.ctx.channel.generation else None
         # Fallback: use first voice from catalog as voice_id
         fallback_voice_id = "female_voice"
         voices = self.ctx.channel.voices or []
         if voices:
             fallback_voice_id = voices[0].id
-
-        # CharacterConfig only has name and voice_id - no tts_voice/tts_speed,
-        # so getattr always falls back to the voice catalog fallback
         return fallback_provider or "edge", fallback_voice_id, 1.0, "female"
 
     def get_video_prompt(self, scene: SceneConfig) -> str:

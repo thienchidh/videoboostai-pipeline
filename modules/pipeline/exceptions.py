@@ -78,3 +78,17 @@ class ContentPipelineExhaustedError(PipelineError):
     def __init__(self, message: str = "All topic sources exhausted (pending + fresh research)"):
         self.message = message
         super().__init__(self.message)
+
+
+class SceneValidationError(Exception):
+    """Raised when scene fails validation after max retries.
+
+    Attributes:
+        scene_id: ID of the scene
+        violations: list of constraint names that were missing
+    """
+    def __init__(self, scene_id: int, violations: list[str]):
+        self.scene_id = scene_id
+        self.violations = violations
+        msg = f"Scene {scene_id} failed validation after 3 retries: missing {violations}"
+        super().__init__(msg)

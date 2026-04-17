@@ -213,30 +213,19 @@ class TestEdgeTTSConfig:
         """EdgeTTSProvider.generate should return tuple even without config."""
         provider = EdgeTTSProvider()
 
-        def _close_coro(coro):
-            coro.close()
+        mock_loop = MagicMock()
+        mock_loop.run_until_complete = MagicMock()
+        mock_loop.close = MagicMock()
 
-        with patch("asyncio.set_event_loop_policy"):
-            with patch("asyncio.run", side_effect=_close_coro):
-                with patch("edge_tts.Communicate") as MockComm:
-                    mock_comm = MagicMock()
+        with patch("modules.media.tts._create_event_loop", return_value=mock_loop):
+            with patch("modules.media.tts.get_whisper_timestamps",
+                       return_value=[{"word": "test", "start": 0.1, "end": 0.5}]):
+                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+                    output_path = f.name
+                    f.write(b"fake audio content" * 100)
 
-                    def fake_save(path):
-                        Path(path).write_bytes(b"fake audio content" * 100)
-
-                    mock_comm.save = fake_save
-                    MockComm.return_value = mock_comm
-
-                    with patch("pathlib.Path.exists", return_value=True):
-                        with patch("pathlib.Path.stat", return_value=MagicMock(st_size=10000)):
-                            with patch("modules.media.tts.get_whisper_timestamps",
-                                       return_value=[{"word": "test", "start": 0.1, "end": 0.5}]):
-                                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-                                    output_path = f.name
-
-                                result = provider.generate("test text", "female_voice", 1.0, output_path)
-
-                                assert isinstance(result, tuple)
+                result = provider.generate("test text", "female_voice", 1.0, output_path)
+                assert isinstance(result, tuple)
 
 
 class TestGetWhisperTimestamps:

@@ -19,57 +19,41 @@ class TestEdgeTTSProvider:
         """EdgeTTSProvider.generate should return (path, timestamps) tuple."""
         provider = EdgeTTSProvider()
 
-        def _close_coro(coro):
-            """Close unawaited coroutine to suppress RuntimeWarning."""
-            coro.close()
+        mock_loop = MagicMock()
+        mock_loop.run_until_complete = MagicMock()
+        mock_loop.close = MagicMock()
 
-        with patch("asyncio.set_event_loop_policy") as mock_set_policy:
-            with patch("asyncio.run", side_effect=_close_coro) as mock_run:
-                with patch("asyncio.WindowsProactorEventLoopPolicy", return_value=MagicMock(), create=True):
-                    with patch("edge_tts.Communicate") as MockComm:
-                        mock_comm = MagicMock()
+        # Pre-create the output file so the existence/size check passes.
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+            output_path = f.name
+            f.write(b"fake audio content" * 100)
 
-                        def fake_save(path):
-                            Path(path).write_bytes(b"fake audio content" * 100)
+        with patch("modules.media.tts._create_event_loop", return_value=mock_loop):
+            with patch.object(provider, "_get_temp_path", return_value=output_path):
+                with patch("modules.media.tts.get_whisper_timestamps",
+                           return_value=[{"word": "test", "start": 0.1, "end": 0.5}]):
+                    result = provider.generate("test text", "female_voice", 1.0)
 
-                        mock_comm.save = fake_save
-                        MockComm.return_value = mock_comm
-
-                        with patch("pathlib.Path.exists", return_value=True):
-                            with patch("pathlib.Path.stat", return_value=MagicMock(st_size=10000)):
-                                with patch("modules.media.tts.get_whisper_timestamps",
-                                           return_value=[{"word": "test", "start": 0.1, "end": 0.5}]) as mock_ts:
-                                    # Create a temp output path
-                                    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-                                        output_path = f.name
-
-                                    result = provider.generate("test text", "female_voice", 1.0, output_path)
-
-                                # Result MUST be a tuple
-                                assert isinstance(result, tuple), \
-                                    f"Expected tuple, got {type(result)}: {result}"
-
-                                path, timestamps = result
-                                assert isinstance(path, str), \
-                                    f"path should be str, got {type(path)}"
-                                assert isinstance(timestamps, list), \
-                                    f"timestamps should be list, got {type(timestamps)}"
-                                assert len(timestamps) == 1
-                                assert timestamps[0]["word"] == "test"
+                    assert isinstance(result, tuple), f"Expected tuple, got {type(result)}: {result}"
+                    path, timestamps = result
+                    assert isinstance(path, str)
+                    assert isinstance(timestamps, list)
+                    assert len(timestamps) == 1
+                    assert timestamps[0]["word"] == "test"
+                    mock_loop.run_until_complete.assert_called_once()
+                    mock_loop.close.assert_called_once()
 
     def test_edge_tts_returns_none_on_error(self):
         """EdgeTTSProvider.generate returns None when edge-tts fails."""
         provider = EdgeTTSProvider()
 
-        def _raise_and_close(coro):
-            coro.close()
-            raise Exception("edge-tts error")
+        mock_loop = MagicMock()
+        mock_loop.run_until_complete.side_effect = Exception("edge-tts error")
+        mock_loop.close = MagicMock()
 
-        with patch("asyncio.set_event_loop_policy") as mock_set_policy:
-            with patch("asyncio.run", side_effect=_raise_and_close):
+        with patch("modules.media.tts._create_event_loop", return_value=mock_loop):
+            with patch.object(provider, "_get_temp_path", return_value="/tmp/test.mp3"):
                 result = provider.generate("test text", "female_voice", 1.0, "/tmp/test.mp3")
-
-                # On error should return None (not tuple)
                 assert result is None
 
 

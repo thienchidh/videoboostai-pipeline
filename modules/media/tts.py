@@ -7,6 +7,7 @@ Provides:
 - MockTTSProvider: dry-run placeholder
 """
 
+import asyncio
 import json
 import os
 import sys
@@ -29,6 +30,28 @@ from core.plugins import TTSProvider, register_provider
 from modules.pipeline.exceptions import ConfigMissingKeyError
 from modules.pipeline.models import TechnicalConfig
 from core.retry import retry_on_500
+
+
+# ==================== EDGE TTS HELPERS ====================
+
+def _create_event_loop() -> asyncio.AbstractEventLoop:
+    """Create an event loop with the appropriate policy for the platform.
+
+    On Windows uses WindowsProactorEventLoopPolicy to avoid ProactorBasePipeTransport
+    cleanup race condition (RuntimeError: Event loop is closed in __del__).
+    """
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    return loop
+
+
+async def _edge_tts_async_generate(text: str, voice: str, output_path: str) -> None:
+    """Async helper for EdgeTTSProvider.generate. Runs edge-tts save."""
+    import edge_tts
+    comm = edge_tts.Communicate(text, voice)
+    await comm.save(output_path)
 
 
 # ==================== MINIMAX TTS ====================
@@ -188,9 +211,6 @@ class EdgeTTSProvider(TTSProvider):
                  speed: float = 1.0, output_path: Optional[str] = None
                  ) -> tuple[str, Optional[List[Dict[str, Any]]]] | None:
         """Generate TTS using Edge TTS. Returns (path, timestamps) tuple or None on error."""
-        import asyncio
-        import edge_tts
-
         # Edge voice mapping from config or use default
         voice_map = {
             "female_voice": "vi-VN-HoaiMyNeural",
@@ -203,16 +223,15 @@ class EdgeTTSProvider(TTSProvider):
         if not output_path:
             output_path = self._get_temp_path("tts_edge")
 
-        async def _generate():
-            # Use Python API directly - same as test code
-            comm = edge_tts.Communicate(text, edge_voice)
-            await comm.save(output_path)
-
         try:
-            # Run async generate with proper event loop policy for Windows
-            if sys.platform == "win32":
-                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-            asyncio.run(_generate())
+            # Run async generate with proper event loop policy for Windows.
+            # Key difference from asyncio.run(): we create the loop, run the
+            # coroutine, then explicitly close — keeping the loop alive through
+            # ProactorBasePipeTransport cleanup avoids the "Event loop is closed"
+            # RuntimeError in __del__.
+            loop = _create_event_loop()
+            loop.run_until_complete(_edge_tts_async_generate(text, edge_voice, output_path))
+            loop.close()
 
             # Verify file was created with content
             if not Path(output_path).exists() or Path(output_path).stat().st_size < 100:

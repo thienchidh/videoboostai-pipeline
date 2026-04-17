@@ -21,6 +21,7 @@ from core.base_pipeline import log
 from core.plugins import ImageProvider, register_provider
 from modules.pipeline.exceptions import ConfigMissingKeyError
 from modules.pipeline.models import TechnicalConfig
+from core.retry import retry_on_500
 
 
 # ==================== MINIMAX IMAGE ====================
@@ -46,6 +47,12 @@ class MiniMaxImageProvider(ImageProvider):
         self.timeout = config.generation.image.timeout
         self.model = config.generation.image.model
 
+    @retry_on_500()
+    def _call_api(self, url, headers, payload):
+        resp = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
+        resp.raise_for_status()
+        return resp
+
     def generate(self, prompt: str, output_path: str,
                  aspect_ratio: str = "9:16") -> Optional[str]:
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
@@ -57,7 +64,7 @@ class MiniMaxImageProvider(ImageProvider):
         else:
             logger.debug(f"MiniMax image payload: {payload_str}")
         try:
-            resp = requests.post(self.base_url, headers=headers, json=payload, timeout=self.timeout)
+            resp = self._call_api(self.base_url, headers, payload)
             logger.debug(f"MiniMax image response status: {resp.status_code}")
             data = resp.json()
             logger.debug(f"MiniMax image response: {json.dumps(data, ensure_ascii=False, indent=2)[:500]}")

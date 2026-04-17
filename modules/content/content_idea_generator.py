@@ -205,7 +205,7 @@ class ContentIdeaGenerator:
         # Build character list with voice context for LLM
         char_lines = []
         for c in cfg.characters:
-            voice_info = getattr(c, 'voice_id', '') or ""
+            voice_info = c.voice_id or ""
             char_lines.append(f"- {c.name}: {voice_info}")
         char_list_str = "\n".join(char_lines)
 

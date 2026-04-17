@@ -28,6 +28,7 @@ from core.paths import get_edge_tts, get_whisper
 from core.plugins import TTSProvider, register_provider
 from modules.pipeline.exceptions import ConfigMissingKeyError
 from modules.pipeline.models import TechnicalConfig
+from core.retry import retry_on_500
 
 
 # ==================== MINIMAX TTS ====================
@@ -92,7 +93,7 @@ class MiniMaxTTSProvider(TTSProvider):
         else:
             logger.debug(f"MiniMax TTS payload: {payload_str}")
         try:
-            resp = requests.post(self.base_url, headers=headers, json=payload, timeout=self.timeout)
+            resp = self._call_api(self.base_url, headers, payload)
             logger.debug(f"MiniMax TTS response status: {resp.status_code}")
             data = resp.json()
             logger.debug(f"MiniMax TTS response: {json.dumps(data, ensure_ascii=False, indent=2)[:500]}")
@@ -108,6 +109,14 @@ class MiniMaxTTSProvider(TTSProvider):
         except Exception as e:
             logger.warning(f"MiniMax TTS error: {e}")
         return None
+
+    @retry_on_500()
+    def _call_api(self, url, headers, payload, timeout=None):
+        """Make API call with retry. Timeout defaults to self.timeout."""
+        timeout = timeout or self.timeout
+        resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        resp.raise_for_status()
+        return resp
 
     def get_word_timestamps(self, text: str, voice: str,
                             speed: float) -> Optional[List[Dict[str, Any]]]:
@@ -126,7 +135,7 @@ class MiniMaxTTSProvider(TTSProvider):
         if word_timestamp_timeout is None:
             word_timestamp_timeout = 120
         try:
-            resp = requests.post(self.base_url, headers=headers, json=payload, timeout=word_timestamp_timeout)
+            resp = self._call_api(self.base_url, headers, payload, timeout=word_timestamp_timeout)
             data = resp.json()
             words_data = data.get("data", {}).get("words", [])
             if words_data:

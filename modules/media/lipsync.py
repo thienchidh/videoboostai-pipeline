@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 
 import requests
 
+from core.retry import retry_on_500
 from core.video_utils import LipsyncQuotaError
 from core.plugins import LipsyncProvider, register_provider
 from modules.pipeline.models import GenerationLipsync, LipsyncRequest
@@ -39,6 +40,7 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
         self.poll_interval = config.generation.lipsync.poll_interval if config and config.generation and config.generation.lipsync else 10
         self.max_wait = config.generation.lipsync.max_wait if config and config.generation and config.generation.lipsync else 300
 
+    @retry_on_500()
     def upload_file(self, file_path: str, scene_id: int = 0) -> Optional[str]:
         """Upload file to WaveSpeed media storage."""
         if self.upload_func:
@@ -118,8 +120,11 @@ class WaveSpeedLipsyncProvider(LipsyncProvider):
             if seed is not None:
                 payload["seed"] = seed
 
+            @retry_on_500()
+            def _call_lipsync_api():
+                return requests.post(url, headers=headers, json=payload, timeout=30)
             try:
-                resp = requests.post(url, headers=headers, json=payload, timeout=30)
+                resp = _call_lipsync_api()
                 data = resp.json()
                 # Detect quota/credits errors
                 status_code = resp.status_code
@@ -164,6 +169,7 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
         self.poll_interval = config.generation.lipsync.poll_interval if config and config.generation and config.generation.lipsync else 10
         self.max_wait = config.generation.lipsync.max_wait if config and config.generation and config.generation.lipsync else 300
 
+    @retry_on_500()
     def upload_file(self, file_path: str, scene_id: int = 0) -> Optional[str]:
         if self.upload_func:
             return self.upload_func(file_path, scene_id)
@@ -241,8 +247,11 @@ class WaveSpeedMultiTalkProvider(LipsyncProvider):
                 "order": "left_right",
                 "resolution": resolution
             }
+            @retry_on_500()
+            def _call_multitalk_api():
+                return requests.post(url, headers=headers, json=payload, timeout=30)
             try:
-                resp = requests.post(url, headers=headers, json=payload, timeout=30)
+                resp = _call_multitalk_api()
                 data = resp.json()
                 # Detect quota/credits errors
                 status_code = resp.status_code

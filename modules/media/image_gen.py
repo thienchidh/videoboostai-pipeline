@@ -21,6 +21,7 @@ from core.base_pipeline import log
 from core.plugins import ImageProvider, register_provider
 from modules.pipeline.exceptions import ConfigMissingKeyError
 from modules.pipeline.models import TechnicalConfig
+from core.retry import retry_on_500
 
 
 # ==================== MINIMAX IMAGE ====================
@@ -46,6 +47,13 @@ class MiniMaxImageProvider(ImageProvider):
         self.timeout = config.generation.image.timeout
         self.model = config.generation.image.model
 
+    @retry_on_500()
+    def _call_api(self, url, headers, payload):
+        resp = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
+        if not resp.ok:
+            resp.raise_for_status()
+        return resp
+
     def generate(self, prompt: str, output_path: str,
                  aspect_ratio: str = "9:16") -> Optional[str]:
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
@@ -57,7 +65,7 @@ class MiniMaxImageProvider(ImageProvider):
         else:
             logger.debug(f"MiniMax image payload: {payload_str}")
         try:
-            resp = requests.post(self.base_url, headers=headers, json=payload, timeout=self.timeout)
+            resp = self._call_api(self.base_url, headers, payload)
             logger.debug(f"MiniMax image response status: {resp.status_code}")
             data = resp.json()
             logger.debug(f"MiniMax image response: {json.dumps(data, ensure_ascii=False, indent=2)[:500]}")
@@ -107,12 +115,15 @@ class WaveSpeedImageProvider(ImageProvider):
         self.max_polls = getattr(config.generation.image, 'max_polls', 24)
         self.submit_url = f"{self.base_url}/api/v3/minimax/image-01/text-to-image"
 
+    @retry_on_500()
     def _submit_job(self, prompt: str, size: str) -> Optional[str]:
         """Submit image job, return job_id or None."""
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         payload = {"prompt": prompt, "size": size}
         try:
             resp = requests.post(self.submit_url, headers=headers, json=payload, timeout=30)
+            if not resp.ok:
+                resp.raise_for_status()
             data = resp.json()
             if data.get("code") == 200 and data.get("data"):
                 return data["data"]["id"]
@@ -205,6 +216,13 @@ class KieImageProvider(ImageProvider):
             "Content-Type": "application/json",
         })
 
+    @retry_on_500()
+    def _call_api(self, url, json_payload):
+        resp = self.session.post(url, json=json_payload, timeout=self.timeout)
+        if not resp.ok:
+            resp.raise_for_status()
+        return resp
+
     def generate(self, prompt: str, output_path: str,
                  aspect_ratio: str = "9:16") -> Optional[str]:
         """Generate image via Z Image API with polling."""
@@ -229,10 +247,9 @@ class KieImageProvider(ImageProvider):
 
         # Step 1: Create task
         try:
-            resp = self.session.post(
+            resp = self._call_api(
                 f"{self.base_url}/jobs/createTask",
-                json=payload,
-                timeout=self.timeout,
+                payload,
             )
             data = resp.json()
             logger.debug(f"Kie Z Image create response: {resp.status_code}, {json.dumps(data, ensure_ascii=False)[:300]}")

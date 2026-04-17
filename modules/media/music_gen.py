@@ -17,6 +17,7 @@ import requests
 
 from core.paths import get_ffmpeg
 from core.plugins import MusicProvider, register_provider
+from core.retry import retry_on_500
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,13 @@ class MiniMaxMusicProvider(MusicProvider):
     def __init__(self, api_key: str, api_url: Optional[str] = None):
         self.api_key = api_key
         self.base_url = api_url or "https://api.minimax.io/v1/music_generation"
+
+    @retry_on_500()
+    def _call_api(self, url, headers, payload):
+        resp = requests.post(url, headers=headers, json=payload, timeout=120)
+        if not resp.ok:
+            resp.raise_for_status()
+        return resp
 
     def generate(self, prompt: str, duration: int = 30,
                  output_path: Optional[str] = None) -> Optional[str]:
@@ -53,7 +61,7 @@ class MiniMaxMusicProvider(MusicProvider):
 
         try:
             logger.info(f"MiniMax Music: generating {duration}s, prompt={prompt[:80]}")
-            resp = requests.post(self.base_url, headers=headers, json=payload, timeout=120)
+            resp = self._call_api(self.base_url, headers, payload)
             data = resp.json()
 
             # Check for API error

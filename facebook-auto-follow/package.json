@@ -1,0 +1,12 @@
+{
+  "name": "facebook-auto-follow",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Auto-follow authors and commenters in Facebook groups",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js start",
+    "resume": "node index.js resume",
+    "status": "node index.js status"
+  }
+}

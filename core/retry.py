@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def is_retryable(exc):
-    """Return True for retryable errors: 5xx, 429 rate limit, connection errors."""
+    """Return True for retryable errors: 5xx, connection errors."""
     if isinstance(exc, requests.exceptions.RequestException):
         return True  # connection timeout, DNS failure, connection refused, etc.
     if hasattr(exc, 'response') and exc.response is not None:
@@ -25,7 +25,7 @@ def is_retryable(exc):
 def retry_on_500():
     """Decorator: retry up to 5 times with exponential backoff (2-120s).
 
-    Retries on: 5xx errors, 429 rate limit, connection errors.
+    Retries on: 5xx errors, connection errors.
     """
     return retry(
         stop=stop_after_attempt(5),

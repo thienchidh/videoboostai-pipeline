@@ -492,16 +492,20 @@ class ContentPipeline:
         script_results = []  # list of (i, idea_id, script, config_path) for non-skipped ideas
 
         def generate_one_script(args):
-            """Generate script for one idea. Returns (i, idea_id, script, config_path) or None if skipped."""
+            """Generate script for one idea. Returns (i, idea_id, script, config_path) or None if skipped/failed."""
             i, idea_id = args
             if i < start_idea_index:
                 return None  # already processed
             idea = ideas[i]
-            script = self.idea_gen.generate_script_from_idea(idea, num_scenes=self.scene_count)
-            self.idea_gen.update_idea_script(idea_id, script)
-            config_path = str(self._save_script_config(idea_id, script))
-            logger.info(f"  Script generated for idea {idea_id}: {idea.get('title', '')[:50]}")
-            return (i, idea_id, script, config_path)
+            try:
+                script = self.idea_gen.generate_script_from_idea(idea, num_scenes=self.scene_count)
+                self.idea_gen.update_idea_script(idea_id, script)
+                config_path = str(self._save_script_config(idea_id, script))
+                logger.info(f"  Script generated for idea {idea_id}: {idea.get('title', '')[:50]}")
+                return (i, idea_id, script, config_path)
+            except Exception as e:
+                logger.warning(f"  Script generation failed for idea {idea_id} ({idea.get('title', '')[:50]}): {e}")
+                return None
 
         # Run in parallel using ThreadPoolExecutor (max_workers=3 to limit API pressure)
         with ThreadPoolExecutor(max_workers=3) as executor:
@@ -597,10 +601,20 @@ class ContentPipeline:
 
         # Build scenario output (title + video_message + scenes)
         video_message = script.get("video_message")
+        # Convert SceneConfig objects to clean dicts (strip None recursively) for YAML
+        def _clean(obj):
+            """Recursively strip None values from dicts and lists."""
+            if isinstance(obj, dict):
+                return {k: _clean(v) for k, v in obj.items() if v is not None}
+            if isinstance(obj, list):
+                return [_clean(item) for item in obj if item is not None]
+            return obj
+        scenes_list = scenes if isinstance(scenes, list) else [scenes]
+        scenes_dicts = [_clean(s.model_dump()) for s in scenes_list]
         scenario_data = {
             "title": title,
             "video_message": video_message,
-            "scenes": scenes,
+            "scenes": scenes_dicts,
         }
 
         # Ensure directory exists

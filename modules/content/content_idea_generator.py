@@ -153,6 +153,7 @@ class ContentIdeaGenerator:
             video_message = self._extract_video_message(raw_text)
             scenes = self._parse_scenes(raw_text)
             if not scenes:
+                logger.warning(f"  LLM returned invalid scene format. Raw response (first 500 chars): {raw_text[:500]}")
                 raise ValueError("Invalid scene format")
             return scenes, video_message
 
@@ -345,7 +346,14 @@ CHỈ JSON, không markdown, KHÔNG THÊM GÌ KHÁC."""
         Handles two formats:
         - Legacy: bare list [...]
         - New: {"video_message": "...", "scenes": [...]}
+
+        Also handles markdown code fences that some LLM providers wrap JSON in.
         """
+        # Strip markdown code fences (```json ... ``` or ``` ... ```)
+        text = text.strip()
+        text = re.sub(r'^```(?:json)?\s*', '', text, flags=re.MULTILINE)
+        text = re.sub(r'\s*```$', '', text)  # don't strip before this - we need whitespace before ```
+
         try:
             parsed = json.loads(text)
             if isinstance(parsed, dict):
@@ -582,7 +590,14 @@ Hãy viết lại kịch bản này để có độ dài phù hợp (khoảng {t
         """Update idea with generated script."""
         try:
             from db import update_idea_script as db_update_idea_script
-            db_update_idea_script(idea_id, script_json)
+            # Convert SceneConfig objects to clean dicts for JSON serialization
+            script_to_save = dict(script_json)
+            if "scenes" in script_to_save and script_to_save["scenes"]:
+                script_to_save["scenes"] = [
+                    s.model_dump(exclude_none=True)
+                    for s in script_to_save["scenes"]
+                ]
+            db_update_idea_script(idea_id, script_to_save)
             logger.info(f"Updated idea {idea_id} with script")
         except Exception as e:
             logger.error(f"Failed to update idea script: {e}")

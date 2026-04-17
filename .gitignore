@@ -41,3 +41,6 @@ output/
 *.swp
 *.swo
 *~
+
+# Facebook auto-follow session state
+facebook-auto-follow/

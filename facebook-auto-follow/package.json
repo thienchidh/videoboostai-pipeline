@@ -8,5 +8,8 @@
     "start": "node index.js start",
     "resume": "node index.js resume",
     "status": "node index.js status"
+  },
+  "dependencies": {
+    "puppeteer": "^24.41.0"
   }
 }

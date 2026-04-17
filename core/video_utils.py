@@ -685,8 +685,7 @@ def upscale_video(input_path: str,
         output_path,
     ]
 
-    logger.info(f"Upscaling video: CRF={crf}, preset={preset}, fps={fps}")
-    logger.debug(f"FFmpeg upscale cmd: {' '.join(cmd)}")
+    log(f"Upscaling video: CRF={crf}, preset={preset}, fps={fps}")
 
     try:
         result = subprocess.run(
@@ -696,10 +695,10 @@ def upscale_video(input_path: str,
             check=False,
         )
         if result.returncode != 0:
-            logger.warning(f"Upscale failed: {result.stderr}")
+            log(f"Upscale failed: {result.stderr}")
             return None
-        logger.info(f"Upscale complete: {output_path}")
+        log(f"Upscale complete: {output_path}")
         return output_path
     except Exception as e:
-        logger.warning(f"Upscale exception: {e}")
+        log(f"Upscale exception: {e}")
         return None

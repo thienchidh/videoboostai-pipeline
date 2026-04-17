@@ -300,8 +300,13 @@ class SingleCharSceneProcessor(SceneProcessor):
         char_name = first_char.name if isinstance(first_char, SceneCharacter) else first_char
         char_cfg = self.get_character(char_name)
         if not char_cfg:
-            log(f"  ❌ Character '{chars[0]}' not found")
-            return None, []
+            # Auto-create if SceneCharacter has gender
+            if isinstance(first_char, SceneCharacter) and first_char.gender in ("male", "female"):
+                self._ensure_character(char_name, first_char.gender)
+                char_cfg = self.get_character(char_name)
+            if not char_cfg:
+                log(f"  ❌ Character '{chars[0]}' not found")
+                return None, []
         provider, voice, speed, gender = self.resolve_voice(char_cfg, scene)
 
         # Per-scene character override (speed)

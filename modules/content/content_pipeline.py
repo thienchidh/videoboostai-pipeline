@@ -242,6 +242,9 @@ class ContentPipeline:
         while pending_index < len(pending_sources):
             ps = pending_sources[pending_index]
             pending_index += 1
+            # Skip the source we're currently consuming (all its topics already tried as duplicates)
+            if ps["id"] == current_source_id:
+                continue
             if ps.get("topics"):
                 return ps["topics"], ps["id"], pending_index, fresh_research_done
             # Empty source — mark completed and skip

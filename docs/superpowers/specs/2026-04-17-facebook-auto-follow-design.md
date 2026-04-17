@@ -52,12 +52,25 @@ Group URL được truyền qua command line, không hardcode. File config chỉ
 
 ```javascript
 module.exports = {
-  scrollDelay: 2000,      // ms between scrolls
-  actionDelay: 500,       // ms between follow actions
+  scrollDelayMin: 1500,   // min ms between scrolls
+  scrollDelayMax: 4000,   // max ms between scrolls (randomized)
+  actionDelayMin: 400,    // min ms between follow actions
+  actionDelayMax: 1200,   // max ms between follow actions (randomized)
   maxRetries: 2,          // click retry count
   debugMode: false
 }
 ```
+
+### Anti-Spam Behavior
+
+Script mô phỏng hành vi người thật để tránh Facebook flag:
+
+- **Randomized delays**: mỗi action có delay ngẫu nhiên trong khoảng [min, max], không fix cứng
+- **Scroll có pause**: scroll 1 lần → dừng 1-2s → scroll tiếp (giống người đọc)
+- **Hover trước click**: hover vào element trước 300-600ms rồi mới click
+- **Không click liên tục**: giữa mỗi lần click "Theo dõi" có delay ngẫu nhiên 400-1200ms
+- ** случайный scroll**: lượt scroll ngắn, có lúc dừng lại đọc nội dung
+- **Không bao giờ ở exact same position**: scroll feed không click vào cùng 1 vị trí 2 lần liên tiếp
 
 ## Flow
 
@@ -126,3 +139,4 @@ Button identified by exact text match. Disabled attribute check for primary "fol
 - Zero false positives (never click "Đang theo dõi")
 - No missed visible "Theo dõi" buttons
 - Resume-safe after sudden stop
+- Mimics human behavior to avoid Facebook spam detection

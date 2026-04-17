@@ -82,7 +82,7 @@ generation:
     enabled: true          # true | false — enable upscaling after concat
     crf: 18               # quality: lower = better quality, 18 = nearly lossless
     preset: "slow"        # encoding speed: slow = best compress, fast = quickest
-    fps: 60               # target framerate for interpolation
+    fps: 30               # target framerate for interpolation
     use_gpu: true         # use NVIDIA NVENC GPU encoding if available
 
 logging:

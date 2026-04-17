@@ -670,7 +670,7 @@ def upscale_video(input_path: str,
                   output_path: str,
                   crf: int = 18,
                   preset: str = "slow",
-                  fps: int = 60,
+                  fps: int = 30,
                   use_gpu: bool = True) -> Optional[str]:
     """Upscale video from ~480p to 2K (1920x3408) using FFmpeg filters.
 

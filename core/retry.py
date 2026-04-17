@@ -13,7 +13,7 @@ def is_retryable(exc):
     """Return True for retryable errors: 5xx, 429 rate limit, connection errors."""
     if isinstance(exc, requests.exceptions.RequestException):
         return True  # connection timeout, DNS failure, connection refused, etc.
-    if hasattr(exc, 'response'):
+    if hasattr(exc, 'response') and exc.response is not None:
         status = exc.response.status_code
         if status == 429:
             return True  # rate limit
@@ -26,7 +26,6 @@ def retry_on_500():
     """Decorator: retry up to 5 times with exponential backoff (2-120s).
 
     Retries on: 5xx errors, 429 rate limit, connection errors.
-    Does NOT retry: LipsyncQuotaError, quota keywords, config errors.
     """
     return retry(
         stop=stop_after_attempt(5),

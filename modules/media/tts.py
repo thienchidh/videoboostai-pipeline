@@ -232,6 +232,13 @@ class EdgeTTSProvider(TTSProvider):
             loop = _create_event_loop()
             loop.run_until_complete(_edge_tts_async_generate(text, edge_voice, output_path))
             loop.close()
+            # Suppress "Event loop is closed" warning at shutdown by clearing
+            # the global event loop reference that ProactorBasePipeTransport
+            # __del__ tries to access.
+            try:
+                asyncio.set_event_loop(None)
+            except Exception:
+                pass
 
             # Verify file was created with content
             if not Path(output_path).exists() or Path(output_path).stat().st_size < 100:

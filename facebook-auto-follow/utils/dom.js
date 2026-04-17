@@ -5,7 +5,7 @@
 
 /**
  * Find all "Theo dõi" buttons that are clickable (not already following).
- * Returns array of element identifiers {tag, text, ref} for clicking.
+ * Returns array of { text, tag } — text is the button label, used as selector.
  */
 export function findFollowButtons(html) {
   if (!html || typeof html !== 'string') return []
@@ -20,9 +20,8 @@ export function findFollowButtons(html) {
     const inner = match[2].trim()
     // Skip if already "Đang theo dõi"
     if (inner.includes('Đang theo dõi')) continue
-    // Skip if contains "Đang theo dõi" anywhere
     if (inner === 'Theo dõi') {
-      results.push({ tag, text: inner, raw: match[0] })
+      results.push({ text: inner, tag })
     }
   }
 
@@ -31,7 +30,7 @@ export function findFollowButtons(html) {
 
 /**
  * Find timestamp links in the feed that open post dialogs.
- * These are typically <a> tags with href containing /groups/{id}/posts/{postId}
+ * Returns array of { url, text } — text is the link text, used as selector.
  */
 export function findPostTimestampLinks(html) {
   if (!html || typeof html !== 'string') return []
@@ -56,18 +55,19 @@ export function isDialogOpen(html) {
 
 /**
  * Find the "Đóng" (close) button in the dialog.
+ * Returns { ariaLabel } — the aria-label value, used as selector.
  */
 export function findCloseButton(html) {
   if (!html || typeof html !== 'string') return null
   // Try aria-label first (more specific)
   const closeRegex = /<(button|div|span|a)[^>]*aria-label="([^"]*Đóng[^"]*)"[^>]*>/gi
   let match = closeRegex.exec(html)
-  if (match) return { ref: match[0], raw: match[0] }
+  if (match) return { ariaLabel: match[2] }
 
   // Fallback: button with "Đóng" text
   const btnCloseRegex = /<(button|div)[^>]*>[^<]*Đóng[^<]*<\/(button|div)>/gi
   match = btnCloseRegex.exec(html)
-  if (match) return { ref: match[0], raw: match[0] }
+  if (match) return { ariaLabel: 'Đóng' }
 
   return null
 }

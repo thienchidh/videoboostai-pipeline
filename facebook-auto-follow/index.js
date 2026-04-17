@@ -114,8 +114,9 @@ async function runFeed(groupUrl, callTool, startFromLastPost = false) {
   await callTool('mcp__browsermcp__browser_navigate', { url: groupUrl })
   await new Promise(r => setTimeout(r, 3000)) // Wait for feed to load
 
-  const state = (loadState() && loadState().groupUrl === groupUrl)
-    ? loadState()
+  const savedState = loadState()
+  const state = (savedState && savedState.groupUrl === groupUrl)
+    ? savedState
     : initState(groupUrl)
 
   let postIndex = 0

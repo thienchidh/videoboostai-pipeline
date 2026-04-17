@@ -38,5 +38,16 @@ export async function closeDialog(callTool) {
     await callTool('mcp__browsermcp__browser_press_key', { key: 'Escape' })
   }
 
+  // Wait a moment for dialog to dismiss
   await new Promise(r => setTimeout(r, randDelay(500, 1000)))
+
+  // Verify dialog is actually gone
+  const verifySnapshot = await callTool('mcp__browsermcp__browser_snapshot', {})
+  const verifyHtml = verifySnapshot.html ?? ''
+  if (isDialogOpen(verifyHtml)) {
+    // Try pressing Escape as fallback if close button didn't work
+    log('Dialog still open, pressing Escape as fallback')
+    await callTool('mcp__browsermcp__browser_press_key', { key: 'Escape' })
+    await new Promise(r => setTimeout(r, randDelay(500, 1000)))
+  }
 }

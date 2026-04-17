@@ -20,9 +20,16 @@ Claude Code (Control Plane)
 ### 1. `facebook-auto-follow/index.js` — Entry Point
 
 Nhận command-line args:
-- `start` — bắt đầu từ đầu
-- `resume` — tiếp tục từ state trước
+- `start <groupUrl>` — bắt đầu từ đầu với group cụ thể
+- `resume <groupUrl>` — tiếp tục từ state trước của group đó
 - `status` — in ra state hiện tại
+
+Ví dụ:
+```bash
+node index.js start https://www.facebook.com/groups/242605124320242
+node index.js resume https://www.facebook.com/groups/242605124320242
+node index.js status
+```
 
 Parse args → load config + state → call `mcp__browsermcp__*` tools trong loop → save state after each post.
 
@@ -30,6 +37,7 @@ Parse args → load config + state → call `mcp__browsermcp__*` tools trong loo
 
 ```json
 {
+  "groupUrl": "https://www.facebook.com/groups/242605124320242",
   "lastPostUrl": "https://www.facebook.com/groups/.../posts/123",
   "totalFollowed": 47,
   "lastRun": "2026-04-17T10:30:00Z"
@@ -40,9 +48,10 @@ Updated after each successful post processing.
 
 ### 3. `facebook-auto-follow/config.js` — Configuration
 
+Group URL được truyền qua command line, không hardcode. File config chỉ chứa behavior settings:
+
 ```javascript
 module.exports = {
-  groupUrl: "https://www.facebook.com/groups/242605124320242",
   scrollDelay: 2000,      // ms between scrolls
   actionDelay: 500,       // ms between follow actions
   maxRetries: 2,          // click retry count
@@ -53,8 +62,8 @@ module.exports = {
 ## Flow
 
 ```
-1. node index.js start
-      → load config + state
+1. node index.js start <groupUrl>
+      → load config (groupUrl from args)
       → mcp__browsermcp__browser_navigate(groupUrl)
       → loop:
           a. snapshot → find post timestamp links

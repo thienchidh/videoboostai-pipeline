@@ -487,11 +487,11 @@ class VideoPipelineRunner:
 
             # Upscale video if enabled
             upscale_cfg = self.ctx.technical.generation.video_upscale
-            if upscale_cfg and upscale_cfg.get("enabled", False):
+            if upscale_cfg and upscale_cfg.enabled:
                 upscaled = self.run_dir / "video_upscale.mp4"
-                crf = upscale_cfg.get("crf", 18)
-                preset = upscale_cfg.get("preset", "slow")
-                fps = upscale_cfg.get("fps", 60)
+                crf = upscale_cfg.crf
+                preset = upscale_cfg.preset
+                fps = upscale_cfg.fps
                 log(f"\n🔍 UPSCALING VIDEO: CRF={crf}, preset={preset}, fps={fps}")
                 up_result = upscale_video(str(final_video), str(upscaled),
                                           crf=crf, preset=preset, fps=fps)

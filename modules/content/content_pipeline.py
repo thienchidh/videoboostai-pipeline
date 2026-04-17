@@ -7,7 +7,7 @@ import yaml
 import logging
 from datetime import datetime, date, time
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
@@ -223,6 +223,49 @@ class ContentPipeline:
             }
         finally:
             release_research_lock(run_id)
+
+    def _get_next_topics(self, pending_sources: List[Dict], pending_index: int,
+                          current_source_id: Optional[int], fresh_research_done: bool,
+                          num_ideas: int) -> Tuple[List[Dict], Optional[int], int, bool]:
+        """
+        Fetch the next batch of topics using round-robin pending sources or fresh research.
+
+        Returns:
+            (topics, source_id, updated_pending_index, updated_fresh_research_done)
+
+        Raises:
+            ContentPipelineExhaustedError: when both pending sources and fresh research are exhausted.
+        """
+        from db import get_keywords_for_research, mark_topic_source_completed
+
+        # 1. Try round-robin pending sources (skip current_source_id already consumed)
+        while pending_index < len(pending_sources):
+            ps = pending_sources[pending_index]
+            pending_index += 1
+            if ps.get("topics"):
+                return ps["topics"], ps["id"], pending_index, fresh_research_done
+            # Empty source — mark completed and skip
+            try:
+                mark_topic_source_completed(ps["id"])
+            except Exception:
+                pass
+
+        # 2. Fresh research fallback (once)
+        if not fresh_research_done:
+            keywords_data = get_keywords_for_research(limit=20)
+            keywords = [k["keyword"] for k in keywords_data] if keywords_data else self.niche_keywords
+            topics = self.researcher.research_from_keywords(keywords=keywords, count=num_ideas)
+            if topics:
+                source_id = self.researcher.save_to_db(
+                    topics, source_query=", ".join(keywords)
+                )
+                return topics, source_id, pending_index, True  # fresh_research_done=True
+
+        # 3. Nothing left
+        from modules.pipeline.exceptions import ContentPipelineExhaustedError
+        raise ContentPipelineExhaustedError(
+            "All topic sources exhausted (pending + fresh research)"
+        )
 
     def run_full_cycle(self, num_ideas: int = 5) -> Dict:
         """

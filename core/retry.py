@@ -11,14 +11,15 @@ logger = logging.getLogger(__name__)
 
 def is_retryable(exc):
     """Return True for retryable errors: 5xx, connection errors."""
-    if isinstance(exc, requests.exceptions.RequestException):
-        return True  # connection timeout, DNS failure, connection refused, etc.
     if hasattr(exc, 'response') and exc.response is not None:
         status = exc.response.status_code
-        if status == 429:
-            return False  # fail fast on quota/rate-limit — don't retry
         if status >= 500:
             return True  # server error
+        if status == 429:
+            return False  # fail fast on quota/rate-limit
+        return False  # 4xx client errors
+    if isinstance(exc, requests.exceptions.RequestException):
+        return True  # connection timeout, DNS failure, connection refused, etc.
     return False
 
 

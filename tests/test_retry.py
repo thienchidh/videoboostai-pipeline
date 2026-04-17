@@ -23,41 +23,47 @@ class TestIsRetryable:
     def test_retry_on_500(self):
         resp = Mock()
         resp.status_code = 500
-        exc = requests.exceptions.HTTPError(response=resp)
+        exc = requests.exceptions.HTTPError()
+        exc.response = resp
         assert is_retryable(exc) is True
 
     def test_retry_on_502(self):
         resp = Mock()
         resp.status_code = 502
-        exc = requests.exceptions.HTTPError(response=resp)
+        exc = requests.exceptions.HTTPError()
+        exc.response = resp
         assert is_retryable(exc) is True
 
     def test_retry_on_503(self):
         resp = Mock()
         resp.status_code = 503
-        exc = requests.exceptions.HTTPError(response=resp)
+        exc = requests.exceptions.HTTPError()
+        exc.response = resp
         assert is_retryable(exc) is True
 
-    def test_retry_on_429(self):
-        """HTTPError (including 429) is a RequestException subclass, so is_retryable returns True."""
+    def test_no_retry_on_429(self):
+        """429 should fail fast — don't retry on rate-limit."""
         resp = Mock()
         resp.status_code = 429
-        exc = requests.exceptions.HTTPError(response=resp)
-        assert is_retryable(exc) is True
+        exc = requests.exceptions.HTTPError()
+        exc.response = resp
+        assert is_retryable(exc) is False
 
-    def test_retry_on_400(self):
-        """HTTPError (including 400) is a RequestException subclass, so is_retryable returns True."""
+    def test_no_retry_on_400(self):
+        """400 is a client error — don't retry."""
         resp = Mock()
         resp.status_code = 400
-        exc = requests.exceptions.HTTPError(response=resp)
-        assert is_retryable(exc) is True
+        exc = requests.exceptions.HTTPError()
+        exc.response = resp
+        assert is_retryable(exc) is False
 
-    def test_retry_on_404(self):
-        """HTTPError (including 404) is a RequestException subclass, so is_retryable returns True."""
+    def test_no_retry_on_404(self):
+        """404 is a client error — don't retry."""
         resp = Mock()
         resp.status_code = 404
-        exc = requests.exceptions.HTTPError(response=resp)
-        assert is_retryable(exc) is True
+        exc = requests.exceptions.HTTPError()
+        exc.response = resp
+        assert is_retryable(exc) is False
 
     def test_no_retry_on_generic_exception(self):
         exc = ValueError("some error")

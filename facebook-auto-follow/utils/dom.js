@@ -8,6 +8,7 @@
  * Returns array of element identifiers {tag, text, ref} for clicking.
  */
 export function findFollowButtons(html) {
+  if (!html || typeof html !== 'string') return []
   const results = []
 
   // Match buttons that say exactly "Theo dõi" (not "Đang theo dõi")
@@ -33,6 +34,7 @@ export function findFollowButtons(html) {
  * These are typically <a> tags with href containing /groups/{id}/posts/{postId}
  */
 export function findPostTimestampLinks(html) {
+  if (!html || typeof html !== 'string') return []
   const results = []
   // Match links to posts: /groups/.../posts/... or facebook.com/groups/.../posts/...
   const postLinkRegex = /href="([^"]*\/groups\/[^"]*\/posts\/[^"]*)"[^>]*>([^<]*)<\/a>/gi
@@ -47,6 +49,7 @@ export function findPostTimestampLinks(html) {
  * Check if a dialog/post modal is present in the HTML snapshot.
  */
 export function isDialogOpen(html) {
+  if (!html || typeof html !== 'string') return false
   // Facebook dialogs typically have role="dialog" or contain specific classes
   return html.includes('role="dialog"') || html.includes('aria-modal="true"')
 }
@@ -55,15 +58,16 @@ export function isDialogOpen(html) {
  * Find the "Đóng" (close) button in the dialog.
  */
 export function findCloseButton(html) {
-  // Close button can be a div with "Đóng" text or an X icon button
+  if (!html || typeof html !== 'string') return null
+  // Try aria-label first (more specific)
   const closeRegex = /<(button|div|span|a)[^>]*aria-label="([^"]*Đóng[^"]*)"[^>]*>/gi
   let match = closeRegex.exec(html)
-  if (match) return { ariaLabel: match[2], raw: match[0] }
+  if (match) return { ref: match[0], raw: match[0] }
 
   // Fallback: button with "Đóng" text
   const btnCloseRegex = /<(button|div)[^>]*>[^<]*Đóng[^<]*<\/(button|div)>/gi
   match = btnCloseRegex.exec(html)
-  if (match) return { text: 'Đóng', raw: match[0] }
+  if (match) return { ref: match[0], raw: match[0] }
 
   return null
 }

@@ -243,6 +243,7 @@ class ContentResearch(BaseModel):
 class CharacterConfig(BaseModel):
     name: str
     voice_id: str
+    gender: Optional[str] = None
 
 
 class VoiceProvider(BaseModel):
@@ -390,6 +391,7 @@ class SceneCharacter(BaseModel):
     name: str
     tts: Optional[str] = None
     speed: Optional[float] = None
+    voice_id: Optional[str] = None
     gender: Optional[str] = None  # male|female from LLM
 
     @classmethod

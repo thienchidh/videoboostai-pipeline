@@ -486,7 +486,7 @@ class VideoPipelineRunner:
             log(f"  ✅ Concat copied: {final_video.stat().st_size/1024/1024:.1f}MB")
 
             # Upscale video if enabled
-            upscale_cfg = self.ctx.technical.generation.get("video_upscale")
+            upscale_cfg = self.ctx.technical.generation.video_upscale
             if upscale_cfg and upscale_cfg.get("enabled", False):
                 upscaled = self.run_dir / "video_upscale.mp4"
                 crf = upscale_cfg.get("crf", 18)

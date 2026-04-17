@@ -114,6 +114,7 @@ class GenerationConfig(BaseModel):
     content: GenerationContent = GenerationContent()
     research: ResearchConfig = ResearchConfig()
     pipeline: GenerationPipeline = GenerationPipeline()
+    video_upscale: Optional[Dict] = None
 
 
 class S3Config(BaseModel):

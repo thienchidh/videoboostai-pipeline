@@ -276,22 +276,34 @@ connectSSE();
 
 # ─── FastAPI App ─────────────────────────────────────────────────────────────────
 
-_FASTAPI_AVAILABLE = False
-_SSEAvailable = False
+_FASTAPI_AVAILABLE = None  # None = not yet checked; True/False = checked
+_SSEAvailable = None
 app = None  # always defined; None when FastAPI is unavailable
 
-try:
-    from fastapi import FastAPI, Response, Request
-    from fastapi.responses import HTMLResponse, JSONResponse
-    from fastapi.middleware.cors import CORSMiddleware
-    _FASTAPI_AVAILABLE = True
+
+def _check_fastapi():
+    """Lazily check FastAPI availability once, then cache result."""
+    global _FASTAPI_AVAILABLE, _SSEAvailable
+    if _FASTAPI_AVAILABLE is not None:
+        return _FASTAPI_AVAILABLE
     try:
-        import sse_starlette.sse as sse_module
-        _SSEAvailable = True
+        from fastapi import FastAPI, Response, Request
+        from fastapi.responses import HTMLResponse, JSONResponse
+        from fastapi.middleware.cors import CORSMiddleware
+        _FASTAPI_AVAILABLE = True
+        try:
+            import sse_starlette.sse as sse_module
+            _SSEAvailable = True
+        except ImportError:
+            _SSEAvailable = False
+            logger.info("sse_starlette not available, using StreamingResponse fallback")
+        return True
     except ImportError:
-        logger.info("sse_starlette not available, using StreamingResponse fallback")
-except ImportError:
-    logger.debug("FastAPI not available, running in fallback mode")
+        _FASTAPI_AVAILABLE = False
+        _SSEAvailable = False
+        logger.debug("FastAPI not available, running in fallback mode")
+        return False
+
 
 # ─── Module-level run state (in-memory) ────────────────────────────────────────
 # Thread-safe in-memory registry of active runs
@@ -409,7 +421,10 @@ def record_api_call(run_id: int, provider: str, success: bool, duration_ms: floa
             })
 
 
-if _FASTAPI_AVAILABLE:
+if _check_fastapi():
+    from fastapi import FastAPI, Response, Request
+    from fastapi.responses import HTMLResponse, JSONResponse
+    from fastapi.middleware.cors import CORSMiddleware
     app = FastAPI(title="Video Pipeline Observer", version="1.0.0")
 
     app.add_middleware(

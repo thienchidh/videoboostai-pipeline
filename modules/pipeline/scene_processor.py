@@ -69,6 +69,44 @@ class SceneProcessor:
                 return voice
         return None
 
+    def _default_voice_model(self, gender: str) -> str:
+        """Return appropriate Edge TTS model for gender."""
+        if gender == "male":
+            return "vi-VN-NamMinhNeural"
+        return "vi-VN-HoaiMyNeural"  # female as default
+
+    def _ensure_character(self, char_name: str, gender: str):
+        """Create CharacterConfig + VoiceConfig if character doesn't exist in channel.
+
+        Args:
+            char_name: Name from LLM output (e.g., "Teacher", "Expert")
+            gender: "male" or "female" from LLM output
+        """
+        # Check if character already exists (idempotent)
+        existing = self.get_character(char_name)
+        if existing:
+            return
+
+        # Create safe voice_id from char_name
+        voice_id = f"auto_{char_name.lower().replace(' ', '_')}"
+
+        # Determine TTS model based on gender
+        model = self._default_voice_model(gender)
+
+        from modules.pipeline.models import VoiceConfig, VoiceProvider, CharacterConfig
+
+        voice = VoiceConfig(
+            id=voice_id,
+            name=char_name,
+            gender=gender,
+            providers=[VoiceProvider(provider="edge", model=model, speed=1.0)],
+        )
+        char = CharacterConfig(name=char_name, voice_id=voice_id)
+
+        self.ctx.channel.voices.append(voice)
+        self.ctx.channel.characters.append(char)
+        log(f"Auto-created character '{char_name}' (gender={gender}, voice_id={voice_id})")
+
     def resolve_voice(self, character, scene: SceneConfig) -> Tuple[str, str, float, str]:
         """Resolve (provider, model, speed, gender) from voice_id or fallback to channel config.
 

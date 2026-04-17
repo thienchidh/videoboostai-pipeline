@@ -509,3 +509,60 @@ class TestAlignWordTimestamps:
         whisper = [{"word": "tám", "start": 0.0, "end": 0.3}]
         result = align_word_timestamps(whisper, [])
         assert result == whisper
+
+    def test_scene_character_has_gender(self):
+        """SceneCharacter should accept gender field."""
+        from modules.pipeline.models import SceneCharacter
+        char = SceneCharacter(name="Teacher", gender="male")
+        assert char.name == "Teacher"
+        assert char.gender == "male"
+
+    def test_scene_character_gender_optional(self):
+        """gender defaults to None for backward compat."""
+        from modules.pipeline.models import SceneCharacter
+        char = SceneCharacter(name="Mentor")
+        assert char.gender is None
+
+
+def test_ensure_character_creates_voice_and_character():
+    """_ensure_character should create VoiceConfig and CharacterConfig when character doesn't exist."""
+    from modules.pipeline.scene_processor import SceneProcessor
+
+    ctx = MagicMock()
+    ctx.channel.characters = []  # empty — character doesn't exist
+    ctx.channel.voices = []
+    ctx.channel.generation = MagicMock()
+    ctx.channel.generation.models.tts = "edge"
+
+    processor = SceneProcessor.__new__(SceneProcessor)
+    processor.ctx = ctx
+
+    processor._ensure_character("Teacher", "male")
+
+    # Should have created one voice and one character
+    assert len(ctx.channel.voices) == 1
+    assert len(ctx.channel.characters) == 1
+    assert ctx.channel.voices[0].gender == "male"
+    assert ctx.channel.voices[0].providers[0].model == "vi-VN-NamMinhNeural"
+    assert ctx.channel.characters[0].name == "Teacher"
+
+def test_ensure_character_idempotent():
+    """Calling _ensure_character twice with same name should not duplicate."""
+    from modules.pipeline.scene_processor import SceneProcessor
+
+    existing_char = MagicMock()
+    existing_char.name = "Teacher"
+    existing_char.voice_id = "existing_voice"
+
+    ctx = MagicMock()
+    ctx.channel.characters = [existing_char]
+    ctx.channel.voices = []
+
+    processor = SceneProcessor.__new__(SceneProcessor)
+    processor.ctx = ctx
+
+    processor._ensure_character("Teacher", "male")
+
+    # Should not add anything since Teacher already exists
+    assert len(ctx.channel.voices) == 0
+    assert len(ctx.channel.characters) == 1  # original only

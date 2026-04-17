@@ -111,8 +111,8 @@ class WaveSpeedImageProvider(ImageProvider):
         self.base_url = config.api_urls.wavespeed
         self._api_key = api_key or config.api_keys.wavespeed
         self.timeout = config.generation.image.timeout
-        self.poll_interval = getattr(config.generation.image, 'poll_interval', 5)
-        self.max_polls = getattr(config.generation.image, 'max_polls', 24)
+        self.poll_interval = config.generation.image.poll_interval
+        self.max_polls = config.generation.image.max_polls
         self.submit_url = f"{self.base_url}/api/v3/minimax/image-01/text-to-image"
 
     @retry_on_500()
@@ -208,8 +208,8 @@ class KieImageProvider(ImageProvider):
         self.base_url = config.api_urls.kie_ai
         self._api_key = api_key or config.api_keys.kie_ai
         self.timeout = config.generation.image.timeout
-        self.poll_interval = getattr(config.generation.image, 'poll_interval', 5)
-        self.max_polls = getattr(config.generation.image, 'max_polls', 24)
+        self.poll_interval = config.generation.image.poll_interval
+        self.max_polls = config.generation.image.max_polls
         self.session = requests.Session()
         self.session.headers.update({
             "Authorization": f"Bearer {self._api_key}",

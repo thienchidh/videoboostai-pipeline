@@ -50,7 +50,8 @@ class MiniMaxImageProvider(ImageProvider):
     @retry_on_500()
     def _call_api(self, url, headers, payload):
         resp = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
-        resp.raise_for_status()
+        if not resp.ok:
+            resp.raise_for_status()
         return resp
 
     def generate(self, prompt: str, output_path: str,

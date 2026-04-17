@@ -115,12 +115,15 @@ class WaveSpeedImageProvider(ImageProvider):
         self.max_polls = getattr(config.generation.image, 'max_polls', 24)
         self.submit_url = f"{self.base_url}/api/v3/minimax/image-01/text-to-image"
 
+    @retry_on_500()
     def _submit_job(self, prompt: str, size: str) -> Optional[str]:
         """Submit image job, return job_id or None."""
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         payload = {"prompt": prompt, "size": size}
         try:
             resp = requests.post(self.submit_url, headers=headers, json=payload, timeout=30)
+            if not resp.ok:
+                resp.raise_for_status()
             data = resp.json()
             if data.get("code") == 200 and data.get("data"):
                 return data["data"]["id"]

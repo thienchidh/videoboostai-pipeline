@@ -758,7 +758,7 @@ class ContentPipeline:
             result = pipeline.run()
 
             # Get output video from runner's media_dir (VideoPipelineRunner manages its own directory structure)
-            _runner = getattr(pipeline, '_runner', None)
+            _runner = pipeline._runner if hasattr(pipeline, '_runner') else None
             output_video = None
             if result and _runner is not None:
                 media_dir = _runner.media_dir

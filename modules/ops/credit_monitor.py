@@ -22,6 +22,8 @@ from typing import Dict, Optional
 
 import requests
 
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+
 logger = logging.getLogger(__name__)
 
 
@@ -155,6 +157,35 @@ class WaveSpeedBalanceProvider(CreditBalanceProvider):
             return UNKNOWN_BALANCE
 
 
+# ─── Refill Detection ───────────────────────────────────────────────────────
+
+# Balance (USD) at which a provider is considered "resumed" after being exhausted.
+# Set low enough to catch real refills, high enough to avoid noise.
+REFILL_RESUME_THRESHOLD = 5.0   # $5 minimum to trigger resume notification
+
+# File storing previous-balance snapshot for refill detection
+_REFILL_STATE_FILE = Path(__file__).parent.parent.parent / ".tasks" / ".credit_refill_state"
+
+
+def _load_refill_state() -> Dict[str, float]:
+    """Load previous-balance snapshot from disk."""
+    _REFILL_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    if _REFILL_STATE_FILE.exists():
+        try:
+            return json.loads(_REFILL_STATE_FILE.read_text())
+        except Exception:
+            pass
+    return {}
+
+
+def _save_refill_state(state: Dict[str, float]):
+    """Persist previous-balance snapshot to disk."""
+    try:
+        _REFILL_STATE_FILE.write_text(json.dumps(state))
+    except Exception as e:
+        logger.warning(f"Failed to save refill state: {e}")
+
+
 # ─── CreditMonitor ────────────────────────────────────────────────────────────
 
 class CreditMonitor:
@@ -237,19 +268,184 @@ class CreditMonitor:
         self._last_alert[provider] = time.time()
         self._save_debounce()
 
-    def run_daemon(self, interval: int = 300, providers: Optional[list] = None):
+    # ─── Refill Detection ──────────────────────────────────────────────────────
+
+    def check_refill_event(self, provider: str, current_balance: float) -> bool:
+        """
+        Detect a credit refill event for a provider.
+
+        A refill event fires when a provider's balance transitions from
+        exhausted/near-zero to above REFILL_RESUME_THRESHOLD.
+
+        Returns True if a refill is detected, False otherwise.
+        Logs the new balance to DB and persists state.
+        """
+        if current_balance == UNKNOWN_BALANCE:
+            return False
+
+        previous = _load_refill_state()
+        prev_balance = previous.get(provider, -1.0)  # -1 = never seen
+
+        # Only fire when: we had a real reading AND balance rose above threshold
+        was_exhausted = (prev_balance >= 0 and prev_balance < REFILL_RESUME_THRESHOLD)
+        is_resumed = (current_balance >= REFILL_RESUME_THRESHOLD)
+
+        if was_exhausted and is_resumed:
+            logger.info(f"💉 [{provider}] REFILL DETECTED: {prev_balance:.2f} → {current_balance:.2f}")
+            self._notify_refill(provider, prev_balance, current_balance)
+            # Update state to prevent re-triggering
+            previous[provider] = current_balance
+            _save_refill_state(previous)
+            return True
+
+        # Update persisted state regardless
+        previous[provider] = current_balance
+        _save_refill_state(previous)
+        return False
+
+    def check_all_refill_events(self) -> Dict[str, bool]:
+        """
+        Check all configured providers for refill events.
+
+        Returns dict of {provider: True if refill detected}.
+        Logs new balances to DB and sends Telegram notification on first refill.
+        """
+        results: Dict[str, bool] = {}
+        for provider in self._providers:
+            balance = self.check_balance(provider)
+            results[provider] = self.check_refill_event(provider, balance)
+        return results
+
+    def watch_for_refill(self,
+                        interval: int = 300,
+                        on_refill_callback=None,
+                        providers: Optional[list] = None):
+        """
+        Long-running daemon that polls for credit refills and optionally
+        triggers a callback when any provider is refilled.
+
+        Args:
+            interval: polling interval in seconds (default 300 = 5 min)
+            on_refill_callback: callable(provider, balance) invoked on each refill.
+                                If None, uses default: trigger_batch_generate().
+            providers: list of provider names to watch (default: all configured)
+
+        Usage:
+            monitor.watch_for_refill(
+                interval=300,
+                on_refill_callback=lambda p, b: print(f"Refill: {p}@{b}")
+            )
+        """
+        import importlib
+
+        def default_callback(provider: str, balance: float):
+            """Default: trigger batch_generate via subprocess."""
+            logger.info(f"Triggering batch_generate after {provider} refill...")
+            try:
+                import subprocess, sys
+                # Run batch_generate in a subprocess; skip credit check since we just refilled
+                proc = subprocess.Popen(
+                    [sys.executable, "-m", "scripts.batch_generate",
+                     "--skip-credit-check", "--dry-run"],
+                    cwd=PROJECT_ROOT,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                )
+                stdout, _ = proc.communicate(timeout=120)
+                logger.info(f"batch_generate output:\n{stdout.decode()[:500]}")
+            except Exception as e:
+                logger.error(f"Failed to trigger batch_generate: {e}")
+
+        callback = on_refill_callback or default_callback
+        providers = providers or list(self._providers.keys())
+
+        logger.info(f"Budget refill watcher started (interval={interval}s, providers={providers})")
+        while True:
+            for provider in providers:
+                try:
+                    balance = self.check_balance(provider)
+                    logger.debug(f"[{provider}] balance: {balance}")
+                    if self.check_refill_event(provider, balance):
+                        logger.info(f"✅ Refill detected for {provider} — invoking callback")
+                        try:
+                            callback(provider, balance)
+                        except Exception as cb_err:
+                            logger.error(f"Refill callback error: {cb_err}")
+                except Exception as e:
+                    logger.warning(f"Error checking {provider}: {e}")
+            time.sleep(interval)
+
+    # ─── Telegram Refill Notification ──────────────────────────────────────────
+
+    def _notify_refill(self, provider: str, prev_balance: float, new_balance: float):
+        """Send Telegram notification when credits are refilled."""
+        if self.dry_run:
+            logger.info(
+                f"[DRY-RUN] Would notify refill: {provider} "
+                f"({prev_balance:.2f} → {new_balance:.2f})"
+            )
+            return
+
+        import urllib.request, urllib.parse
+        msg = (
+            f"💉 [videopipeline] Credits Restored!\n"
+            f"`{provider}` balance: ${prev_balance:.2f} -> ${new_balance:.2f}\n"
+            f"Batch generate loop resumed automatically."
+        )
+        try:
+            encoded = urllib.parse.quote_plus(msg)
+            # Try message tool first (async, proper Telegram integration)
+            try:
+                from openclaw_personal_utilities import message
+                message.send(
+                    action="send",
+                    target=self.TELEGRAM_CHANNEL,
+                    message=msg,
+                    threadId=self.TELEGRAM_TOPIC_ID,
+                )
+                logger.info(f"Refill Telegram notification sent for {provider}")
+            except ImportError:
+                # Fallback: direct HTTP to Telegram bot
+                tech_path = PROJECT_ROOT / "configs" / "technical" / "config_technical.yaml"
+                if tech_path.exists():
+                    import yaml
+                    data = yaml.safe_load(tech_path.read_text())
+                    bot_token = (
+                        data.get("telegram", {})
+                        .get("bot_token")
+                    )
+                    chat_id = data["telegram"]["chat_id"]
+                    if bot_token and chat_id:
+                        url = (
+                            f"https://api.telegram.org/bot{bot_token}"
+                            f"/sendMessage?chat_id={chat_id}"
+                            f"&text={encoded}&parse_mode=Markdown"
+                        )
+                        with urllib.request.urlopen(url, timeout=10) as resp:
+                            if resp.status == 200:
+                                logger.info(f"Refill Telegram notification sent for {provider}")
+                                return
+            logger.warning("Telegram not configured for refill notification")
+        except Exception as e:
+            logger.warning(f"Failed to send refill Telegram notification: {e}")
+
+    def run_daemon(self, interval: int = 300, providers: Optional[list] = None,
+                   check_refill: bool = True):
         """
         Continuously poll providers every `interval` seconds.
-        Logs to DB on each check and alerts on threshold breach.
+        Logs to DB on each check, sends low-credit alerts on threshold breach,
+        and detects refill events (if check_refill=True).
         """
         providers = providers or list(self._providers.keys())
-        logger.info(f"CreditMonitor daemon started (interval={interval}s)")
+        logger.info(f"CreditMonitor daemon started (interval={interval}s, check_refill={check_refill})")
         while True:
             for provider in providers:
                 balance = self.check_balance(provider)
                 logger.info(f"[{provider}] balance: {balance}")
                 if not self.dry_run and balance != UNKNOWN_BALANCE:
                     self.alert_if_low(provider, balance)
+                    if check_refill:
+                        self.check_refill_event(provider, balance)
             time.sleep(interval)
 
     # ─── DB Logging ────────────────────────────────────────────────────────────

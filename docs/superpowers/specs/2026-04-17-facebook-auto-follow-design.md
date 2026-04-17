@@ -54,23 +54,44 @@ Group URL được truyền qua command line, không hardcode. File config chỉ
 module.exports = {
   scrollDelayMin: 1500,   // min ms between scrolls
   scrollDelayMax: 4000,   // max ms between scrolls (randomized)
-  actionDelayMin: 400,    // min ms between follow actions
-  actionDelayMax: 1200,   // max ms between follow actions (randomized)
-  maxRetries: 2,          // click retry count
+  actionDelayMin: 400,     // min ms between follow actions
+  actionDelayMax: 1200,    // max ms between follow actions (randomized)
+  hoverDelayMin: 300,      // min ms hover before click
+  hoverDelayMax: 600,      // max ms hover before click
+  readDelayMin: 2000,      // min ms "reading" a post
+  readDelayMax: 5000,      // max ms "reading" a post
+  maxRetries: 2,           // click retry count
   debugMode: false
 }
 ```
 
-### Anti-Spam Behavior
+### Anti-Spam / Anti-Detection Behavior
 
 Script mô phỏng hành vi người thật để tránh Facebook flag:
 
-- **Randomized delays**: mỗi action có delay ngẫu nhiên trong khoảng [min, max], không fix cứng
-- **Scroll có pause**: scroll 1 lần → dừng 1-2s → scroll tiếp (giống người đọc)
-- **Hover trước click**: hover vào element trước 300-600ms rồi mới click
-- **Không click liên tục**: giữa mỗi lần click "Theo dõi" có delay ngẫu nhiên 400-1200ms
-- ** случайный scroll**: lượt scroll ngắn, có lúc dừng lại đọc nội dung
-- **Không bao giờ ở exact same position**: scroll feed không click vào cùng 1 vị trí 2 lần liên tiếp
+**Randomized delays:**
+- Mỗi action có delay ngẫu nhiên trong khoảng [min, max], không fix cứng
+- Scroll delay: 1500-4000ms ngẫu nhiên
+- Action delay: 400-1200ms ngẫu nhiên
+
+**Human-like scrolling:**
+- Ưu tiên dùng **keyboard** (Page Down) hoặc **mouse wheel** thay vì click scrollbar
+- Scroll từng đoạn ngắn, có pause 1-2s giữa các lần scroll (như người đọc nội dung)
+- Thỉnh thoảng scroll ngược lên trên một chút (simulate reviewing)
+- Random scroll speed — không scroll cùng tốc độ mỗi lần
+
+**Mouse movement:**
+- Hover trước khi click: di chuột vào element, dừng 300-600ms rồi mới click
+- Di chuột theo đường cong (bezier), không di thẳng từ A đến B
+- Vị trí click không chính xác tâm button, bias trái/trái ngẫu nhiên
+
+**Không click liên tục:**
+- Giữa mỗi lần click "Theo dõi" có delay ngẫu nhiên 400-1200ms
+- Không bao giờ ở exact same position khi click
+
+**Natural interaction patterns:**
+- Thỉnh thoảng dừng lại "đọc" nội dung bài viết 2-5s
+- Không follow quá nhanh — cảm giác như có người ngồi đọc thật sự
 
 ## Flow
 

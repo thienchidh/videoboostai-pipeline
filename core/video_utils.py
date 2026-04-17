@@ -643,3 +643,63 @@ def mock_lipsync_video(image_path: str, audio_path: str, output_path: str) -> Op
     except Exception as e:
         log(f"  🔴 DRY RUN: Lipsync fallback error: {e}")
     return None
+
+
+def upscale_video(input_path: str,
+                  output_path: str,
+                  crf: int = 18,
+                  preset: str = "slow",
+                  fps: int = 60) -> Optional[str]:
+    """Upscale video from ~480p to 2K (1920x3408) using FFmpeg filters.
+
+    Filter chain:
+      - scale: 4x upscale with lanczos algorithm (sharpest available)
+      - unsharp: light sharpen to enhance edges
+      - minterpolate: motion-compensated interpolation to target fps
+
+    Args:
+        input_path: Path to input video (9:16, ~480p)
+        output_path: Path to output video
+        crf: CRF value (18=nearly lossless, 23=default)
+        preset: FFmpeg encoding preset (slow=best compress, fast=quickest)
+        fps: Target framerate for interpolation
+
+    Returns:
+        Output path on success, None on failure
+    """
+    scale_filter = "scale=1920:3408:flags=lanczos+accurate_rnd"
+    sharpen_filter = "unsharp=5:5:0.5:5:5:0.0"
+    interp_filter = f"minterpolate=fps={fps}:mi_mode=mci"
+    vf = f"{scale_filter},{sharpen_filter},{interp_filter}"
+
+    cmd = [
+        get_ffmpeg(), "-y",
+        "-i", input_path,
+        "-vf", vf,
+        "-c:v", "libx264",
+        "-preset", preset,
+        "-crf", str(crf),
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        output_path,
+    ]
+
+    logger.info(f"Upscaling video: CRF={crf}, preset={preset}, fps={fps}")
+    logger.debug(f"FFmpeg upscale cmd: {' '.join(cmd)}")
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.warning(f"Upscale failed: {result.stderr}")
+            return None
+        logger.info(f"Upscale complete: {output_path}")
+        return output_path
+    except Exception as e:
+        logger.warning(f"Upscale exception: {e}")
+        return None

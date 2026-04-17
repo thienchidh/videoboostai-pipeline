@@ -216,6 +216,13 @@ class KieImageProvider(ImageProvider):
             "Content-Type": "application/json",
         })
 
+    @retry_on_500()
+    def _call_api(self, url, json_payload):
+        resp = self.session.post(url, json=json_payload, timeout=self.timeout)
+        if not resp.ok:
+            resp.raise_for_status()
+        return resp
+
     def generate(self, prompt: str, output_path: str,
                  aspect_ratio: str = "9:16") -> Optional[str]:
         """Generate image via Z Image API with polling."""
@@ -240,10 +247,9 @@ class KieImageProvider(ImageProvider):
 
         # Step 1: Create task
         try:
-            resp = self.session.post(
+            resp = self._call_api(
                 f"{self.base_url}/jobs/createTask",
-                json=payload,
-                timeout=self.timeout,
+                payload,
             )
             data = resp.json()
             logger.debug(f"Kie Z Image create response: {resp.status_code}, {json.dumps(data, ensure_ascii=False)[:300]}")

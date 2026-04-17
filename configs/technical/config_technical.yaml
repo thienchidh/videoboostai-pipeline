@@ -78,6 +78,12 @@ generation:
   pipeline:
     max_retries: 3   # max retries for scene processing errors
 
+  video_upscale:
+    enabled: true          # true | false — enable upscaling after concat
+    crf: 18               # quality: lower = better quality, 18 = nearly lossless
+    preset: "slow"        # encoding speed: slow = best compress, fast = quickest
+    fps: 60               # target framerate for interpolation
+
 logging:
   level: INFO            # DEBUG | INFO | WARNING | ERROR
   format: "%(asctime)s %(levelname)s %(message)s"

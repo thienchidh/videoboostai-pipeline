@@ -69,3 +69,12 @@ class CaptionGenerationError(PipelineError):
         self.original_error = original_error
         msg = f"Caption generation failed: {reason}"
         super().__init__(msg)
+
+
+class ContentPipelineExhaustedError(PipelineError):
+    """Raised when all topic sources (pending + fresh research) are exhausted
+    and no new non-duplicate ideas can be generated."""
+
+    def __init__(self, message: str = "All topic sources exhausted (pending + fresh research)"):
+        self.message = message
+        super().__init__(self.message)

@@ -83,6 +83,7 @@ generation:
     crf: 18               # quality: lower = better quality, 18 = nearly lossless
     preset: "slow"        # encoding speed: slow = best compress, fast = quickest
     fps: 60               # target framerate for interpolation
+    use_gpu: true         # use NVIDIA NVENC GPU encoding if available
 
 logging:
   level: INFO            # DEBUG | INFO | WARNING | ERROR

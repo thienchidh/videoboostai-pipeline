@@ -109,6 +109,7 @@ class VideoUpscaleConfig(BaseModel):
     crf: int = 18
     preset: str = "slow"
     fps: int = 60
+    use_gpu: bool = True  # use NVIDIA NVENC GPU encoding if available
 
 
 class GenerationConfig(BaseModel):

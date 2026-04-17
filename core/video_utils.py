@@ -24,6 +24,27 @@ from typing import Any, Dict, List, Optional
 from core.paths import PROJECT_ROOT, get_ffmpeg, get_ffprobe, get_font_path
 
 
+# ==================== GPU CHECK ====================
+
+_nvenc_cached: bool | None = None  # cached result
+
+
+def _nvenc_available() -> bool:
+    """Check if NVIDIA NVENC h264 encoder is available in FFmpeg."""
+    global _nvenc_cached
+    if _nvenc_cached is not None:
+        return _nvenc_cached
+    try:
+        result = subprocess.run(
+            [get_ffmpeg(), "-hide_banner", "-encoders"],
+            capture_output=True, text=True, timeout=10,
+        )
+        _nvenc_cached = "h264_nvenc" in result.stdout
+    except Exception:
+        _nvenc_cached = False
+    return _nvenc_cached
+
+
 # ==================== LOGGING ====================
 
 def log(msg: str) -> None:
@@ -649,7 +670,8 @@ def upscale_video(input_path: str,
                   output_path: str,
                   crf: int = 18,
                   preset: str = "slow",
-                  fps: int = 60) -> Optional[str]:
+                  fps: int = 60,
+                  use_gpu: bool = True) -> Optional[str]:
     """Upscale video from ~480p to 2K (1920x3408) using FFmpeg filters.
 
     Filter chain:
@@ -663,6 +685,7 @@ def upscale_video(input_path: str,
         crf: CRF value (18=nearly lossless, 23=default)
         preset: FFmpeg encoding preset (slow=best compress, fast=quickest)
         fps: Target framerate for interpolation
+        use_gpu: If True, use NVIDIA NVENC GPU encoding (h264_nvenc) instead of CPU (libx264)
 
     Returns:
         Output path on success, None on failure
@@ -672,20 +695,40 @@ def upscale_video(input_path: str,
     interp_filter = f"minterpolate=fps={fps}:mi_mode=mci"
     vf = f"{scale_filter},{sharpen_filter},{interp_filter}"
 
-    cmd = [
-        get_ffmpeg(), "-y",
-        "-i", input_path,
-        "-vf", vf,
-        "-c:v", "libx264",
-        "-preset", preset,
-        "-crf", str(crf),
-        "-pix_fmt", "yuv420p",
-        "-c:a", "aac",
-        "-b:a", "128k",
-        output_path,
-    ]
+    # GPU encoding: use h264_nvenc with balanced preset
+    # CPU encoding: use libx264 with user-specified preset
+    gpu_enabled = use_gpu and _nvenc_available()
+    if gpu_enabled:
+        vcodec = "h264_nvenc"
+        gpu_preset = "p4"  # nvenc preset: p1=fastest, p7=best quality (p4=balanced)
+        cmd = [
+            get_ffmpeg(), "-y",
+            "-hwaccel", "cuda",
+            "-i", input_path,
+            "-vf", vf,
+            "-c:v", vcodec,
+            "-preset", gpu_preset,
+            "-crf", str(crf),
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            output_path,
+        ]
+    else:
+        cmd = [
+            get_ffmpeg(), "-y",
+            "-i", input_path,
+            "-vf", vf,
+            "-c:v", "libx264",
+            "-preset", preset,
+            "-crf", str(crf),
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            output_path,
+        ]
 
-    log(f"Upscaling video: CRF={crf}, preset={preset}, fps={fps}")
+    log(f"Upscaling video: CRF={crf}, preset={preset}, fps={fps}, gpu={gpu_enabled}")
 
     try:
         result = subprocess.run(

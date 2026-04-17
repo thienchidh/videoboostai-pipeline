@@ -494,7 +494,8 @@ class VideoPipelineRunner:
                 fps = upscale_cfg.fps
                 log(f"\n🔍 UPSCALING VIDEO: CRF={crf}, preset={preset}, fps={fps}")
                 up_result = upscale_video(str(final_video), str(upscaled),
-                                          crf=crf, preset=preset, fps=fps)
+                                          crf=crf, preset=preset, fps=fps,
+                                          use_gpu=upscale_cfg.use_gpu)
                 if up_result and Path(up_result).exists():
                     shutil.copy(str(up_result), str(final_video))
                     log(f"  ✅ Upscale complete: {final_video.stat().st_size/1024/1024:.1f}MB")

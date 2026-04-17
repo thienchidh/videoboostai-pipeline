@@ -65,7 +65,7 @@ generation:
     provider: "kieai"
     prompt: "A person talking"  # mô tả cho lipsync model
     resolution: "480p"           # 480p | 720p | 1080p
-    max_wait: 3600               # was 900 — allow up to 60 minutes for slow Kie.ai jobs
+    max_wait: 7200               # 120 minutes for slow Kie.ai jobs
     poll_interval: 10           # giây giữa các poll
     retries: 2                   # số lần retry cho generation
   seeds:

@@ -16,7 +16,7 @@ def is_retryable(exc):
     if hasattr(exc, 'response') and exc.response is not None:
         status = exc.response.status_code
         if status == 429:
-            return True  # rate limit
+            return False  # fail fast on quota/rate-limit — don't retry
         if status >= 500:
             return True  # server error
     return False

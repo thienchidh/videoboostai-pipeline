@@ -10,14 +10,20 @@ logger = logging.getLogger(__name__)
 
 
 def is_retryable(exc):
-    """Return True for retryable errors: 5xx, connection errors."""
+    """Return True for retryable errors: 5xx, connection errors, 422 NSFW."""
     if hasattr(exc, 'response') and exc.response is not None:
         status = exc.response.status_code
         if status >= 500:
             return True  # server error
         if status == 429:
             return False  # fail fast on quota/rate-limit
-        return False  # 4xx client errors
+        if status == 422:
+            # 422 NSFW content — retry with different prompt/payload
+            body = exc.response.text.lower()
+            if 'nsfw' in body or 'content' in body:
+                return True
+            return False
+        return False  # other 4xx client errors
     if isinstance(exc, requests.exceptions.RequestException):
         return True  # connection timeout, DNS failure, connection refused, etc.
     return False
@@ -26,7 +32,7 @@ def is_retryable(exc):
 def retry_on_500():
     """Decorator: retry up to 5 times with exponential backoff (2-120s).
 
-    Retries on: 5xx errors, connection errors.
+    Retries on: 5xx errors, connection errors, 422 NSFW errors.
     """
     return retry(
         stop=stop_after_attempt(5),

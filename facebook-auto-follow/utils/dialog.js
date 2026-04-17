@@ -30,8 +30,12 @@ export async function closeDialog(callTool) {
   const html = snapshot.html ?? ''
 
   const closeBtn = findCloseButton(html)
-  if (closeBtn && closeBtn.ref) {
-    await callTool('mcp__browsermcp__browser_click', { element: 'close dialog', ref: closeBtn.ref })
+  if (closeBtn && closeBtn.ariaLabel) {
+    // Use aria-label as selector: aria-label="..." attribute value
+    await callTool('mcp__browsermcp__browser_click', {
+      element: 'close dialog',
+      ref: `[aria-label="${closeBtn.ariaLabel}"]`
+    })
   } else {
     // Fallback: press Escape
     log('No close button found, pressing Escape')

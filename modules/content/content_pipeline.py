@@ -354,6 +354,7 @@ class ContentPipeline:
         pending_sources_loaded = False
         # Track the source we're currently consuming (so we can mark it completed when exhausted)
         current_topics_source_id = source_id
+        fresh_research_done = False  # tracks whether we've already done fresh research as fallback
 
         while len(ideas) < num_ideas:
             # Load pending sources on first iteration (after initial topics are set)
@@ -371,10 +372,9 @@ class ContentPipeline:
             # Build remaining topics from current batch
             remaining = [t for t in topics if t.get("title", "") not in topics_tried]
 
-            # If current batch exhausted, try next pending source
+            # If current batch exhausted, try next pending source or fresh research
             if not remaining:
-                logger.info("  Current topic batch exhausted, trying next pending source...")
-                # Mark the PREVIOUS source as completed (all its topics were exhausted)
+                logger.info("  Current topic batch exhausted, trying next topic source...")
                 from db import mark_topic_source_completed
                 if current_topics_source_id:
                     try:
@@ -383,25 +383,19 @@ class ContentPipeline:
                                    f"(all topics tried, all duplicates)")
                     except Exception as e:
                         logger.warning(f"  Could not mark source {current_topics_source_id} completed: {e}")
-                # Advance to next pending source in round-robin
-                while pending_index < len(pending_sources):
-                    ps = pending_sources[pending_index]
-                    pending_index += 1
-                    if ps.get("topics"):
-                        topics = ps["topics"]
-                        current_topics_source_id = ps["id"]
-                        source_id = ps["id"]
-                        logger.info(f"  Switched to pending source id={source_id}, {len(topics)} topics")
-                        break
-                    # Empty source — mark completed and skip (nothing to process)
-                    logger.info(f"  Skipping empty pending source id={ps['id']} — marking completed")
-                    try:
-                        mark_topic_source_completed(ps["id"])
-                    except Exception:
-                        pass
+
+                if results.get("pending_mode"):
+                    # pending_mode: use helper to get next topics (round-robin pending, then fresh research)
+                    topics, source_id, pending_index, fresh_research_done = self._get_next_topics(
+                        pending_sources, pending_index, current_topics_source_id, fresh_research_done, num_ideas
+                    )
+                    current_topics_source_id = source_id
+                    topics_tried = set()
+                    results["pending_mode"] = False  # after fresh research, no longer pending_mode
+                    logger.info(f"  Got {len(topics)} new topics from _get_next_topics, continuing...")
+                    continue
                 else:
-                    # All pending sources exhausted — no more topics to try
-                    logger.info("  All pending sources exhausted (all topics were duplicates)")
+                    # non-pending: nothing left to try
                     break
 
             # Determine how many topics to request this iteration (fill the quota)

@@ -277,6 +277,7 @@ CẤU TRÚC SCENES:
 
 QUY TẮC NGHIÊM NGẶT:
 - MỖI SCENE phải deliver ÍT NHẤT 1 điều CỤ THỂ (fact/technique/principle)
+- MỖI SCENE phải có `gender` field: "male" hoặc "female" (bắt buộc)
 - KHÔNG viết scene chỉ toàn câu hỏi mà không trả lời gì
 - Scene hook có thể hỏi nhưng phải IMPLY/trả lời một phần ngay trong script đó
 - Số scenes: tự quyết định dựa trên topic (2-5 scenes), không cố định 3
@@ -306,7 +307,8 @@ CREATIVE_BRIEF REQUIREMENTS:
       "id": 1,
       "scene_type": "hook",
       "script": "...",
-      "character": "...",
+      "character": "Teacher",
+      "gender": "male",
       "delivers": "what viewer gets from this scene in 1 sentence",
       "creative_brief": {{
         "visual_concept": "setting + subjects + objects viewer sees",
@@ -587,8 +589,12 @@ Hãy viết lại kịch bản này để có độ dài phù hợp (khoảng {t
             elif not isinstance(char, str) or not char:
                 char = default_char
             scene["character"] = char
-            # Always remove 'characters' key — inconsistent field
-            scene.pop("characters", None)
+            # Capture gender from LLM output
+            char_gender = scene.get("gender")
+            # Set 'characters' list format that SceneConfig.from_dict expects
+            scene["characters"] = [{"name": char, "gender": char_gender}]
+            # Remove singular 'character' key to avoid confusion in from_dict
+            scene.pop("character", None)
             # Normalize: ensure image_prompt and lipsync_prompt are present (or None)
             scene["image_prompt"] = scene.get("image_prompt") or None
             scene["lipsync_prompt"] = scene.get("lipsync_prompt") or None

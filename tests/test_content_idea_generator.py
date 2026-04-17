@@ -505,6 +505,23 @@ def test_final_scene_has_cta_or_summary():
     assert scenes[-1].scene_type in ["insight", "technique", "proof", "cta"]
 
 
+def test_validate_scenes_captures_gender():
+    """_validate_scenes should pass gender through to SceneConfig.characters."""
+    from unittest.mock import MagicMock
+    from modules.content.content_idea_generator import ContentIdeaGenerator
+    gen = ContentIdeaGenerator(project_id=1, channel_config=MagicMock(
+        characters=[MagicMock(name="Mentor", voice_id="mentor_female")],
+        voices=[]
+    ))
+    raw_scenes = [
+        {"id": 1, "character": "Teacher", "gender": "male", "tts": "Hello"},
+    ]
+    result = gen._validate_scenes(raw_scenes)
+    assert len(result) == 1
+    assert result[0].characters[0].name == "Teacher"
+    assert result[0].characters[0].gender == "male"  # NEW
+
+
 def test_scene_count_dynamic():
     """LLM can return 2-5 scenes, not just exactly 3."""
     import json

@@ -476,6 +476,21 @@ class ScenarioConfig(BaseModel):
         return instance
 
 
+class ScriptOutput(BaseModel):
+    """Output từ content_idea_generator.generate_script_from_idea().
+
+    Dùng Pydantic model thay vì Dict để có direct attribute access.
+    """
+    title: str
+    scenes: List[SceneConfig]
+    video_message: str
+    content_angle: str = "tips"
+    keywords: List[str] = []
+    watermark: Optional[str] = None
+    style: Optional[str] = None
+    generated_at: Optional[str] = None
+
+
 class PagePlatformConfig(BaseModel):
     page_id: Optional[str] = None
     page_name: Optional[str] = None

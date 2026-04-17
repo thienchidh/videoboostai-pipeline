@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 from modules.llm import get_llm_provider
-from modules.pipeline.models import ChannelConfig, TechnicalConfig, SceneConfig
+from modules.pipeline.models import ChannelConfig, TechnicalConfig, SceneConfig, ScriptOutput
 from modules.pipeline.exceptions import ConfigMissingKeyError
 
 logger = logging.getLogger(__name__)
@@ -82,10 +82,10 @@ class ContentIdeaGenerator:
             ideas.append(idea)
         return ideas
 
-    def generate_script_from_idea(self, idea: Dict, num_scenes: int = 3) -> Dict:
+    def generate_script_from_idea(self, idea: Dict, num_scenes: int = 3) -> ScriptOutput:
         """
         Generate scene scripts from a content idea.
-        Returns scene scripts in video_pipeline format.
+        Returns ScriptOutput Pydantic model (not Dict) for direct attribute access.
         """
         title = idea.get("title", "")
         keywords = idea.get("topic_keywords", [])
@@ -103,16 +103,16 @@ class ContentIdeaGenerator:
         watermark = self._channel_config.watermark.text
         style = self._channel_config.style
 
-        return {
-            "title": title,
-            "content_angle": angle,
-            "keywords": keywords,
-            "scenes": scenes,
-            "video_message": video_message,
-            "watermark": watermark,
-            "style": style,
-            "generated_at": datetime.now().isoformat()
-        }
+        return ScriptOutput(
+            title=title,
+            content_angle=angle,
+            keywords=keywords,
+            scenes=scenes,  # List[SceneConfig] - direct Pydantic objects
+            video_message=video_message,
+            watermark=watermark,
+            style=style,
+            generated_at=datetime.now().isoformat()
+        )
 
     def _generate_scenes(self, title: str, keywords: List[str], angle: str,
                           description: str, num_scenes: int,
@@ -586,18 +586,19 @@ Hãy viết lại kịch bản này để có độ dài phù hợp (khoảng {t
             logger.error(f"Failed to save ideas to DB: {e}")
             return []
 
-    def update_idea_script(self, idea_id: int, script_json: Dict):
-        """Update idea with generated script."""
+    def update_idea_script(self, idea_id: int, script: ScriptOutput):
+        """Update idea with generated script (ScriptOutput Pydantic model)."""
         try:
             from db import update_idea_script as db_update_idea_script
-            # Convert SceneConfig objects to clean dicts for JSON serialization
-            script_to_save = dict(script_json)
-            if "scenes" in script_to_save and script_to_save["scenes"]:
-                script_to_save["scenes"] = [
-                    s.model_dump(exclude_none=True)
-                    for s in script_to_save["scenes"]
-                ]
-            db_update_idea_script(idea_id, script_to_save)
+            # Serialize ScriptOutput to dict with clean nested dicts (strip None recursively)
+            def _clean(obj):
+                if isinstance(obj, dict):
+                    return {k: _clean(v) for k, v in obj.items() if v is not None}
+                if isinstance(obj, list):
+                    return [_clean(item) for item in obj if item is not None]
+                return obj
+            script_dict = _clean(script.model_dump())
+            db_update_idea_script(idea_id, script_dict)
             logger.info(f"Updated idea {idea_id} with script")
         except Exception as e:
             logger.error(f"Failed to update idea script: {e}")

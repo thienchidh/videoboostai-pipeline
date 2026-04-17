@@ -7,6 +7,7 @@ import logging
 from typing import Optional
 
 from core.plugins import LLMProvider
+from core.retry import retry_on_500
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,13 @@ class MiniMaxLLMProvider(LLMProvider):
         # Reuse connection pool via session
         self._session = requests.Session()
 
+    @retry_on_500()
+    def _call_api(self, url, headers, body):
+        resp = self._session.post(url, headers=headers, json=body, timeout=self.timeout)
+        if not resp.ok:
+            resp.raise_for_status()
+        return resp
+
     def chat(self, prompt: str, system: str = "", max_tokens: int = 1024) -> str:
         """
         Send a chat prompt to MiniMax LLM.
@@ -73,19 +81,19 @@ class MiniMaxLLMProvider(LLMProvider):
         else:
             logger.debug(f"MiniMax API payload:\n{payload_str}")
 
-        resp = self._session.post(
-            self.api_url,
-            headers={
-                "anthropic-version": "2023-06-01",
-                "Content-Type": "application/json",
-                "x-api-key": self.api_key,
-            },
-            json=body,
-            timeout=self.timeout,
-        )
-        logger.debug(f"MiniMax API response status: {resp.status_code}")
-        resp.raise_for_status()
-        data = resp.json()
+        try:
+            resp = self._call_api(
+                self.api_url,
+                {
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
+                    "x-api-key": self.api_key,
+                },
+                body,
+            )
+            logger.debug(f"MiniMax API response status: {resp.status_code}")
+            resp.raise_for_status()
+            data = resp.json()
         response_str = json.dumps(data, ensure_ascii=False, indent=2)
         if len(response_str) > 1000:
             logger.debug(f"MiniMax API response (truncated):\n{response_str[:1000]}\n... [truncated {len(response_str)-1000} chars]")

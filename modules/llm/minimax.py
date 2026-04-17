@@ -94,11 +94,14 @@ class MiniMaxLLMProvider(LLMProvider):
             logger.debug(f"MiniMax API response status: {resp.status_code}")
             resp.raise_for_status()
             data = resp.json()
-        response_str = json.dumps(data, ensure_ascii=False, indent=2)
-        if len(response_str) > 1000:
-            logger.debug(f"MiniMax API response (truncated):\n{response_str[:1000]}\n... [truncated {len(response_str)-1000} chars]")
-        else:
-            logger.debug(f"MiniMax API response:\n{response_str}")
+            response_str = json.dumps(data, ensure_ascii=False, indent=2)
+            if len(response_str) > 1000:
+                logger.debug(f"MiniMax API response (truncated):\n{response_str[:1000]}\n... [truncated {len(response_str)-1000} chars]")
+            else:
+                logger.debug(f"MiniMax API response:\n{response_str}")
+        except Exception as e:
+            logger.warning(f"MiniMax API error: {e}")
+            return ""
 
         # Strip thinking/reasoning blocks that MiniMax sometimes includes
         content = data.get("content", [])

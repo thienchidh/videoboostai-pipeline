@@ -20,6 +20,25 @@ logger = logging.getLogger(__name__)
 class TopicResearcher:
     """Research trending topics from web search and other sources."""
 
+    # Common stopwords to filter from keyword extraction
+    _STOPWORDS = {
+        # Vietnamese stopwords (single-syllable words and common function words)
+        "trong", "của", "là", "và", "có", "được", "cho", "với", "này", "không",
+        "những", "một", "các", "tại", "về", "sau", "trước", "khi", "nếu",
+        "thì", "hoặc", "vì", "nên", "từ", "lên", "xuống", "ra", "vào",
+        "để", "qua", "bị", "đã", "đang", "sẽ", "có thể", "như", "hơn",
+        "lượng", "lường", "tiếng", "việt", "nghĩa", "nguồn", "từ", "điểm",
+        # English stopwords
+        "what", "which", "who", "whom", "this", "that", "these", "those",
+        "have", "has", "had", "does", "did", "will", "would", "could", "should",
+        "about", "after", "before", "between", "into", "through", "during",
+        "been", "being", "from", "they", "them", "their", "will", "with",
+        "when", "where", "why", "how", "all", "each", "every", "both",
+        "very", "just", "only", "also", "such", "most", "more", "some",
+        "any", "much", "many", "several", "several", "definition", "meaning",
+        "well", "best", "better", "new", "now", "here", "there", "thus",
+    }
+
     def __init__(self, niche_keywords: List[str], project_id: Optional[int] = None):
         """
         Args:
@@ -96,53 +115,92 @@ class TopicResearcher:
             pass
         return ""
 
+    def _is_good_keyword(self, word: str) -> bool:
+        """Return True if word is a meaningful keyword (not stopword or garbage)."""
+        w = word.lower().strip(".,!?;:'\"()[]{}")
+        # Must be > 5 chars
+        if len(w) <= 5:
+            return False
+        # No digits
+        if any(c.isdigit() for c in w):
+            return False
+        # No pure punctuation
+        if all(not c.isalnum() for c in w):
+            return False
+        # Not a stopword
+        if w in self._STOPWORDS:
+            return False
+        return True
+
     def extract_keywords_from_topic(self, topic: Dict) -> List[str]:
-        """Extract 3-5 keywords from topic title + description for next research cycle."""
+        """Extract 3-5 meaningful keywords from topic title + description.
+
+        Filters out Vietnamese/English stopwords, single words, and garbage.
+        Only keeps compound words (likely real topics) for future research.
+        """
         title = topic.get("title", "")
         description = topic.get("description", "") or topic.get("url", "")
         text = title + " " + description
         words = text.split()
         keywords = set()
         for w in words:
-            w_lower = w.lower().strip(".,!?;:'\"()[]{}")
-            if len(w_lower) > 4 and not w_lower.isdigit():
-                keywords.add(w_lower)
+            w_stripped = w.lower().strip(".,!?;:'\"()[]{}")
+            if self._is_good_keyword(w_stripped):
+                keywords.add(w_stripped)
         return list(keywords)[:5]
+
+    def _expand_keyword(self, kw: str) -> List[str]:
+        """Expand a keyword into compound search queries for better coverage.
+
+        Instead of searching just "productivity", search for more specific
+        compound queries that return fewer generic Wikipedia results.
+        """
+        suffixes = [
+            "tips", "techniques", "methods", "hacks", "strategies",
+            "for students", "for workers", "2024", "best practices",
+        ]
+        queries = [kw]  # Always include the base keyword
+        for suffix in suffixes[:3]:  # Limit to 3 variations to avoid too many searches
+            queries.append(f"{kw} {suffix}")
+        return queries
 
     def research_from_keywords(self, keywords: List[str] = None, count: int = 10) -> List[Dict]:
         """
         Main method: research topics from keywords.
-        Searches web for each keyword and aggregates results.
 
-        Note: Title dedup against recent DB topics was REMOVED - it was too aggressive
-        and blocked all YouSearch results because common keywords always return the same
-        Wikipedia/Dictionary pages. True deduplication of generated ideas is handled by
-        check_duplicate_ideas() using semantic similarity (sentence-transformers), which
-        compares idea MEANING not exact title matches.
+        Uses compound search queries (keyword + suffixes) instead of bare keywords
+        to get more specific, non-Wikipedia results.
+
+        True deduplication of generated ideas is handled by check_duplicate_ideas()
+        using semantic similarity (sentence-transformers).
         """
         keywords = keywords or self.niche_keywords
         all_topics = []
 
         for kw in keywords:
-            # Search with higher count per keyword to account for some filtering
-            search_count = max(count, 10)  # at least 10 per keyword
-            logger.info(f"Researching keyword: '{kw}', search_count={search_count}")
-            topics = self.web_search_trending(kw, count=search_count)
-            logger.info(f"  Search results for '{kw}': {len(topics)} topics")
-            for i, topic in enumerate(topics):
-                logger.info(f"    [{i+1}] {topic.get('title', '')[:80]}")
-            for topic in topics:
-                topic["source_keyword"] = kw
-                topic["researched_at"] = datetime.now().isoformat()
-                all_topics.append(topic)
-                extracted = self.extract_keywords_from_topic(topic)
-                for kw_extracted in extracted:
-                    try:
-                        from db import save_keyword
-                        save_keyword(kw_extracted, source_topic_id=None)
-                    except Exception:
-                        pass  # Non-fatal
-            time.sleep(0.5)  # Rate limit
+            # Expand to compound queries for more specific results
+            queries = self._expand_keyword(kw)
+            for query in queries:
+                search_count = max(count, 10)
+                logger.info(f"Researching query: '{query}', count={search_count}")
+                topics = self.web_search_trending(query, count=search_count)
+                logger.info(f"  Search results for '{query}': {len(topics)} topics")
+                for i, topic in enumerate(topics):
+                    logger.info(f"    [{i+1}] {topic.get('title', '')[:80]}")
+                for topic in topics:
+                    topic["source_keyword"] = kw
+                    topic["researched_at"] = datetime.now().isoformat()
+                    all_topics.append(topic)
+                    # Only save GOOD keywords (filtered by _is_good_keyword)
+                    extracted = self.extract_keywords_from_topic(topic)
+                    for kw_extracted in extracted:
+                        if self._is_good_keyword(kw_extracted):
+                            try:
+                                from db import save_keyword
+                                save_keyword(kw_extracted, source_topic_id=None)
+                            except Exception:
+                                pass  # Non-fatal
+                time.sleep(0.5)  # Rate limit
 
         return all_topics
 

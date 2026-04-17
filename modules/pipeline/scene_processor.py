@@ -28,7 +28,7 @@ from core.video_utils import (
 )
 from core.video_utils import LipsyncQuotaError  # noqa: F401
 from modules.pipeline.config import PipelineContext
-from modules.pipeline.models import SceneConfig, CharacterConfig, VoiceConfig, SceneCharacter
+from modules.pipeline.models import SceneConfig, CharacterConfig, VoiceConfig, VoiceProvider, SceneCharacter
 from modules.pipeline.exceptions import SceneDurationError
 from modules.media.prompt_builder import PromptBuilder
 from modules.media.tts import get_whisper_timestamps
@@ -83,7 +83,7 @@ class SceneProcessor:
             gender: "male" or "female" from LLM output
         """
         # Check if character already exists (idempotent)
-        existing = self.get_character(char_name)
+        existing = next((c for c in (self.ctx.channel.characters or []) if c.name == char_name), None)
         if existing:
             return
 
@@ -92,8 +92,6 @@ class SceneProcessor:
 
         # Determine TTS model based on gender
         model = self._default_voice_model(gender)
-
-        from modules.pipeline.models import VoiceConfig, VoiceProvider, CharacterConfig
 
         voice = VoiceConfig(
             id=voice_id,

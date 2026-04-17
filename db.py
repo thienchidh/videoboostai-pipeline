@@ -925,13 +925,18 @@ def save_topic_sources(source_type: str, source_query: str, topics: List[Dict]) 
 
 
 def get_recent_topic_titles(days: int = 30) -> set:
-    """Lấy titles của topics đã research trong N ngày gần đây, chỉ topics chưa completed."""
+    """Lấy titles của topics đã research trong N ngày gần đây (không phân biệt status).
+
+    Bỏ filter status != 'completed' vì sau khi source được dùng 1 lần nó đã
+    được mark completed — nếu không loại bỏ filter này thì get_recent_topic_titles
+    luôn trả về 0 titles (vì tất cả sources đều completed), dẫn đến
+    research lại cùng topics và bị dedup thành duplicate ideas.
+    """
     from datetime import timedelta
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     with get_session() as session:
         rows = session.query(models.TopicSource).filter(
-            models.TopicSource.created_at >= cutoff,
-            models.TopicSource.status != "completed"
+            models.TopicSource.created_at >= cutoff
         ).all()
         titles = set()
         for r in rows:

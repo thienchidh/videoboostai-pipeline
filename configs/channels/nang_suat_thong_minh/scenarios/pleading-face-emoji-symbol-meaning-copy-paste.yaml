@@ -1,0 +1,64 @@
+title: '"🥺" Pleading Face Emoji Symbol — Meaning · Copy & Paste | ...'
+video_message: 90% người dùng 🥺 sai cách — đây là cách dùng đúng khiến đối phương
+  ĐỒNG Ý NGAY
+scenes:
+- id: 1
+  script: 90% người dùng 🥺 sai cách — họ gửi ngay khi cần, nhưng KHOÁNG 30 phút SAU
+    mới hiệu quả gấp 3 lần
+  characters:
+  - name: mentor_female
+  image_prompt: 3D animated Pixar Disney style scene showing a giant pleading emoji
+    🥺 split in half - left side shows red X wrong usage with messy timing arrows,
+    right side shows green checkmark correct usage with strategic clock timing. Mentor
+    female character pointing with dramatic effect. Vibrant colors, high quality 3D
+    render, smooth animation.
+  lipsync_prompt: Confident teaching tone, slight pause before 'KHOẢNG 30 PHÚT SAU',
+    emphasis on 'GẤP 3 LẦN' for dramatic reveal
+  creative_brief:
+    visual_concept: 'Split screen: 90% FAIL vs 10% SUCCESS usage of the pleading emoji,
+      mentor pointing to the difference with animated 3D arrows'
+    animation_style: Pixar Disney 3D render, vibrant colors, smooth animation
+    emotion: Intrigue, revelation, slightly humorous
+  scene_type: hook
+  delivers: Reveals the counterintuitive timing technique for using the pleading emoji
+    that most people get wrong
+- id: 2
+  script: 'Nguyên tắc: đợi对方 phản ứng tiêu cực rồi MỚI gửi 🥺 — lúc đó tỷ lệ đồng ý
+    tăng 67%'
+  characters:
+  - name: student_male
+  image_prompt: 3D animated Pixar Disney style chat conversation scene between two
+    characters. Student male nervously waiting, receiving red rejection icon, then
+    dramatically sending pleading emoji 🥺 which transforms into green checkmark agreement
+    symbol. 67% success rate number floating above. Vibrant colors, high quality 3D
+    render, smooth animation.
+  lipsync_prompt: Student voice asking question, mentor voice explaining with building
+    intensity on '67%', dramatic pause
+  creative_brief:
+    visual_concept: Chat conversation animation showing student_male waiting, receiving
+      rejection (red X), then sending emoji with dramatic transformation effect showing
+      67% success rate
+    animation_style: Pixar Disney 3D render, vibrant colors, smooth animation
+    emotion: Eureka moment, surprise, revelation
+  scene_type: insight
+  delivers: 'Specific timing principle: send the emoji ONLY after receiving a negative
+    response to increase agreement by 67%'
+- id: 3
+  script: 'Thử ngay: lần tới khi bị từ chối, ĐỢI 30 phút rồi gửi 🥺 một mình — kết
+    quả sẽ khiến bạn bất ngờ'
+  characters:
+  - name: mentor_female
+  image_prompt: 3D animated Pixar Disney style scene of mentor female character with
+    confident expression giving thumbs up, giant floating pleading emoji 🥺 with sparkle
+    effects, 30-minute timer glowing beside it. Vibrant rainbow colors, high quality
+    3D render, smooth animation. Encouraging and motivating atmosphere.
+  lipsync_prompt: Warm, encouraging mentor tone, clear instruction pacing, emphasis
+    on 'THỬ NGAY' and 'BẤT NGỜ'
+  creative_brief:
+    visual_concept: Mentor giving thumbs up with glowing timer showing 30 minutes,
+      emoji floating with sparkle effects, encouraging viewer to try
+    animation_style: Pixar Disney 3D render, vibrant colors, smooth animation
+    emotion: Motivating, confident, action-oriented
+  scene_type: cta
+  delivers: Clear actionable CTA with specific steps for viewers to try the technique
+    immediately

@@ -235,7 +235,7 @@ class KieImageProvider(ImageProvider):
             "input": {
                 "prompt": prompt[:1000],  # Z Image max 1000 chars
                 "aspect_ratio": z_ratio,
-                "nsfw_checker": False,
+                "nsfw_checker": True,
             }
         }
         logger.debug(f"Kie Z Image request: aspect_ratio={z_ratio}, prompt_len={len(prompt)}")

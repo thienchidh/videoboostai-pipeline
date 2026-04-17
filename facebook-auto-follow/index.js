@@ -32,23 +32,33 @@ if (!groupUrl) {
   process.exit(1)
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── callTool injection (for Claude Code MCP wrapper) ──────────────────────────
 
 /**
- * Call a browser MCP tool and return the result.
- * NOTE: This must be replaced with actual MCP tool invocation when run
- * inside Claude Code. The script is designed to be called via a wrapper
- * that intercepts tool calls and routes them to mcp__browsermcp__ tools.
+ * Tool invoker — can be set by Claude Code wrapper before calling runFeed.
+ * Defaults to throwing an error so missing setup is caught immediately.
  */
-async function callTool(toolName, args) {
-  throw new Error('callTool must be replaced with actual MCP tool invoker — see index.js comments')
+export let callTool = async (toolName, args) => {
+  throw new Error(
+    `callTool not initialized. ` +
+    `Set window.__fbFollowCallTool before calling runFeed, ` +
+    `or replace this module's callTool export with your MCP tool invoker.`
+  )
+}
+
+/**
+ * Allow external callers (e.g., Claude Code wrapper) to inject the real callTool.
+ * Usage: import { setCallTool } from './index.js'; setCallTool(myCallTool);
+ */
+export function setCallTool(fn) {
+  callTool = fn
 }
 
 /**
  * Snapshot → parse HTML → find follow buttons → click each.
  * Returns number of successful follows.
  */
-async function processFollowables(html, callTool) {
+async function processFollowables(html) {
   const buttons = findFollowButtons(html)
   log(`Found ${buttons.length} "Theo dõi" buttons`)
   let followed = 0
@@ -63,7 +73,7 @@ async function processFollowables(html, callTool) {
 /**
  * Main processing loop for one post: open dialog → follow author → follow commenters → close.
  */
-async function processPost(postUrl, callTool) {
+async function processPost(postUrl) {
   log(`Processing post: ${postUrl}`)
 
   // Click the timestamp link to open dialog
@@ -80,7 +90,7 @@ async function processPost(postUrl, callTool) {
 
   // Follow author
   const snapshot1 = await callTool('mcp__browsermcp__browser_snapshot', {})
-  const authorFollowed = await processFollowables(snapshot1.html ?? '', callTool)
+  const authorFollowed = await processFollowables(snapshot1.html ?? '')
 
   // Scroll comments and follow commenters
   let totalFollowed = authorFollowed
@@ -92,7 +102,7 @@ async function processPost(postUrl, callTool) {
     await new Promise(r => setTimeout(r, randDelay(800, 1500)))
 
     const snap = await callTool('mcp__browsermcp__browser_snapshot', {})
-    const thisBatch = await processFollowables(snap.html ?? '', callTool)
+    const thisBatch = await processFollowables(snap.html ?? '')
     totalFollowed += thisBatch
 
     if (thisBatch === 0) {
@@ -109,7 +119,7 @@ async function processPost(postUrl, callTool) {
 /**
  * Main feed loop.
  */
-async function runFeed(groupUrl, callTool, startFromLastPost = false) {
+async function runFeed(groupUrl, startFromLastPost = false) {
   // Navigate to group
   await callTool('mcp__browsermcp__browser_navigate', { url: groupUrl })
   await new Promise(r => setTimeout(r, 3000)) // Wait for feed to load
@@ -147,7 +157,7 @@ async function runFeed(groupUrl, callTool, startFromLastPost = false) {
       await new Promise(r => setTimeout(r, randDelay(config.readDelayMin, config.readDelayMax)))
 
       try {
-        const followed = await processPost(link.url, callTool)
+        const followed = await processPost(link.url)
         state.totalFollowed = (state.totalFollowed || 0) + followed
         state.lastPostUrl = link.url
         saveState(state)
@@ -175,7 +185,7 @@ if (command === 'resume') {
 }
 
 try {
-  const finalState = await runFeed(groupUrl, callTool, startFromLastPost)
+  const finalState = await runFeed(groupUrl, startFromLastPost)
   console.log('Final state:', JSON.stringify(finalState, null, 2))
 } catch (e) {
   console.error('Fatal error:', e.message)

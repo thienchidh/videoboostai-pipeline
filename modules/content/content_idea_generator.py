@@ -218,6 +218,17 @@ class ContentIdeaGenerator:
 
         desc_line = f"NỘI DUNG THAM KHẢO:\n{description[:1000]}\n" if description else ""
 
+        # Build image style constraints string
+        img_style = cfg.image_style
+        if img_style:
+            img_style_str = (f"- lighting: {img_style.lighting}\n"
+                             f"- camera: {img_style.camera}\n"
+                             f"- art_style: {img_style.art_style}\n"
+                             f"- environment: {img_style.environment}\n"
+                             f"- composition: {img_style.composition}")
+        else:
+            img_style_str = "(không có constraints cụ thể)"
+
         return f"""Bạn là chuyên gia sản xuất video viral cho kênh "{cfg.name}".
 Viết {num_scenes} scene với prompts SÁNG TẠO, KHÔNG LẶP LẠI.
 
@@ -225,6 +236,9 @@ Viết {num_scenes} scene với prompts SÁNG TẠO, KHÔNG LẶP LẠI.
 
 PHONG CÁCH KÊNH (brand tone):
 {cfg.style}
+
+IMAGE STYLE CONSTRAINTS (phải include trong image_prompt):
+{img_style_str}
 
 NHÂN VẬT VÀ GIỌNG NÓI:
 {char_list_str}
@@ -279,6 +293,12 @@ VÍ DỤ HOOK TỐT:
 
 ---
 
+CREATIVE_BRIEF REQUIREMENTS:
+- visual_concept: mô tả what viewer nhìn thấy (setting, subjects, objects)
+- emotion: cảm xúc nhân vật (intrigue, pride, surprise, etc.)
+- camera_mood: góc/quay máy (medium shot, close-up, wide angle, etc.)
+- unique_angle: điều độc đáo về cách frame scene này
+
 ĐỊNH DẠNG JSON OUTPUT:
 {{
   "scenes": [
@@ -288,8 +308,13 @@ VÍ DỤ HOOK TỐT:
       "script": "...",
       "character": "...",
       "delivers": "what viewer gets from this scene in 1 sentence",
-      "creative_brief": {{...}},
-      "image_prompt": "...",
+      "creative_brief": {{
+        "visual_concept": "setting + subjects + objects viewer sees",
+        "emotion": "character emotion (intrigue, pride, surprise)",
+        "camera_mood": "camera angle (medium shot, close-up, wide angle)",
+        "unique_angle": "unique framing aspect"
+      }},
+      "image_prompt": "3D Pixar Disney style, [visual_concept], [emotion], warm lighting, eye-level camera, professional composition",
       "lipsync_prompt": "..."
     }},
     ...

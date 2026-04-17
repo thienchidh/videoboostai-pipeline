@@ -291,7 +291,7 @@ try:
     except ImportError:
         logger.info("sse_starlette not available, using StreamingResponse fallback")
 except ImportError:
-    logger.warning("FastAPI not available, running in fallback mode")
+    logger.debug("FastAPI not available, running in fallback mode")
 
 # ─── Module-level run state (in-memory) ────────────────────────────────────────
 # Thread-safe in-memory registry of active runs

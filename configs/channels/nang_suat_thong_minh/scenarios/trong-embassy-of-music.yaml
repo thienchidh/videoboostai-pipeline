@@ -1,0 +1,62 @@
+title: TRONG | Embassy of Music
+video_message: Sống nhiều năm trong trại tỵ nạn với hộ khẩu bất định — đây là 3 bài
+  học giúp tôi vẫn theo đuổi đam mê và làm việc tại Embassy of Music
+scenes:
+- id: 1
+  script: Sống 5 năm trong trại tỵ nạn với hộ khẩu bất định — tôi đã học được điều
+    gì để vẫn theo đuổi đam mê?
+  characters:
+  - name: student_male
+  image_prompt: 3D Pixar Disney style, young Vietnamese male student sitting on bunk
+    bed in sparse refugee camp dormitory, warm lighting from small window casting
+    city glow, eye-level camera, modern office background subtly visible through window,
+    professional composition, vibrant colors
+  lipsync_prompt: determined, contemplative tone
+  creative_brief:
+    visual_concept: Young Vietnamese male sitting on bunk bed in refugee camp, looking
+      up at distant city lights through small window
+    emotion: intrigue, determination
+    camera_mood: close-up, low angle looking up
+    unique_angle: Framing shows physical limitation below but hope above — visual
+      metaphor for uncertain residence status
+  scene_type: hook
+  delivers: Provocative question implying answer exists, hinting at specific years
+    and residence challenges
+- id: 2
+  script: 'Bài học 1: Biến sự bất định thành động lực — khi không có gì, tôi đặt mục
+    tiêu lớn hơn bình thường 3 lần.'
+  characters:
+  - name: mentor_female
+  image_prompt: 3D Pixar Disney style, confident mentor female pointing at glowing
+    '3X' number floating in modern minimalist office, student male looking inspired,
+    warm lighting, eye-level camera, professional composition, vibrant colors, smooth
+    animation
+  lipsync_prompt: confident, teaching tone
+  creative_brief:
+    visual_concept: Mentor pointing at floating 3D number '3X' transforming from question
+      mark, student watching in modern office
+    emotion: pride, epiphany
+    camera_mood: medium shot, eye-level
+    unique_angle: Number floating in 3D space with particles connecting uncertainty
+      to ambition
+  scene_type: insight
+  delivers: 'Specific principle: amplify goals 3x when facing uncertainty'
+- id: 3
+  script: 'Kết quả: Làm việc tại Embassy of Music — nơi đam mê không cần hộ khẩu,
+    chỉ cần hành động.'
+  characters:
+  - name: mentor_female
+  image_prompt: 3D Pixar Disney style, Vietnamese male student standing confidently
+    at modern Embassy of Music office entrance with golden music note emblem, mentor
+    female beside smiling, warm golden lighting, eye-level camera, professional composition,
+    vibrant celebratory colors, smooth animation
+  lipsync_prompt: proud, inspiring closing tone
+  creative_brief:
+    visual_concept: Student male standing proudly at Embassy of Music office entrance,
+      golden music note logo glowing, mentor female beside him
+    emotion: pride, accomplishment
+    camera_mood: wide angle, slightly low angle
+    unique_angle: Camera rises slowly from uncertain past (refugee camp glimpse) to
+      triumphant present (Embassy entrance) in single movement
+  scene_type: proof
+  delivers: 'Proof of success: working at Embassy of Music as tangible result'

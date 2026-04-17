@@ -478,16 +478,27 @@ class SingleCharSceneProcessor(SceneProcessor):
                     actual_error = str(e)
                     result_path = None
                 if not result_path:
-                    log(f"  ⚠️ Lipsync failed — falling back to static image + audio")
-                    result_path = create_static_video_with_audio(str(scene_img), audio, str(video_raw))
-                    if result_path:
-                        lipsync_fallback_reason = actual_error or "lipsync returned None"
-                        lipsync_actual_mode = "static_fallback"
-                        lipsync_attempted_mode = "kieai"
-                    else:
-                        lipsync_error = actual_error or "static fallback also failed"
-                        # Both lipsync and fallback failed — actual mode is static_fallback (what was attempted)
-                        lipsync_actual_mode = "static_fallback"
+                    # NSFW image — regenerate image and retry lipsync once
+                    if actual_error and "nsfw" in actual_error.lower():
+                        log(f"  ⚠️ Lipsync NSFW — regenerating image, retrying...")
+                        scene_img.unlink(missing_ok=True)
+                        img_result = image_fn(img_prompt, str(scene_img))
+                        if img_result and scene_img.exists():
+                            try:
+                                result_path = lipsync_fn(str(scene_img), audio, str(video_raw),
+                                                        scene_id=scene_id, prompt=lipsync_prompt)
+                            except LipsyncQuotaError as e:
+                                result_path = None
+                    if not result_path:
+                        log(f"  ⚠️ Lipsync failed — falling back to static image + audio")
+                        result_path = create_static_video_with_audio(str(scene_img), audio, str(video_raw))
+                        if result_path:
+                            lipsync_fallback_reason = actual_error or "lipsync returned None"
+                            lipsync_actual_mode = "static_fallback"
+                            lipsync_attempted_mode = "kieai"
+                        else:
+                            lipsync_error = actual_error or "static fallback also failed"
+                            lipsync_actual_mode = "static_fallback"
                 if result_path:
                     video_raw = Path(result_path)
 

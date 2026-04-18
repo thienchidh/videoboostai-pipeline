@@ -137,6 +137,7 @@ class TestSceneProcessorConfig:
                 self.voice_id = None
                 self.name = "TestChar"
                 self.tts_speed = 1.0
+                self.gender = None
 
         char = SimpleChar()
         provider, model, speed, gender = processor.resolve_voice(char, {})

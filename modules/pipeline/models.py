@@ -33,7 +33,7 @@ class APIURLs(BaseModel):
 
 
 class GenerationModels(BaseModel):
-    tts: str = "edge"
+    tts: str = "minimax"
     image: str = "minimax"
     video: str = "kieai"
 
@@ -262,7 +262,7 @@ class ImageStyleConfig(BaseModel):
 
 
 class DefaultModelsConfig(BaseModel):
-    tts: str = "edge"
+    tts: str = "minimax"
     image: str = "minimax"
     video: str = "kieai"
 

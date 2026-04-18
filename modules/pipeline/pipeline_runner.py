@@ -131,6 +131,7 @@ class VideoPipelineRunner:
 
         # Instantiate providers via PluginRegistry
         self.tts_provider = self._build_tts_provider()
+        self._fallback_tts_provider = self._build_fallback_tts_provider()
         self.image_provider = self._build_image_provider()
         self._fallback_image_providers = self._build_fallback_image_providers()
         self.lipsync_provider = self._build_lipsync_provider()
@@ -153,6 +154,11 @@ class VideoPipelineRunner:
         if tts_name == "edge":
             return provider_cls(config=self.ctx.technical, upload_func=None)
         return provider_cls(config=self.ctx.technical, api_key=self.ctx.technical.api_keys.minimax)
+
+    def _build_fallback_tts_provider(self):
+        """Build Edge TTS as fallback provider."""
+        from modules.media.tts import EdgeTTSProvider
+        return EdgeTTSProvider(config=self.ctx.technical, upload_func=None)
 
     def _build_image_provider(self):
         """Instantiate image provider via PluginRegistry."""
@@ -225,7 +231,11 @@ class VideoPipelineRunner:
         """Generate TTS audio, returning (path, timestamps)."""
         if self._dry_run or self._dry_run_tts:
             return mock_generate_tts(text, voice, speed, output_path), None
-        return self.tts_provider.generate(text, voice, speed, output_path)
+        result = self.tts_provider.generate(text, voice, speed, output_path)
+        if result is not None:
+            return result
+        log(f"TTS provider {self.ctx.channel.generation.models.tts} failed, falling back to edge")
+        return self._fallback_tts_provider.generate(text, voice, speed, output_path)
 
     def image_generate(self, prompt: str, output_path: str):
         """Generate image with primary provider, then fallback providers from config."""

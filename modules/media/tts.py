@@ -14,6 +14,16 @@ import sys
 import time
 import subprocess
 import requests
+import warnings
+
+# Suppress "Event loop is closed" warning from ProactorBasePipeTransport.__del__
+# on Windows. This is a harmless asyncio cleanup race that does not affect output.
+warnings.filterwarnings(
+    "ignore",
+    message="Event loop is closed",
+    category=RuntimeWarning,
+    module="proactor_events",
+)
 import shutil
 import tempfile
 import logging

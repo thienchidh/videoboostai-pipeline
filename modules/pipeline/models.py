@@ -176,38 +176,6 @@ class TechnicalConfig(BaseModel):
     observer: Optional[ObserverConfig] = None
     embedding: EmbeddingConfig = EmbeddingConfig()
 
-    def get(self, key: str, default=None):
-        """Dict-like access for backward compatibility with code using config.get('a.b.c').
-
-        Translates YAML-style paths to Pydantic attribute paths:
-        - 'api.urls.minimax_tts' -> api_urls.minimax_tts (api -> api_urls, drop 'urls')
-        - 'api.keys.minimax' -> api_keys.minimax
-        - 'generation.tts.model' -> generation.tts.model (direct Pydantic attrs)
-        - 'storage.temp_dir' -> storage.temp_dir
-        """
-        parts = key.split('.')
-
-        # Handle 'api.urls.X' -> 'api_urls.X' (drop 'urls', combine first and last)
-        if len(parts) >= 3 and parts[0] == 'api' and parts[1] == 'urls':
-            # 'api.urls.minimax_tts' -> 'api_urls.minimax_tts'
-            parts = ['api_urls', parts[2]]
-        elif parts[0] == 'api_keys':
-            # 'api_keys.minimax' -> 'api_keys.minimax' (no change needed)
-            pass
-        elif parts[0] == 'api':
-            # 'api.keys.X' -> 'api_keys.X'
-            parts = ['api_keys'] + parts[2:]
-
-        obj = self
-        for part in parts:
-            if obj is None:
-                return default
-            if hasattr(obj, part):
-                obj = getattr(obj, part)
-            else:
-                return default
-        return obj
-
     @classmethod
     def load(cls) -> "TechnicalConfig":
         path = PROJECT_ROOT / "configs" / "technical" / "config_technical.yaml"

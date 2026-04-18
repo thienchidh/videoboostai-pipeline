@@ -1,0 +1,71 @@
+title: 'How to Be More Productive: 13 Tips to Practice Today [2026] • Asana'
+video_message: Đừng cố làm NHIỀU hơn — 13 tips từ Asana giúp bạn làm ĐÚNG hơn, bắt
+  đầu từ HÔM NAY
+scenes:
+- id: 1
+  script: Productive people không làm NHIỀU hơn — họ làm theo 1 framework. 13 tips
+    từ Asana, bắt đầu từ HÔM NAY.
+  characters:
+  - name: mentor_female
+    gender: female
+  image_prompt: 3D Pixar Disney style, mentor_female pointing at floating holographic
+    numbers 1-13 in modern office, student_male watching with curiosity, vibrant colors,
+    warm lighting, eye-level camera, professional composition, 3D render
+  lipsync_prompt: mentor_female speaks with confident, engaging tone, slight hand
+    gesture emphasis
+  creative_brief:
+    visual_concept: Modern office with floating holographic task lists. Mentor points
+      at glowing 13-number constellation in air. Student watches with wide eyes from
+      messy desk.
+    emotion: intrigue
+    camera_mood: medium shot with mentor slightly centered
+    unique_angle: Floating 3D task cards surrounding characters symbolize overwhelming
+      workload versus organized system
+  scene_type: hook
+  delivers: 'Khái niệm cốt lõi: năng suất không phải về làm nhiều hơn mà về framework
+    đúng'
+- id: 2
+  script: 'Tip 1: Thay vì to-do list dài 20 việc, chọn 3 việc quan trọng nhất. Asana
+    gọi đó là PRIORITY TRIO.'
+  characters:
+  - name: mentor_female
+    gender: female
+  image_prompt: 3D Pixar Disney style, mentor_female holding three glowing red priority
+    cards, task icons floating around, student_male nodding in understanding, modern
+    office background, warm lighting, eye-level camera, professional composition,
+    3D render
+  lipsync_prompt: mentor_female delivers technique with enthusiastic teaching tone,
+    holding up cards
+  creative_brief:
+    visual_concept: Mentor holds giant glowing red 3-card deck. Cards show task icons.
+      Student nods understanding. Background shows messy list transforming into 3
+      clean cards.
+    emotion: pride
+    camera_mood: close-up on glowing 3-card composition
+    unique_angle: Cards transform from chaotic pile into clean trio, visual metaphor
+      for mental decluttering
+  scene_type: insight
+  delivers: 'Technique cụ thể: Priority Trio - chỉ tập trung 3 việc quan trọng nhất
+    thay vì danh sách dài'
+- id: 3
+  script: 13 tips này giúp bạn tiết kiệm 2 giờ mỗi ngày. Áp dụng từ HÔM NAY — tải
+    Asana, bắt đầu ngay.
+  characters:
+  - name: mentor_female
+    gender: female
+  image_prompt: 3D Pixar Disney style, mentor_female and student_male high-fiving,
+    giant glowing clock showing 2 hours saved floating behind them, Asana app icon
+    above, confetti celebration, modern office, warm lighting, eye-level camera, professional
+    composition, 3D render
+  lipsync_prompt: mentor_female speaks with energetic, inspiring tone, both characters
+    show excitement
+  creative_brief:
+    visual_concept: Mentor and student high-five in front of glowing clock showing
+      2 hours saved. Floating Asana app icon above. Confetti celebration particles
+      around them.
+    emotion: celebration
+    camera_mood: wide angle with both characters centered
+    unique_angle: Clock transforms from chaotic spiral to organized circle, symbolizing
+      time reclaimed
+  scene_type: cta
+  delivers: 'Proof số liệu + CTA rõ ràng: tiết kiệm 2 giờ/ngày với hành động cụ thể'

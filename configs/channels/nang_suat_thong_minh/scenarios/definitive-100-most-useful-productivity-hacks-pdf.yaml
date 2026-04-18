@@ -1,0 +1,65 @@
+title: Definitive 100 Most Useful Productivity Hacks.pdf - Filtered
+video_message: 100 productivity hacks nhưng CHỈ 7 cái thật sự tăng output — đây là
+  những cái bạn cần áp dụng NGAY
+scenes:
+- id: 1
+  script: Internet đầy 100 productivity hacks — nhưng nghiên cứu MIT chỉ ra CHỈ 7
+    cái thật sự tăng output. Bạn đang dùng nhầm?
+  characters:
+  - name: Teacher
+    gender: female
+  image_prompt: 3D Pixar Disney style, modern office with holographic screens displaying
+    '100 HACKS' filtering down to '7 SELECTED', mentor female pointing dramatically,
+    student male watching intently, warm lighting, eye-level camera, 3D render, professional
+    composition, vibrant colors
+  lipsync_prompt: Authoritative tone with slight emphasis on 'CHỈ 7' — curious expression
+  creative_brief:
+    visual_concept: Modern office with holographic screens displaying '100 HACKS'
+      being filtered down to '7 SELECTED' — mentor pointing dramatically at screen
+    emotion: intrigue
+    camera_mood: medium shot
+    unique_angle: Screens show information filtering visually — wide to narrow focus
+  scene_type: hook
+  delivers: Provocative hook revealing only 7 out of 100 hacks are truly effective,
+    with MIT research backing
+- id: 2
+  script: 'Hack #1: Thay Pomodoro 25 phút — dùng 90 phút deep work blocks. Olympic
+    athletes áp dụng và tăng 40% output.'
+  characters:
+  - name: Teacher
+    gender: female
+  image_prompt: 3D Pixar Disney style, student male working focused at modern desk,
+    holographic timer showing 90:00, mentor female standing beside showing floating
+    comparison chart, 25 min vs 90 min blocks, warm lighting, eye-level camera, 3D
+    render, professional composition, vibrant colors
+  lipsync_prompt: Confident delivery with emphasis on '90 phút' and '40%' — confident
+    teaching tone
+  creative_brief:
+    visual_concept: Student working at desk with timer showing 90:00 — mentor showing
+      comparison chart of 25 vs 90 minutes
+    emotion: surprise
+    camera_mood: close-up on timer
+    unique_angle: Split visualization showing productivity curve rising sharply after
+      60 minutes
+  scene_type: insight
+  delivers: 'First technique: 90-minute deep work blocks replacing 25-minute Pomodoro
+    with 40% output increase'
+- id: 3
+  script: Áp dụng 7 hacks này NGAY — click video, save lại, và biến tuần này thành
+    tuần năng suất CAO NHẤT.
+  characters:
+  - name: Teacher
+    gender: female
+  image_prompt: 3D Pixar Disney style, mentor female and student male high-fiving
+    joyfully, glowing holographic '7 HACKS' checklist floating as trophy, modern office
+    background with warm sunset lighting, eye-level camera, 3D render, professional
+    composition, vibrant celebratory colors
+  lipsync_prompt: Energetic, encouraging tone — high energy ending with excitement
+  creative_brief:
+    visual_concept: Mentor and student high-fiving in front of glowing '7 HACKS' checklist
+      — both smiling with achievement
+    emotion: pride
+    camera_mood: medium shot
+    unique_angle: Achievement celebration framing — checklist becomes a trophy symbol
+  scene_type: cta
+  delivers: Final CTA asking viewers to click, save, and implement 7 hacks immediately

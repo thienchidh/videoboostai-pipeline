@@ -1,0 +1,59 @@
+title: 'r/productivity on Reddit: What is your best productivity tip?'
+video_message: 95 votes, 68 bình luận trên Reddit đều đồng ý với tip này — nó đơn
+  giản đến mức ai cũng bỏ qua, nhưng HIỆU QUẢ KHÔNG AI NGỜ
+scenes:
+- id: 1
+  script: 95 votes, 68 bình luận trên Reddit đồng ý tip này — đơn giản đến mức ai
+    cũng bỏ qua, nhưng HIỆU QUẢ KHÔNG AI NGỜ.
+  characters:
+  - name: mentor_female
+  image_prompt: 3D Pixar Disney style, mentor pointing at a giant floating Reddit
+    upvote screen in a modern 3D office, student looking puzzled holding a coffee,
+    intrigue emotion, warm lighting, eye-level camera, professional composition, vibrant
+    colors, smooth animation
+  lipsync_prompt: excited emphasis on '95 votes' and 'HIỆU QUẢ', confident tone
+  creative_brief:
+    visual_concept: Mentor points at a giant floating Reddit upvote screen in a modern
+      3D office, student looks puzzled holding a coffee
+    emotion: intrigue
+    camera_mood: medium shot with slight low angle to emphasize the floating screen
+    unique_angle: Reddit upvote counter glowing with golden light as focal point
+  scene_type: hook
+  delivers: Viewers curious about the Reddit-confirmed productivity tip everyone overlooks
+- id: 2
+  script: 'Bí quyết: bắt đầu với task NHỎ NHẤT trước — không phải lớn nhất. Build
+    momentum 5 phút trước, năng suất tăng 200%.'
+  characters:
+  - name: mentor_female
+  image_prompt: 3D Pixar Disney style, mentor picking up a tiny glowing paper clip
+    while student holds a giant heavy boulder, pride emotion, warm lighting, eye-level
+    camera, professional composition, modern office environment, vibrant colors, smooth
+    animation
+  lipsync_prompt: confident and impactful delivery on 'NHỎ NHẤT' and '200%'
+  creative_brief:
+    visual_concept: Mentor picks up a tiny glowing paper clip while student holds
+      a giant heavy task boulder — mentor swaps them triumphantly
+    emotion: pride
+    camera_mood: close-up on the tiny paper clip transforming into golden light
+    unique_angle: Micro-to-macro visual metaphor showing the tiny task radiating energy
+  scene_type: insight
+  delivers: 'The specific Reddit productivity technique: start with the smallest task
+    first, not the biggest'
+- id: 3
+  script: Software engineer Tokyo dùng kỹ thuật này — 3 tháng sau hoàn thành 6 tháng
+    công việc. Bạn cũng có thể, thử ngay hôm nay.
+  characters:
+  - name: student_male
+  image_prompt: 3D Pixar Disney style, student at desk with golden progress bar filling
+    rapidly on holographic screen, mentor smiling approvingly in background, surprise
+    emotion, warm lighting, eye-level camera, professional composition, modern office
+    environment, vibrant colors, smooth animation
+  lipsync_prompt: enthusiastic and inspiring tone on 'thử ngay hôm nay'
+  creative_brief:
+    visual_concept: Student sits at desk, golden progress bar fills rapidly on holographic
+      screen, mentor smiles approvingly from background
+    emotion: surprise
+    camera_mood: medium shot with progress bar filling dramatically left to right
+    unique_angle: Time-lapse visual of months compressing into days on a glowing calendar
+  scene_type: proof
+  delivers: Real case study proof + clear CTA to try the technique immediately

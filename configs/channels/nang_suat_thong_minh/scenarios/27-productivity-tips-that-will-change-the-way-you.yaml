@@ -1,0 +1,72 @@
+title: 27 Productivity Tips that Will Change the Way You Live, Work, and ...
+video_message: 27 tips năng suất dựa trên nghiên cứu — chỉ cần áp dụng 3 tips này
+  sẽ giúp bạn kiểm soát thời gian hiệu quả hơn cả ngày
+scenes:
+- id: 1
+  script: Olympic không dùng Pomodoro — họ dùng kỹ thuật 90 phút thay vì 25 phút.
+    Và HIỆU QUẢ HƠN 40%.
+  characters:
+  - name: mentor_female
+  image_prompt: 3D Pixar Disney style, modern office war room with giant glowing clock
+    on wall, mentor_female standing beside whiteboard showing 25-min vs 90-min timers,
+    intrigue and confidence, warm lighting, eye-level camera, professional composition
+  lipsync_prompt: confident, slightly dramatic pause before '40%', animated mouth
+    shape for clear Vietnamese phonemes
+  creative_brief:
+    visual_concept: 'Modern office war room with a giant glowing clock on the wall.
+      Mentor female stands beside a whiteboard that shows two competing timers: 25-min
+      Pomodoro vs 90-min Olympic block.'
+    emotion: intrigue and confidence
+    camera_mood: medium shot, slight low angle looking up at the giant clock
+    unique_angle: The clock takes up the left third of frame; mentor's silhouette
+      is backlit dramatically against it
+  scene_type: hook
+  delivers: Viewer nhận được một claim gây shock kèm con số cụ thể 40%, gợi tò mò
+    muốn biết kỹ thuật 90 phút là gì.
+- id: 2
+  script: 'Nguyên tắc đầu tiên: LUỒNG DEEP WORK 90 phút. Không email, không notification.
+    Chỉ MỘT task duy nhất.'
+  characters:
+  - name: mentor_female
+  image_prompt: 3D Pixar Disney style, student_male at minimalist desk inside transparent
+    productivity bubble, phone and laptop screens crossed out with red X, glowing
+    90-minute timer counting up, focused determination, warm lighting, eye-level camera,
+    professional composition
+  lipsync_prompt: slow, deliberate pacing, each phrase with clear enunciation for
+    '90 phút', 'MỘT task duy nhất' emphasized
+  creative_brief:
+    visual_concept: 'Student male sits at a minimalist desk inside a transparent productivity
+      bubble. His phone and laptop screens are dark and crossed out with a large red
+      X. A glowing timer counts up: 90:00.'
+    emotion: focused determination and calm pride
+    camera_mood: close-up on student male's face through the transparent bubble, slight
+      slow-motion
+    unique_angle: The productivity bubble is framed as a circular porthole — like
+      an astronaut's visor — separating him from the blurry office chaos outside
+  scene_type: insight
+  delivers: 'Viewer học được technique đầu tiên: deep work 90 phút, single task, zero
+    distraction.'
+- id: 3
+  script: 27 tips dựa trên nghiên cứu — áp dụng 3 tips đầu tiên, bạn sẽ kiểm soát
+    thời gian hiệu quả hơn cả ngày. SAVE ngay!
+  characters:
+  - name: student_male
+  image_prompt: 3D Pixar Disney style, floating holographic dashboard with 27 orbiting
+    productivity tip icons, student_male reaching up catching three glowing gold icons,
+    surprise and motivated excitement, warm lighting, eye-level camera, professional
+    composition
+  lipsync_prompt: energetic upward inflection on 'SAVE ngay!', animated mouth wide
+    for exclamation, clear pacing on '27 tips' and '3 tips'
+  creative_brief:
+    visual_concept: A floating holographic dashboard spins in mid-air. 27 icons representing
+      tips orbit around student male. Three icons break free and fly toward the camera,
+      glowing gold. He reaches out and catches one.
+    emotion: surprise and motivated excitement
+    camera_mood: wide angle with the dashboard in center, slow tracking shot zooming
+      in as 3 gold icons approach
+    unique_angle: Perspective from inside the hologram ring — student male is seen
+      from below, icons orbiting like planets, creating a 'galaxy of productivity'
+      feel
+  scene_type: final
+  delivers: Viewer hiểu rằng 27 tips nghiên cứu đã được đóng gói, chỉ cần 3 tips đầu
+    tiên là đủ, kèm lời kêu gọi hành động save.

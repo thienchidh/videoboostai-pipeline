@@ -149,7 +149,7 @@ class ContentIdeaGenerator:
             reraise=True,
         )
         def _call_llm():
-            raw_text = llm.chat(prompt, max_tokens=self._llm.max_tokens if self._llm else 1536)
+            raw_text = llm.chat(prompt, max_tokens=4096)
             video_message = self._extract_video_message(raw_text)
             scenes = self._parse_scenes(raw_text)
             if not scenes:

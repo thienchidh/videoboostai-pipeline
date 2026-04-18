@@ -316,7 +316,7 @@ CREATIVE_BRIEF REQUIREMENTS:
         "camera_mood": "camera angle (medium shot, close-up, wide angle)",
         "unique_angle": "unique framing aspect"
       }},
-      "image_prompt": "3D Pixar Disney style, [visual_concept], [emotion], warm lighting, eye-level camera, professional composition",
+      "image_prompt": "[visual_concept], [emotion], [art_style] art style, [environment] setting, [camera] camera, [lighting] lighting, [composition] composition",
       "lipsync_prompt": "..."
     }},
     ...

@@ -22,7 +22,7 @@ api:
     tiktok: "https://open.tiktokapis.com/v2"
     facebook_graph: "https://graph.facebook.com/v19.0"
   models:
-    tts: "edge"      # Edge TTS - free, Vietnamese tốt
+    tts: "minimax"   # MiniMax TTS - primary, Edge fallback
     image: "minimax" # MiniMax Image - chất lượng cao
     video: "kieai"   # Kie.ai Infinitalk - lipsync
 

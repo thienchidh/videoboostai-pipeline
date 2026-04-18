@@ -120,7 +120,7 @@ def update_video_run(run_id: int, **kwargs):
         if not run:
             return
         for k, v in kwargs.items():
-            if k in allowed:
+            if k in allowed and hasattr(run, k):
                 setattr(run, k, v)
 
 
@@ -219,7 +219,7 @@ def update_scene(scene_id: int, **kwargs):
         if not scene:
             return
         for k, v in kwargs.items():
-            if k in allowed:
+            if k in allowed and hasattr(scene, k):
                 setattr(scene, k, v)
 
 
@@ -454,7 +454,7 @@ def update_social_post(post_id: int, **kwargs):
         if not post:
             return
         for k, v in kwargs.items():
-            if k in allowed:
+            if k in allowed and hasattr(post, k):
                 setattr(post, k, v)
 
 
@@ -646,7 +646,8 @@ def update_calendar_item(item_id: int, **kwargs):
         item = session.query(models.CalendarItem).filter_by(id=item_id).first()
         if item:
             for k, v in kwargs.items():
-                setattr(item, k, v)
+                if hasattr(item, k):
+                    setattr(item, k, v)
 
 
 def get_calendar_items(project_id: int, platform: str = None,
@@ -686,8 +687,8 @@ def _calendar_row_to_dict(row) -> Dict:
         "title": row.title,
         "caption": row.caption,
         "video_path": row.video_path,
-        "error": getattr(row, "error", None),
-        "published_at": getattr(row, "published_at", None),
+        "error": row.error if hasattr(row, "error") else None,
+        "published_at": row.published_at if hasattr(row, "published_at") else None,
         "created_at": row.created_at,
         "updated_at": row.updated_at,
     }
@@ -705,7 +706,7 @@ def _calendar_entry_to_dict(cal, title, topic_keywords) -> Dict:
         "caption": cal.caption,
         "video_path": cal.video_path,
         "topic_keywords": topic_keywords,
-        "published_at": getattr(cal, "published_at", None),
+        "published_at": cal.published_at if hasattr(cal, "published_at") else None,
         "created_at": cal.created_at,
     }
 
@@ -805,7 +806,7 @@ def update_ab_caption_test(test_id: int, **kwargs):
         if not test:
             return
         for k, v in kwargs.items():
-            if k in allowed:
+            if k in allowed and hasattr(test, k):
                 setattr(test, k, v)
         test.updated_at = datetime.now(timezone.utc)
 

@@ -236,7 +236,7 @@ def update_video_run(run_id: int, **kwargs):
         if not run:
             return
         for k, v in kwargs.items():
-            if k in allowed:
+            if k in allowed and hasattr(run, k):
                 setattr(run, k, v)
 
 
@@ -356,7 +356,7 @@ def update_scene(scene_id: int, **kwargs):
         if not scene:
             return
         for k, v in kwargs.items():
-            if k in allowed:
+            if k in allowed and hasattr(scene, k):
                 setattr(scene, k, v)
 
 
@@ -610,7 +610,7 @@ def update_social_post(post_id: int, **kwargs):
         if not post:
             return
         for k, v in kwargs.items():
-            if k in allowed:
+            if k in allowed and hasattr(post, k):
                 setattr(post, k, v)
 
 
@@ -1122,7 +1122,7 @@ def update_ab_caption_test(test_id: int, **kwargs):
         if not test:
             return
         for k, v in kwargs.items():
-            if k in allowed:
+            if k in allowed and hasattr(test, k):
                 setattr(test, k, v)
         test.updated_at = datetime.now(timezone.utc)
 

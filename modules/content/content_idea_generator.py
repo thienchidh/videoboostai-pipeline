@@ -317,7 +317,7 @@ CREATIVE_BRIEF REQUIREMENTS:
         "unique_angle": "unique framing aspect"
       }},
       "image_prompt": "[visual_concept], [emotion], [art_style] art style, [environment] setting, [camera] camera, [lighting] lighting, [composition] composition",
-      "lipsync_prompt": "..."
+      "lipsync_prompt": "Teacher speaking confidently, professional tone, engaged expression"
     }},
     ...
   ]

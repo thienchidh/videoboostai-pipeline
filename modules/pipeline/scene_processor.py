@@ -111,7 +111,7 @@ class SceneProcessor:
         Returns:
             (provider_name, model_name, speed, gender)
         """
-        voice_id = getattr(character, 'voice_id', None) if character else None
+        voice_id = character.voice_id if character else None
         voice = self.get_voice(voice_id) if voice_id else None
 
         if voice and voice.providers:
@@ -126,7 +126,7 @@ class SceneProcessor:
         # Character's voice_id not found in voice catalog
         # Try auto-creation if gender is available from scene
         char_name = character.name if character else None
-        gender = getattr(character, 'gender', None) if character else None
+        gender = character.gender if character else None
 
         if gender in ("male", "female"):
             self._ensure_character(char_name, gender)
@@ -231,8 +231,8 @@ class SingleCharSceneProcessor(SceneProcessor):
         super().__init__(ctx, run_dir, resume, skip_image)
         self.run_id = run_id
         self._prompt_builder = PromptBuilder(
-            channel_style=getattr(self.ctx.channel, 'image_style', None),
-            brand_tone=getattr(self.ctx.channel, 'style', '') or ''
+            channel_style=self.ctx.channel.image_style if self.ctx.channel else None,
+            brand_tone=self.ctx.channel.style or ''
         )
 
     def process(self, scene: SceneConfig, scene_output: Path,
@@ -320,7 +320,7 @@ class SingleCharSceneProcessor(SceneProcessor):
         log(f"  📝 Prompt: {img_prompt[:80]}...")
 
         # Validate creative_brief depth
-        brief = getattr(scene, 'creative_brief', None)
+        brief = scene.creative_brief if scene else None
         if brief:
             is_valid, violations = self._prompt_builder.validate_creative_brief(brief)
             if not is_valid:
@@ -390,11 +390,11 @@ class SingleCharSceneProcessor(SceneProcessor):
                 return None, []
             if scene_img.exists():
                 log(f"  ✅ Image done: {scene_img.stat().st_size/1024:.1f}KB")
-                img_gen = getattr(self.ctx.technical, 'generation', None)
+                img_gen = self.ctx.technical.generation if self.ctx.technical else None
                 assert img_gen is not None, "technical.generation must be set"
                 img_cfg = img_gen.image
                 assert img_cfg is not None, "technical.generation.image must be set"
-                chan_video = getattr(self.ctx.channel, 'video', None)
+                chan_video = self.ctx.channel.video if self.ctx.channel else None
                 checkpoint_writer.write_image(
                     output=str(scene_img),
                     input_text=str(audio),
@@ -509,7 +509,7 @@ class SingleCharSceneProcessor(SceneProcessor):
 
         # Write lipsync checkpoint
         if not lipsync_step_done:
-            lip_gen = getattr(self.ctx.technical, 'generation', None)
+            lip_gen = self.ctx.technical.generation if self.ctx.technical else None
             assert lip_gen is not None, "technical.generation must be set"
             lip_cfg = lip_gen.lipsync
             assert lip_cfg is not None, "technical.generation.lipsync must be set"

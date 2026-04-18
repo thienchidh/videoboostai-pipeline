@@ -368,8 +368,8 @@ def test_generate_script_from_idea_includes_video_message():
             "topic_keywords": ["test"]
         }, num_scenes=1)
 
-    assert "video_message" in result
-    assert result["video_message"] == "Tập trung vào 1 việc quan trọng nhất trước"
+    assert hasattr(result, 'video_message')
+    assert result.video_message == "Tập trung vào 1 việc quan trọng nhất trước"
     assert mock_llm.chat.call_count == 2, f"expected 2 LLM calls (step1 + step2), got {mock_llm.chat.call_count}"
 
 
@@ -459,7 +459,7 @@ def test_scene_1_is_hook_with_partial_answer():
     with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
         result = gen.generate_script_from_idea({"title": "Title", "content_angle": "tips", "topic_keywords": []})
 
-    scenes = result["scenes"]
+    scenes = result.scenes
     assert scenes[0].scene_type == "hook"
     # Script must imply an answer (contains "90-phút" as partial answer, not just a question mark)
     assert "?" in scenes[0].script or "HIỆU QUẢ HƠN" in scenes[0].script
@@ -501,7 +501,7 @@ def test_final_scene_has_cta_or_summary():
     with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
         result = gen.generate_script_from_idea({"title": "Title", "content_angle": "tips", "topic_keywords": []})
 
-    scenes = result["scenes"]
+    scenes = result.scenes
     assert scenes[-1].scene_type in ["insight", "technique", "proof", "cta"]
 
 
@@ -563,5 +563,5 @@ def test_scene_count_dynamic():
     with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
         result = gen.generate_script_from_idea({"title": "Title", "content_angle": "tips", "topic_keywords": []})
 
-    assert 2 <= len(result["scenes"]) <= 5
-    assert len(result["scenes"]) == 4
+    assert 2 <= len(result.scenes) <= 5
+    assert len(result.scenes) == 4

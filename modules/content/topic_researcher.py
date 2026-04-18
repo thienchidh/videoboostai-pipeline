@@ -118,8 +118,8 @@ class TopicResearcher:
     def _is_good_keyword(self, word: str) -> bool:
         """Return True if word is a meaningful keyword (not stopword or garbage)."""
         w = word.lower().strip(".,!?;:'\"()[]{}")
-        # Must be > 5 chars
-        if len(w) <= 5:
+        # Must be >= 5 chars
+        if len(w) < 5:
             return False
         # No digits
         if any(c.isdigit() for c in w):

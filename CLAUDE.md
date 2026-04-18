@@ -143,6 +143,24 @@ Run with `INFO` level to see payloads: `logging.basicConfig(level=logging.INFO)`
 | WaveSpeed | `https://api.wavespeed.ai` | Bearer token |
 | YouSearch | `https://ydc-index.io/v1/search` | X-API-Key header |
 
+## Code Rules
+
+### No getattr/setattr for class attributes
+
+**Rule: Use direct property access. No `getattr()` or `setattr()` for reading/writing class instance attributes.**
+
+- ✅ `obj.field` or `obj.field = value`
+- ✅ `obj.field if hasattr(obj, 'field') else default` for optional fields
+- ❌ `getattr(obj, 'field', default)` — banned for class attribute access
+- ❌ `setattr(obj, 'field', value)` — banned for class attribute writing
+
+**Allowed exceptions:**
+- `object.__setattr__` in tests — required for Pydantic frozen models
+- `getattr(type(obj), name)` — accessing class-level (not instance) attributes
+- Standard library patterns: `getattr(logging, level_str)` for logging setup
+
+**Why:** Direct properties are more readable, IDE-friendly (autocomplete, type checking), and catch typos at development time rather than runtime.
+
 ## Testing
 
 Tests use pytest fixtures and mock providers. Key test files:

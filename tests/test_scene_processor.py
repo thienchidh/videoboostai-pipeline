@@ -44,6 +44,7 @@ def make_mock_channel(characters=None, tts_config=None, image_style=None, voices
     mock_channel.image_style = img_style
     mock_channel.voices = voices or []
     mock_channel.video = VideoSettings(aspect_ratio="9:16", resolution="480p")
+    mock_channel.style = ''
 
     # Channel generation config
     mock_channel_generation = MagicMock()

@@ -84,7 +84,7 @@ class ContentIdeaGenerator:
 
     def generate_script_from_idea(self, idea: Dict, num_scenes: int = 3) -> ScriptOutput:
         """
-        Generate scene scripts from a content idea.
+        Generate prose script from a content idea.
         Returns ScriptOutput Pydantic model (not Dict) for direct attribute access.
         """
         title = idea.get("title", "")
@@ -94,8 +94,8 @@ class ContentIdeaGenerator:
 
         # Step 1: generate video_message (never null)
         video_message = self._generate_video_message(title, keywords, angle, description)
-        # Step 2: generate scenes using video_message as mandatory context
-        scenes, _ = self._generate_scenes(title, keywords, angle, description, num_scenes, video_message)
+        # Step 2: generate prose script using video_message as mandatory context
+        script, _ = self._generate_prose(title, keywords, angle, description, video_message)
 
         # Read from validated ChannelConfig — no hardcoded fallbacks
         if not self._channel_config:
@@ -107,7 +107,7 @@ class ContentIdeaGenerator:
             title=title,
             content_angle=angle,
             keywords=keywords,
-            scenes=scenes,  # List[SceneConfig] - direct Pydantic objects
+            script=script,  # Prose script string
             video_message=video_message,
             watermark=watermark,
             style=style,
@@ -182,6 +182,55 @@ class ContentIdeaGenerator:
                     scene.tts = regenerated
 
         return scenes, video_message
+
+    def _generate_prose(self, title: str, keywords: List[str], angle: str,
+                        description: str, video_message: str) -> Tuple[str, Optional[str]]:
+        """Generate prose script using LLM provider with exponential backoff retry.
+
+        Returns tuple of (prose_script, video_message).
+        The video_message is extracted from LLM response if present.
+        """
+        from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
+
+        from modules.pipeline.models import TechnicalConfig
+
+        # Resolve api_key — from technical_config if not provided via GenerationLLM (it doesn't have api_key)
+        if not self._llm or not self._llm.model:
+            raise ConfigMissingKeyError("generation.llm.model", "ContentIdeaGenerator")
+        tech_cfg = self._technical_config if self._technical_config else TechnicalConfig.load()
+        api_key = tech_cfg.api_keys.minimax
+        if not api_key:
+            raise RuntimeError("minimax API key not found in config")
+
+        llm = get_llm_provider(
+            name=self._llm.provider if self._llm else "minimax",
+            api_key=api_key,
+            model=self._llm.model if self._llm else "MiniMax-M2.7",
+        )
+        prompt = self._build_prose_prompt(title, keywords, angle, description)
+
+        @retry(
+            stop=stop_after_attempt(self._llm.retry_attempts if self._llm else 3),
+            wait=wait_exponential(multiplier=1, min=1, max=self._llm.retry_backoff_max if self._llm else 10),
+            before_sleep=before_sleep_log(logger, logging.WARNING),
+            reraise=True,
+        )
+        def _call_llm():
+            raw_text = llm.chat(prompt, max_tokens=8192)
+            # Extract video_message if present in response
+            extracted_vm = self._extract_video_message(raw_text)
+            prose = self._parse_prose(raw_text)
+            if not prose or len(prose.strip()) < 20:
+                logger.warning(f"  LLM returned invalid prose format. Raw response (first 500 chars): {raw_text[:500]}")
+                raise ValueError("Invalid prose format")
+            return prose, extracted_vm
+
+        prose, extracted_vm = _call_llm()
+        # Use extracted video_message if available, otherwise keep the original
+        final_vm = extracted_vm if extracted_vm else video_message
+        logger.info(f"Generated prose script ({len(prose)} chars) from LLM")
+
+        return prose, final_vm
 
     def _build_scene_prompt(self, title: str, keywords: List[str], angle: str,
                              description: str, num_scenes: int,
@@ -323,7 +372,73 @@ CREATIVE_BRIEF REQUIREMENTS:
   ]
 }}
 
-CHỈ JSON object có "scenes" array, không markdown, không thêm field nào khác."""
+CHỉ JSON object có "scenes" array, không markdown, không thêm field nào khác."""
+
+    def _build_prose_prompt(self, title: str, keywords: List[str],
+                            angle: str, description: str) -> str:
+        """Build prompt for generating prose storytelling script.
+
+        Output format: single prose script with:
+        - Hook: provocative question/story opener (first line)
+        - Body: 2-3 tips/techniques with 📌 markers
+        - CTA: direct call-to-action ending
+        - Personal tone: "Mình từng", "bạn cũng nên"
+        - Emoji markers: 📌🔔💪
+        """
+        if not self._channel_config:
+            raise ValueError("channel_config is required")
+
+        cfg = self._channel_config
+        kw_list_str = ", ".join(keywords) if keywords else ""
+
+        desc_line = f"NỘI DUNG THAM KHẢO:\n{description[:800]}\n" if description else ""
+        kw_line = f"Từ khóa: {kw_list_str}\n" if kw_list_str else ""
+
+        return f"""Bạn là chuyên gia sản xuất video viral cho kênh Facebook "{cfg.name}".
+Viết kịch bản video dạng PROSE STORYTELLING — không phải scene-based.
+
+{desc_line}{kw_line}
+Phong cách nội dung: {angle}
+
+PHONG CÁCH KÊNH (brand tone):
+{cfg.style}
+
+YÊU CẦU VIẾT KỊCH BẢN:
+1. HOOK (mở đầu): Câu hỏi hoặc provocative statement gây tò mò.
+   - Personal tone: "Mình từng...", "Đã bao giờ bạn..."
+   - Có thể dùng emoji tâm trạng: 🤔💭
+
+2. BODY (2-3 tips/techniques):
+   - Mỗi tip bắt đầu bằng 📌 (VD: 📌 Phương pháp 1: ...)
+   - Số liệu CỤ THỂ: "90 phút", "40%", "2 phút"
+   - Không generic — phải có con số thực tế
+
+3. CTA (kết thúc):
+   - Direct call-to-action: "bạn cũng nên thử!"
+   - Có thể dùng 💪🔔
+
+CẤU TRÚC:
+- Độ dài: 80-120 từ tiếng Việt (~25-35 giây TTS)
+- KHÔNG dùng cấu trúc scene/scene_type/scene_id
+- Dùng emoji markers: 📌 (tip), 🔔 (CTA), 💪 (closing)
+- Giọng: personal, conversational, như đang kể chuyện với bạn bè
+
+VÍ DỤ FORMAT TỐT:
+---
+Đã bao giờ bạn cảm thấy một ngày có quá ít giờ để hoàn thành hết mọi việc? 🤔
+Mình từng rất nhiều lần như vậy — danh sách công việc dài mãi không hết, deadline chồng chất...
+Nhưng rồi mình tìm được 3 phương pháp cực kỳ đơn giản mà người thành công trên thế giới đều dùng.
+📌 Phương pháp 1: Time Blocking
+Chia ngày thành các khối 90 phút, mỗi khối chỉ tập trung 1 việc DUY NHẤT.
+📌 Phương pháp 2: Quy tắc 2 phút
+Việc dưới 2 phút → làm NGAY, không để vào danh sách.
+📌 Phương pháp 3: Tắt thông báo
+Mỗi lần kiểm tra điện thoại mất 23 phút để lấy lại tập trung.
+Mình đã thử và thấy nó thay đổi hoàn toàn cách làm việc. Bạn cũng nên thử! 💪
+🔔 Follow @NangSuatThongMinh để xem thêm tips năng suất!
+---
+
+CHỉ output kịch bản prose, không có JSON, không có scene_id, không có mở đầu kiểu "Kịch bản:"."""
 
     def _build_video_message_prompt(self, title: str, keywords: List[str],
                                      angle: str, description: str) -> str:
@@ -409,6 +524,29 @@ CHỈ JSON, không markdown, KHÔNG THÊM GÌ KHÁC."""
                 except json.JSONDecodeError:
                     pass
         return []
+
+    def _parse_prose(self, text: str) -> str:
+        """Parse prose script from LLM response.
+
+        Strips markdown code fences and any non-prose content.
+        Returns clean prose script string.
+        """
+        text = text.strip()
+        # Strip markdown code fences
+        text = re.sub(r'^```(?:json)?\s*', '', text, flags=re.MULTILINE)
+        text = re.sub(r'\s*```$', '', text)
+        # Strip any scene_id or scene markers
+        text = re.sub(r'scene\s*\d+.*?(?=\n|$)', '', text, flags=re.IGNORECASE)
+        # Strip any JSON-like field prefixes
+        text = re.sub(r'^\s*"[^"]+"\s*:.*?\n', '', text, flags=re.MULTILINE)
+        # Strip leading/trailing whitespace per line
+        lines = [line.strip() for line in text.split('\n')]
+        # Remove empty lines at start/end
+        while lines and not lines[0]:
+            lines.pop(0)
+        while lines and not lines[-1]:
+            lines.pop()
+        return '\n'.join(lines)
 
     def _extract_video_message(self, raw_text: str) -> Optional[str]:
         """Extract video_message from raw LLM JSON response."""

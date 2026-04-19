@@ -32,7 +32,156 @@ from modules.pipeline.models import SceneConfig, CharacterConfig, VoiceConfig, V
 from modules.pipeline.exceptions import SceneDurationError
 from modules.media.prompt_builder import PromptBuilder
 from modules.media.tts import get_whisper_timestamps
+from modules.pipeline.models import ProseSegment
 
+
+class ProseSegmenter:
+    """Split a prose script into logical segments for video processing.
+
+    Segment boundaries detected by:
+    - Paragraph breaks (\\n\\n)
+    - Emoji markers: 📌 (tip), 🔔 (CTA), 💪 (closing)
+    - Keyword patterns: Phương pháp 1/2/3, Tip 1/2/3
+    """
+    TIP_MARKERS = ["📌", "🔔", "💪"]
+    TIP_PATTERNS = [r"phương pháp\s*\d+", r"tip\s*\d+", r"cách\s*\d+"]
+    CTA_MARKERS = ["💪", "🔔"]
+
+    @classmethod
+    def split(cls, prose: str) -> List[ProseSegment]:
+        """Split prose into ProseSegment list."""
+        if not prose or not prose.strip():
+            return []
+
+        # Split by paragraph breaks first
+        raw_segments = prose.split("\n\n")
+
+        segments = []
+        for i, text in enumerate(raw_segments):
+            text = text.strip()
+            if not text:
+                continue
+            segment_type = cls._detect_segment_type(text)
+            segments.append(ProseSegment(
+                index=i,
+                script=text,
+                segment_type=segment_type,
+            ))
+
+        # Secondary split: detect emoji/keyword markers within segments
+        final_segments = []
+        seg_idx = 0
+        for seg in segments:
+            sub_segments = cls._split_segment_by_markers(seg.script, seg.index, seg.segment_type)
+            for sub in sub_segments:
+                sub.index = seg_idx
+                final_segments.append(sub)
+                seg_idx += 1
+
+        # Merge very short segments (< 20 chars) with adjacent
+        final_segments = cls._merge_short_segments(final_segments)
+
+        return final_segments
+
+    @classmethod
+    def _split_segment_by_markers(cls, text: str, base_index: int, default_type: str) -> List[ProseSegment]:
+        """Split a segment further if it contains multiple marker patterns."""
+        import re
+        lines = text.split("\n")
+        parts = []
+        current_part = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            # Check if line starts with a tip/CTA marker
+            is_marker_line = False
+            for marker in cls.TIP_MARKERS:
+                if marker in line[:5]:
+                    is_marker_line = True
+                    break
+            # Also check for keyword patterns at start
+            starts_with_pattern = False
+            for pattern in cls.TIP_PATTERNS:
+                if re.match(pattern, line, re.IGNORECASE):
+                    starts_with_pattern = True
+                    break
+
+            if is_marker_line or starts_with_pattern:
+                if current_part:
+                    parts.append("\n".join(current_part))
+                    current_part = []
+                current_part.append(line)
+            else:
+                current_part.append(line)
+
+        if current_part:
+            parts.append("\n".join(current_part))
+
+        if len(parts) <= 1:
+            return [ProseSegment(index=base_index, script=text, segment_type=default_type)]
+
+        result = []
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+            seg_type = cls._detect_segment_type(part)
+            result.append(ProseSegment(index=base_index, script=part, segment_type=seg_type))
+        return result
+
+    @classmethod
+    def _detect_segment_type(cls, text: str) -> str:
+        """Detect segment type based on content markers."""
+        import re
+
+        # Check for CTA markers first
+        for marker in cls.CTA_MARKERS:
+            if marker in text:
+                return "cta"
+
+        # Check for tip markers
+        for marker in cls.TIP_MARKERS:
+            if marker in text:
+                # Check if it's the opening (hook) segment
+                if "?" in text or "🤔" in text or "đã bao giờ" in text.lower():
+                    return "hook"
+                return "body"
+
+        # Check for keyword patterns
+        for pattern in cls.TIP_PATTERNS:
+            if re.search(pattern, text, re.IGNORECASE):
+                return "body"
+
+        # Check if it's an opening question/hook
+        if "?" in text or "🤔" in text or "đã bao giờ" in text.lower() or "bạn có" in text.lower():
+            return "hook"
+
+        return "body"
+
+    @classmethod
+    def _merge_short_segments(cls, segments: List[ProseSegment]) -> List[ProseSegment]:
+        """Merge very short segments (< 20 chars) with adjacent segments."""
+        if not segments:
+            return segments
+
+        result = [segments[0]]
+
+        for seg in segments[1:]:
+            if len(seg.script.strip()) < 20 and result:
+                # Merge with previous
+                last = result[-1]
+                merged_script = last.script + "\n" + seg.script
+                result[-1] = ProseSegment(
+                    index=last.index,
+                    script=merged_script.strip(),
+                    segment_type=last.segment_type,
+                )
+            else:
+                result.append(seg)
+
+        return result
 
 
 class SceneProcessor:

@@ -430,20 +430,39 @@ class SceneConfig(BaseModel):
 
 
 class ScenarioConfig(BaseModel):
-    """Scenes and title from scenario YAML files."""
-    scenes: List[SceneConfig]
+    """Scenes and title from scenario YAML files.
+
+    Supports both scene-based (legacy) and prose (new) formats.
+    """
+    scenes: List[SceneConfig] = []  # scene-based format
     title: str = ""
     slug: Optional[str] = None
     video_message: Optional[str] = None
+    script: Optional[str] = None  # prose format (replaces scenes)
 
     @classmethod
     def load(cls, path: str | Path) -> "ScenarioConfig":
         path = Path(path)
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
-        scenes = [SceneConfig.from_dict(s) for s in data.get("scenes", [])]
         slug = path.stem
-        instance = cls(scenes=scenes, title=data.get("title", ""), video_message=data.get("video_message"))
+        # Detect format: prose (has script key) vs scene-based (has scenes key)
+        if data.get("script") is not None:
+            # Prose format
+            instance = cls(
+                scenes=[],
+                title=data.get("title", ""),
+                video_message=data.get("video_message"),
+                script=data.get("script"),
+            )
+        else:
+            # Scene-based format (legacy)
+            scenes = [SceneConfig.from_dict(s) for s in data.get("scenes", [])]
+            instance = cls(
+                scenes=scenes,
+                title=data.get("title", ""),
+                video_message=data.get("video_message"),
+            )
         instance.slug = slug
         return instance
 

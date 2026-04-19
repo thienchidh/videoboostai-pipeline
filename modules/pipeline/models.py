@@ -463,6 +463,20 @@ class ScriptOutput(BaseModel):
     generated_at: Optional[str] = None
 
 
+class ProseSegment(BaseModel):
+    """A logical segment of a prose script.
+
+    Prose is split into segments based on paragraph breaks and markers.
+    Each segment becomes a "scene" in the video pipeline.
+    """
+    index: int  # 0-based position in script
+    script: str  # TTS text for this segment
+    segment_type: str = "body"  # hook | body | cta
+    tts_text: str = ""  # actual TTS output (populated after TTS generation)
+    image_prompt: Optional[str] = None
+    lipsync_prompt: Optional[str] = None
+
+
 class PagePlatformConfig(BaseModel):
     page_id: Optional[str] = None
     page_name: Optional[str] = None

@@ -582,10 +582,11 @@ class ContentPipeline:
         return results
 
     def _save_script_config(self, idea_id: int, script):
-        """Save scene script as YAML scenario file for video_pipeline.
+        """Save prose script as YAML scenario file for video_pipeline.
 
         Accepts both ScriptOutput (Pydantic) and Dict (from DB) for backwards compatibility.
         Output path: configs/channels/{channel_id}/scenarios/{slugified_title}.yaml
+        Output format: prose (script: | multiline string), not scenes array.
         """
         import re
         from unidecode import unidecode
@@ -593,11 +594,11 @@ class ContentPipeline:
         # Extract data - handle both Pydantic ScriptOutput and plain Dict
         if hasattr(script, 'title'):  # ScriptOutput Pydantic object
             title = script.title or f"idea_{idea_id}"
-            scenes = script.scenes
+            script_text = script.script  # Prose string
             video_message = script.video_message
         else:  # Dict (legacy or from DB)
             title = script.get("title") or f"idea_{idea_id}"
-            scenes = script.get("scenes", [])
+            script_text = script.get("script", "")
             video_message = script.get("video_message")
 
         # Slugify title: unidecode (VI→EN) + keep only a-z0-9 + limit length
@@ -606,24 +607,10 @@ class ContentPipeline:
         slug = re.sub(r'\s+', '-', slug.strip().lower())  # hyphen-separated lowercase
         slug = slug[:50].strip('-')  # limit length, remove trailing hyphens
 
-        # Convert SceneConfig objects to clean dicts (strip None recursively) for YAML
-        def _clean(obj):
-            """Recursively strip None values from dicts and lists."""
-            if isinstance(obj, dict):
-                return {k: _clean(v) for k, v in obj.items() if v is not None}
-            if isinstance(obj, list):
-                return [_clean(item) for item in obj if item is not None]
-            return obj
-        scenes_dicts = []
-        for s in scenes:
-            if hasattr(s, 'model_dump'):  # SceneConfig Pydantic object
-                scenes_dicts.append(_clean(s.model_dump()))
-            else:  # plain dict
-                scenes_dicts.append(_clean(s))
         scenario_data = {
             "title": title,
             "video_message": video_message,
-            "scenes": scenes_dicts,
+            "script": script_text,
         }
 
         # Ensure directory exists

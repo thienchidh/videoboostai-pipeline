@@ -365,13 +365,21 @@ class VideoPipelineRunner:
                     raise ValueError("Could not split prose script into segments")
                 # Convert ProseSegment to minimal scene-like objects
                 from modules.pipeline.models import SceneConfig, SceneCharacter
+                # Use first available character from channel config
+                if self.ctx.channel and self.ctx.channel.characters:
+                    first_char = self.ctx.channel.characters[0]
+                    char_name = first_char.name
+                    char_gender = first_char.gender or "female"
+                else:
+                    char_name = "mentor"
+                    char_gender = "female"
                 scenes = []
                 for seg in prose_segments:
                     scene = SceneConfig(
                         id=seg.index,
                         tts=seg.tts_text or seg.script,
                         script=seg.script,
-                        characters=[SceneCharacter(name="mentor", gender="female")],
+                        characters=[SceneCharacter(name=char_name, gender=char_gender)],
                     )
                     scenes.append(scene)
                 log(f"📋 Prose script split into {len(scenes)} segments")

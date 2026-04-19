@@ -425,7 +425,7 @@ def test_generate_video_message_raises_on_empty():
 
 
 def test_scene_1_is_hook_with_partial_answer():
-    """Scene 1 must have scene_type=='hook' and script implies (not just asks) answer."""
+    """Prose script must start with a hook that implies (not just asks) an answer."""
     import json
     from unittest.mock import MagicMock, patch
     from modules.content.content_idea_generator import ContentIdeaGenerator
@@ -444,30 +444,27 @@ def test_scene_1_is_hook_with_partial_answer():
     mock_llm = MagicMock()
     mock_llm.chat.side_effect = [
         json.dumps({"video_message": "90-phút tốt hơn Pomodoro"}),
-        json.dumps({
-            "scenes": [
-                {"id": 1, "script": "Olympic không dùng Pomodoro 25-phút — họ dùng 90-phút và HIỆU QUẢ HƠN 40%. Bạn đang dùng sai phương pháp?",
-                 "character": "NamMinh", "scene_type": "hook", "delivers": "hook with partial answer",
-                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
-                {"id": 2, "script": "Nguyên tắc: làm việc 90 phút tập trung rồi nghỉ 15-20 phút. Lặp 3-4 lần mỗi ngày.",
-                 "character": "NamMinh", "scene_type": "technique", "delivers": "90-min rule explained",
-                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
-            ]
-        }),
+        # Prose format: no scenes, just raw script text
+        """Olympic không dùng Pomodoro 25-phút — họ dùng 90-phút và HIỆU QUẢ HƠN 40%. Bạn đang dùng sai phương pháp?
+        Mình từng cũng nghĩ Pomodoro là tốt nhất cho đến khi tìm hiểu về cách athletes tập trung.
+        📌 Phương pháp 1: Time Blocking 90 phút
+        Làm việc 90 phút tập trung rồi nghỉ 15-20 phút. Mình đã thử và thấy hiệu quả! 💪""",
     ]
 
     with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
         result = gen.generate_script_from_idea({"title": "Title", "content_angle": "tips", "topic_keywords": []})
 
-    scenes = result.scenes
-    assert scenes[0].scene_type == "hook"
+    # Prose format: result.script is a string, not scenes
+    assert hasattr(result, 'script')
+    assert isinstance(result.script, str)
+    # Script must be non-empty
+    assert len(result.script) > 20
     # Script must imply an answer (contains "90-phút" as partial answer, not just a question mark)
-    assert "?" in scenes[0].script or "HIỆU QUẢ HƠN" in scenes[0].script
-    assert scenes[0].delivers is not None
+    assert "90-phút" in result.script or "HIỆU QUẢ HƠN" in result.script
 
 
 def test_final_scene_has_cta_or_summary():
-    """Last scene must have scene_type in [insight, technique, proof, cta]."""
+    """Prose script must contain CTA markers at the end."""
     import json
     from unittest.mock import MagicMock, patch
     from modules.content.content_idea_generator import ContentIdeaGenerator
@@ -486,23 +483,24 @@ def test_final_scene_has_cta_or_summary():
     mock_llm = MagicMock()
     mock_llm.chat.side_effect = [
         json.dumps({"video_message": "Test message"}),
-        json.dumps({
-            "scenes": [
-                {"id": 1, "script": "Hook scene", "character": "NamMinh",
-                 "scene_type": "hook", "delivers": "hook",
-                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
-                {"id": 2, "script": "Save lại và thử tuần này nhé!", "character": "NamMinh",
-                 "scene_type": "cta", "delivers": "save & try CTA",
-                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
-            ]
-        }),
+        # Prose format with CTA ending
+        """Olympic không dùng Pomodoro 25-phút — họ dùng 90-phút và HIỆU QUẢ HƠN 40%.
+        Mình từng cũng nghĩ Pomodoro là tốt nhất cho đến khi tìm hiểu về cách athletes tập trung.
+        📌 Phương pháp 1: Time Blocking 90 phút
+        📌 Phương pháp 2: Quy tắc 2 phút
+        Mình đã thử và thấy nó thay đổi hoàn toàn cách làm việc. Bạn cũng nên thử! 💪""",
     ]
 
     with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
         result = gen.generate_script_from_idea({"title": "Title", "content_angle": "tips", "topic_keywords": []})
 
-    scenes = result.scenes
-    assert scenes[-1].scene_type in ["insight", "technique", "proof", "cta"]
+    # Prose format: result.script is a string
+    assert hasattr(result, 'script')
+    assert isinstance(result.script, str)
+    # Script must end with CTA markers or closing phrase
+    cta_markers = ["bạn cũng nên", "thử ngay", "nên thử", "💪", "🔔", "Follow"]
+    assert any(marker.lower() in result.script.lower() for marker in cta_markers), \
+        f"Expected CTA marker in script ending, got: {result.script[-100:]}"
 
 
 def test_validate_scenes_captures_gender():
@@ -523,7 +521,7 @@ def test_validate_scenes_captures_gender():
 
 
 def test_scene_count_dynamic():
-    """LLM can return 2-5 scenes, not just exactly 3."""
+    """Prose script should have reasonable length (80-120 words expected for ~30s video)."""
     import json
     from unittest.mock import MagicMock, patch
     from modules.content.content_idea_generator import ContentIdeaGenerator
@@ -542,26 +540,23 @@ def test_scene_count_dynamic():
     mock_llm = MagicMock()
     mock_llm.chat.side_effect = [
         json.dumps({"video_message": "Test"}),
-        json.dumps({
-            "scenes": [
-                {"id": 1, "script": "Scene 1", "character": "NamMinh",
-                 "scene_type": "hook", "delivers": "h",
-                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
-                {"id": 2, "script": "Scene 2", "character": "NamMinh",
-                 "scene_type": "insight", "delivers": "i",
-                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
-                {"id": 3, "script": "Scene 3", "character": "NamMinh",
-                 "scene_type": "technique", "delivers": "t",
-                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
-                {"id": 4, "script": "Scene 4", "character": "NamMinh",
-                 "scene_type": "cta", "delivers": "c",
-                 "creative_brief": {}, "image_prompt": "...", "lipsync_prompt": "..."},
-            ]
-        }),
+        # Prose script with 4 tips - reasonable length
+        """Olympic không dùng Pomodoro 25-phút — họ dùng 90-phút và HIỆU QUẢ HƠN 40%.
+        Mình từng cũng nghĩ Pomodoro là tốt nhất cho đến khi tìm hiểu về cách athletes tập trung.
+        📌 Phương pháp 1: Time Blocking 90 phút
+        📌 Phương pháp 2: Quy tắc 2 phút
+        📌 Phương pháp 3: Tắt thông báo
+        Mình đã thử và thấy nó thay đổi hoàn toàn cách làm việc. Bạn cũng nên thử! 💪""",
     ]
 
     with patch("modules.content.content_idea_generator.get_llm_provider", return_value=mock_llm):
         result = gen.generate_script_from_idea({"title": "Title", "content_angle": "tips", "topic_keywords": []})
 
-    assert 2 <= len(result.scenes) <= 5
-    assert len(result.scenes) == 4
+    # Prose format: result.script is a string
+    assert hasattr(result, 'script')
+    assert isinstance(result.script, str)
+    # Script should have reasonable length (at least 50 words for a proper script)
+    word_count = len(result.script.split())
+    assert word_count >= 30, f"Script too short: {word_count} words"
+    # Should not be absurdly long either
+    assert word_count <= 200, f"Script too long: {word_count} words"

@@ -116,10 +116,14 @@ llm:
 social:
   facebook:
     page_name: "Năng Suất Thông Minh"
-    auto_publish: false
+    page_id: ""  # Facebook Page ID - lấy từ Graph API Explorer
+    access_token: ""  # Facebook Page Access Token - lấy từ Graph API Explorer
+    auto_publish: true
   tiktok:
     account_name: "@NangSuatThongMinh"
-    auto_publish: false
+    advertiser_id: ""  # TikTok Ad Account ID - lấy từ TikTok Business API
+    access_token: ""  # TikTok Marketing API Token
+    auto_publish: true
 
 # ===== TTS =====
 tts:

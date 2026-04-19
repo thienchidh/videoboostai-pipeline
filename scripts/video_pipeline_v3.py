@@ -195,19 +195,24 @@ class VideoPipelineV3:
                     wps=wps,
                 )
                 
-                # Find and update the scene in ctx.scenario.scenes
-                updated = False
-                for scene in self.ctx.scenario.scenes:
-                    if scene.id == e.scene_id:
-                        old_tts = scene.tts
-                        scene.tts = adjusted_script
-                        old_tts_preview = (old_tts[:50] + "...") if old_tts else "None"
-                        adjusted_preview = (adjusted_script[:50] + "...") if adjusted_script else "None"
-                        log(f"  🔄 Scene {e.scene_id} script updated: "
-                            f"'{old_tts_preview}' → '{adjusted_preview}'")
-                        updated = True
-                        break
-                
+                # Find and update the scene in ctx.scenario (works for both prose and scene-based)
+                if self.ctx.scenario.is_prose_format():
+                    # Prose format: use segment index = scene_id
+                    updated = self.ctx.scenario.update_segment_tts(e.scene_id, adjusted_script)
+                else:
+                    # Scene-based format: find by scene.id
+                    updated = False
+                    for scene in self.ctx.scenario.scenes:
+                        if scene.id == e.scene_id:
+                            old_tts = scene.tts
+                            scene.tts = adjusted_script
+                            old_tts_preview = (old_tts[:50] + "...") if old_tts else "None"
+                            adjusted_preview = (adjusted_script[:50] + "...") if adjusted_script else "None"
+                            log(f"  🔄 Scene {e.scene_id} script updated: "
+                                f"'{old_tts_preview}' → '{adjusted_preview}'")
+                            updated = True
+                            break
+
                 if not updated:
                     log(f"❌ Could not find scene {e.scene_id} in scenario")
                     raise

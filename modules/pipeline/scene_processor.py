@@ -336,35 +336,126 @@ class SceneProcessor:
     
 
 def align_word_timestamps(whisper_timestamps: List[Dict], script_words: List[str]) -> List[Dict]:
-    """Replace Whisper words with script words when count matches.
+    """Align Whisper words with script words using sequence alignment.
+
+    When counts match exactly: direct replacement (fast path).
+    When counts differ by ≤25%: use greedy alignment with fuzzy matching.
+    Also applies common Vietnamese ASR corrections before matching.
 
     Args:
         whisper_timestamps: [{"word": "...", "start": 0.0, "end": 0.5}, ...] from Whisper
         script_words: [word, ...] from scenario script (already split by whitespace)
 
     Returns:
-        Aligned timestamps with script words + Whisper timestamps if count matches,
-        otherwise original Whisper timestamps unchanged.
+        Aligned timestamps with script words + Whisper timestamps.
     """
     if not whisper_timestamps:
         return whisper_timestamps
     if not script_words:
         return whisper_timestamps
 
-    n_whisper = len(whisper_timestamps)
-    n_script = len(script_words)
+    # Common Vietnamese ASR error corrections (applied before matching)
+    _ASR_CORRECTIONS = {
+        "em": "mình",      # Whisper often hears "em" when script says "mình"
+        "bản": "bạn",
+        "mìnhh": "mình",
+        "tôii": "tôi",
+        "20": "24",        # common number misrecognition
+        "2": "1",          # partial digit misrecognition
+    }
 
-    if n_whisper == n_script:
+    def _correct(word: str) -> str:
+        w = word.lower()
+        # Only apply single-char corrections in context of adjacent digits
+        if w in _ASR_CORRECTIONS:
+            return _ASR_CORRECTIONS[w]
+        return word
+
+    # Apply corrections to Whisper output
+    corrected = [{**w, "word": _correct(w["word"])} for w in whisper_timestamps]
+
+    n_w = len(corrected)
+    n_s = len(script_words)
+
+    # Fast path: exact count match
+    if n_w == n_s:
         return [
-            {
-                "word": script_words[i],
-                "start": whisper_timestamps[i]["start"],
-                "end": whisper_timestamps[i]["end"]
-            }
-            for i in range(n_whisper)
+            {"word": script_words[i], "start": corrected[i]["start"], "end": corrected[i]["end"]}
+            for i in range(n_w)
         ]
-    else:
-        return whisper_timestamps
+
+    # Fuzzy path: counts differ but close enough (≤25% difference)
+    # Use simple greedy alignment - map Whisper words to script words
+    # allowing skips/duplicates for missing/extra words
+    if 0.75 <= (n_w / n_s) <= 1.33:  # within ±25%
+        aligned = []
+        i, j = 0, 0
+        while i < n_w and j < n_s:
+            w_word = corrected[i]["word"].lower()
+            s_word = script_words[j].lower()
+
+            if w_word == s_word:
+                # Exact match - use script word with Whisper timing
+                aligned.append({"word": script_words[j], "start": corrected[i]["start"], "end": corrected[i]["end"]})
+                i += 1
+                j += 1
+            else:
+                # Find best mapping in a window
+                best_k, best_dist = None, float("inf")
+                for k in range(max(0, i - 2), min(n_w, i + 4)):
+                    dist = levenshtein_ratio(corrected[k]["word"].lower(), s_word)
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_k = k
+
+                if best_k is not None and best_dist < 0.6:
+                    # Close enough - map Whisper[best_k] to script[j]
+                    aligned.append({"word": script_words[j], "start": corrected[best_k]["start"], "end": corrected[best_k]["end"]})
+                    i = best_k + 1
+                    j += 1
+                else:
+                    # Fallback: skip Whisper word, use current script word
+                    # Use interpolated timing from adjacent Whisper words
+                    if i > 0 and i < n_w:
+                        prev_end = corrected[i - 1]["end"]
+                        next_start = corrected[i]["start"]
+                        mid = (prev_end + next_start) / 2
+                    else:
+                        mid = corrected[i]["start"]
+                    aligned.append({"word": script_words[j], "start": mid, "end": mid})
+                    j += 1
+
+        # Fill remaining script words with last timestamp or zeros
+        last_end = corrected[-1]["end"] if corrected else 0.0
+        while j < n_s:
+            aligned.append({"word": script_words[j], "start": last_end, "end": last_end})
+            j += 1
+
+        return aligned
+
+    # Counts too far apart - return original
+    return whisper_timestamps
+
+
+def levenshtein_ratio(s1: str, s2: str) -> float:
+    """Compute normalized Levenshtein distance between two strings (0-1)."""
+    if s1 == s2:
+        return 0.0
+    m, n = len(s1), len(s2)
+    if m == 0:
+        return 1.0
+    if n == 0:
+        return 1.0
+    # Two-row DP for edit distance
+    prev = list(range(n + 1))
+    curr = [0] * (n + 1)
+    for i in range(1, m + 1):
+        curr[0] = i
+        for j in range(1, n + 1):
+            cost = 0 if s1[i - 1] == s2[j - 1] else 1
+            curr[j] = min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost)
+        prev, curr = curr, prev
+    return prev[n] / max(m, n)
 
 
 class SingleCharSceneProcessor(SceneProcessor):

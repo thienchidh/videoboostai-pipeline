@@ -466,6 +466,43 @@ class ScenarioConfig(BaseModel):
         instance.slug = slug
         return instance
 
+    def update_segment_tts(self, segment_index: int, new_tts: str) -> bool:
+        """Update TTS for a prose segment at segment_index.
+
+        For prose format: replaces segment in self.script and in matching scene.
+        For scene-based format: falls back to updating scene by id.
+
+        Returns True if updated, False if segment_index out of range.
+        """
+        if not self.script and not self.scenes:
+            return False
+
+        # Prose format: update script and corresponding scene
+        if self.script and not self.scenes:
+            segments = self.script.split("\n\n")
+            if segment_index < 0 or segment_index >= len(segments):
+                return False
+            segments[segment_index] = new_tts
+            self.script = "\n\n".join(segments)
+
+            # Also update the scene object that matches this segment index
+            for scene in self.scenes:
+                if scene.id == segment_index:
+                    scene.tts = new_tts
+                    break
+            return True
+
+        # Scene-based format: find scene by id
+        for scene in self.scenes:
+            if scene.id == segment_index:
+                scene.tts = new_tts
+                return True
+        return False
+
+    def is_prose_format(self) -> bool:
+        """Return True if this is a prose-format scenario (script but no scenes)."""
+        return self.script is not None and not self.scenes
+
 
 class ScriptOutput(BaseModel):
     """Output từ content_idea_generator.generate_script_from_idea().

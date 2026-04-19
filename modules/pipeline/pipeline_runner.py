@@ -351,6 +351,33 @@ class VideoPipelineRunner:
             if stale_count > 0:
                 log(f"  🧹 Cleaned up {stale_count} stale in_progress runs")
 
+            # Load scenes (scene-based or prose format)
+            scenes = self.ctx.scenario.scenes
+            prose_segments = []
+            if not scenes:
+                # Prose format: split script into segments
+                prose_script = getattr(self.ctx.scenario, 'script', None) or ""
+                if not prose_script:
+                    raise ValueError("Scenario has no scenes and no script — at least one is required")
+                from modules.pipeline.scene_processor import ProseSegmenter
+                prose_segments = ProseSegmenter.split(prose_script)
+                if not prose_segments:
+                    raise ValueError("Could not split prose script into segments")
+                # Convert ProseSegment to minimal scene-like objects
+                from modules.pipeline.models import SceneConfig, SceneCharacter
+                scenes = []
+                for seg in prose_segments:
+                    scene = SceneConfig(
+                        id=seg.index,
+                        tts=seg.tts_text or seg.script,
+                        script=seg.script,
+                        characters=[SceneCharacter(name="mentor", gender="female")],
+                    )
+                    scenes.append(scene)
+                log(f"📋 Prose script split into {len(scenes)} segments")
+            else:
+                log(f"📋 {len(scenes)} scenes loaded (scene-based format)")
+
             # Write run_meta.json at start
             run_meta_path = self.run_dir / "run_meta.json"
             if not run_meta_path.exists():
@@ -361,7 +388,8 @@ class VideoPipelineRunner:
                     "channel_id": self.ctx.channel_id,
                     "scenario_slug": self.ctx.scenario.slug if self.ctx.scenario else '',
                     "scenario_title": self.ctx.scenario.title if self.ctx.scenario else '',
-                    "total_scenes": len(self.ctx.scenario.scenes) if self.ctx.scenario else 0,
+                    "total_scenes": len(scenes),
+                    "total_segments": len(prose_segments),
                     "started_at": datetime.now(timezone.utc).isoformat(),
                     "completed_at": None,
                     "config_snapshot": {
@@ -389,11 +417,6 @@ class VideoPipelineRunner:
                 with open(run_meta_path, "w", encoding="utf-8") as f:
                     json.dump(run_meta, f, ensure_ascii=False, indent=2)
                 log(f"  📝 run_meta.json written")
-
-            scenes = self.ctx.scenario.scenes
-            if not scenes:
-                raise ValueError("Scenario has no scenes — at least one scene is required")
-            log(f"📋 {len(scenes)} scenes loaded")
 
             if force_start:
                 log(f"🆕 Clearing previous scene cache...")

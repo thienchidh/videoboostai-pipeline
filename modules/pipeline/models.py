@@ -454,7 +454,7 @@ class ScriptOutput(BaseModel):
     Dùng Pydantic model thay vì Dict để có direct attribute access.
     """
     title: str
-    scenes: List[SceneConfig]
+    script: str
     video_message: str
     content_angle: str = "tips"
     keywords: List[str] = []

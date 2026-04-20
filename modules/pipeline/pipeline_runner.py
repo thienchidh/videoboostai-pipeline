@@ -199,9 +199,10 @@ class VideoPipelineRunner:
 
     def _build_lipsync_provider(self):
         """Instantiate lipsync provider via PluginRegistry."""
-        # Prefer channel lipsync config, fall back to technical
-        if self.ctx.channel and self.ctx.channel.lipsync:
-            lipsync_name = self.ctx.channel.lipsync.provider
+        # Prefer channel generation.lipsync config, fall back to technical
+        if (self.ctx.channel and self.ctx.channel.generation and
+                self.ctx.channel.generation.lipsync):
+            lipsync_name = self.ctx.channel.generation.lipsync.provider
         elif self.ctx.technical and self.ctx.technical.generation and self.ctx.technical.generation.lipsync:
             lipsync_name = self.ctx.technical.generation.lipsync.provider
         else:

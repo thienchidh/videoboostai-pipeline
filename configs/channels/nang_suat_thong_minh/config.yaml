@@ -55,6 +55,7 @@ generation:
     image: "kieai"  # primary: Kie Z Image; falls back to minimax on failure
     video: "kieai"
   lipsync:
+    provider: "kieai"
     prompt: "A person talking"
     resolution: "480p"
   tts:

@@ -93,18 +93,6 @@ image_style:
   environment: "modern office"
   composition: "professional"
 
-# ===== DEFAULT MODELS =====
-default_models:
-  tts: "edge"
-  image: "minimax"
-  video: "kieai"
-
-# ===== LIPSYNC =====
-lipsync:
-  provider: "kieai"
-  resolution: "480p"
-  max_wait: 300
-
 # ===== LLM =====
 llm:
   provider: "minimax"
@@ -123,11 +111,6 @@ social:
     advertiser_id: ""  # TikTok Ad Account ID - lấy từ TikTok Business API
     access_token: ""  # TikTok Marketing API Token
     auto_publish: true
-
-# ===== TTS =====
-tts:
-  max_duration: 15.0
-  min_duration: 5.0
 
 # ===== CONTENT RESEARCH =====
 research:

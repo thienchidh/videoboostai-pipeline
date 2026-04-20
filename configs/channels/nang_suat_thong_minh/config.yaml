@@ -57,7 +57,6 @@ generation:
   lipsync:
     prompt: "A person talking"
     resolution: "480p"
-    max_wait: 300
   tts:
     max_duration: 15.0
     min_duration: 5.0

@@ -126,6 +126,36 @@ def test_caption_generator_retries_once_on_json_parse_error():
     assert cap.headline == "🔥 Test"
 
 
+def test_caption_generator_retries_once_on_missing_field():
+    """First attempt missing thought_process -> retry once, second attempt succeeds."""
+    mock_llm = MagicMock()
+    # Lần 1: missing thought_process
+    # Lần 2: complete valid JSON
+    mock_llm.chat.side_effect = [
+        json.dumps({
+            "insight": "Insight mạnh",
+            "headline": "🔥 Test",
+            "body": "Body",
+            "cta": "CTA",
+            "hashtags": ["#a", "#b", "#c", "#d", "#e"],
+        }),
+        json.dumps({
+            "thought_process": "Phân tích script",
+            "insight": "Insight mạnh",
+            "headline": "🔥 Test",
+            "body": "Body",
+            "cta": "CTA",
+            "hashtags": ["#a", "#b", "#c", "#d", "#e"],
+        }),
+    ]
+
+    gen = CaptionGenerator(llm_provider=mock_llm)
+    cap = gen.generate("test script", platform="tiktok")
+
+    assert mock_llm.chat.call_count == 2
+    assert cap.thought_process == "Phân tích script"
+
+
 def test_caption_generator_fails_after_exhausted_retries():
     """Both attempts fail -> CaptionGenerationError with last error."""
     mock_llm = MagicMock()

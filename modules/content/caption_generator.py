@@ -233,11 +233,11 @@ class CaptionGenerator:
                 )
 
             except CaptionGenerationError as e:
-                # json_parse_error or missing_field from our validation -> retry once
-                if attempt == 0 and e.reason == "json_parse_error":
+                # json_parse_error or any missing_field -> retry once
+                if attempt == 0 and (e.reason == "json_parse_error" or e.reason.startswith("missing_field")):
                     last_error = e.original_error
                     continue  # Retry
-                raise  # Already retried or not json_parse_error, re-raise
+                raise  # Already retried or not retryable, re-raise
             except Exception as e:
                 last_error = e
                 continue  # Retry

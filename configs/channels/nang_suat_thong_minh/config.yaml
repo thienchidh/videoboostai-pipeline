@@ -52,7 +52,7 @@ fonts:
 generation:
   models:
     tts: "edge"
-    image: "kieai"  # primary: Kie Z Image; falls back to minimax on failure
+    image: "minimax"  # primary: MiniMax Image; falls back to kie on failure
     video: "kieai"
   lipsync:
     provider: "kieai"

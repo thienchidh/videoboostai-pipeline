@@ -331,7 +331,12 @@ class SceneProcessor:
         return "A person talking"
 
     def get_tts_config(self):
-        return self.ctx.channel.tts
+        if self.ctx.channel.tts is not None:
+            return self.ctx.channel.tts
+        # Fallback: use technical.generation.tts (has max_duration/min_duration)
+        if self.ctx.technical and self.ctx.technical.generation:
+            return self.ctx.technical.generation.tts
+        return None
 
     
 
